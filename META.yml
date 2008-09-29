@@ -1,0 +1,18 @@
+--- #YAML:1.0
+name:                Provision-Unix
+version:             0.27
+abstract:            provision accounts on unix systems
+license:             ~
+author:              
+    - Matt Simerson <matt@tnpi.net>
+generated_by:        ExtUtils::MakeMaker version 6.44
+distribution_type:   module
+requires:     
+    Apache::Admin::Config:         0.9
+    Config::Std:                   0
+    NicTool:                       0
+    Params::Validate:              0.8
+    Test::More:                    0
+meta-spec:
+    url:     http://module-build.sourceforge.net/META-spec-v1.3.html
+    version: 1.3

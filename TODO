@@ -1,0 +1,56 @@
+
+Every module in the Provision::Unix package adheres to the following guidelines: 
+
+ 1. Where possible, specific implementations are generalized into a generic classes. For example, DNS can be provisioned onto a number of different DNS servers. Each server has unique methods to add, modify, or remove DNS objects (zones, zone records, etc). Rather than coding Provision::Unix::DNS to a specific implementation, it is coded as a generic class. DNS operations are requested of the generic class. Based on the chosen DNS server, as configured in provision.conf, the generic class will dispatch the request to the appropriate subclass. If BIND was selected in the config file, the DNS class would dispatch requests to Provision::Unix::DNS::BIND.
+
+2. Applications (including those distributed in this package) should never call the implementation specific modules.  So long as they abide by this rule, they can be assured of a stable interface. 
+
+3. Each generic class should have a command line application in bin/ that provides an interface to the functionality in the modules. In the case of Provision::Unix::DNS, the command line application would be named bin/prov_dns.pl.
+
+4. Every class must have a corresponding suite of tests in t.
+
+
+Provision/Unix/DNS/BIND.pm
+  - needs to be authored
+Provision/Unix/DNS/NicTool.pm
+  - needs to be authored
+Provision/Unix/DNS/tinydns.pm
+  - needs to be authored
+Provision/Unix/DNS.pm
+  - needs to be authored
+Provision/Unix/Mail/Qmail.pm
+  - needs to be authored
+Provision/Unix/Mail/Sendmail.pm
+  - needs to be authored
+Provision/Unix/Mail/Vpopmail.pm
+  - needs to be authored
+Provision/Unix/Mail/Zimbra.pm
+  - needs to be authored
+Provision/Unix/Mail.pm
+  - needs to be authored
+Provision/Unix/User.pm
+  - finish & test quota support
+Provision/Unix/User/Darwin.pm
+  - set passwords for newly created accounts
+Provision/Unix/User/FreeBSD.pm
+  - needs to be validated and cleaned up
+Provision/Unix/User/Linux.pm
+  - needs to be authored
+Provision/Unix/Utility.pm
+Provision/Unix/VirtualOS/FreeBSD/Jail.pm
+  - needs to be authored
+Provision/Unix/VirtualOS/Linux/OpenVZ.pm
+  - needs to be authored
+Provision/Unix/VirtualOS/Linux/Xen.pm
+  - needs to be authored
+Provision/Unix/VirtualOS/Solaris/Container.pm
+  - needs to be authored
+Provision/Unix/VirtualOS.pm
+  - needs to be authored
+Provision/Unix/Web/Apache.pm
+  - needs to be authored
+Provision/Unix/Web/Lighttpd.pm
+  - needs to be authored
+Provision/Unix/Web.pm
+  - needs to be authored
+Provision/Unix.pm

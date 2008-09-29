@@ -1,0 +1,7 @@
+Revision history for Provision-Unix
+
+0.02    
+
+0.01    Jun 28, 2008
+        Imported provision related functions
+        wrote a new terminal based status bar for providing interactive feedback
