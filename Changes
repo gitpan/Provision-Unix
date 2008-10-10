@@ -1,6 +1,13 @@
 Revision history for Provision-Unix
 
-0.02    
+0.28
+        reworked guts of user creation modules
+        altered t/utility.t so tests will pass on systems w/o sudo installed
+        tests pass for user/group. create/destroy works on Darwin & FreeBSD
+
+
+0.27    Sep 28, 2008
+        Initial release on CPAN
 
 0.01    Jun 28, 2008
         Imported provision related functions

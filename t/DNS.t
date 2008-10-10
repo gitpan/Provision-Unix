@@ -47,7 +47,7 @@ if ( $server eq 'tinydns' ) {
     if ( !-d $service_dir ) {
         warn
             "tinydns service dir missing ($service_dir). Skipping DNS tests\n";
-        exit 0;
+        exit;
     }
 
     if ( !-d "$service_dir/root/data" ) {
@@ -57,8 +57,10 @@ if ( $server eq 'tinydns' ) {
     my $util = Provision::Unix::Utility->new( prov => $prov );
     my $tdata
         = $util->find_bin( bin => 'tinydns-data', fatal => 0, debug => 0 );
-    if ( !-x $tdata ) {
-        $prov->error( message => 'djbdns is not installed' );
+    if ( ! $tdata || !-x $tdata ) {
+        #$prov->error( message => 'djbdns is not installed' );
+        diag( 'tinydns is selected but djbdns is not installed!');
+        exit;
     }
 }
 

@@ -3,7 +3,7 @@ package Provision::Unix::User::FreeBSD;
 use warnings;
 use strict;
 
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 
 use English qw( -no_match_vars );
 use Carp;
@@ -65,7 +65,7 @@ sub create {
     );
 
     my $debug = $p{'debug'};
-    print "OS is FreeBSD..." if $debug;
+    $prov->audit("creating FreeBSD user");
 
     my $username = $p{'username'};
     my $shell    = $p{'shell'} || "/sbin/nologin";
@@ -97,11 +97,11 @@ sub create {
     $pwcmd .= "-s $shell ";
     $pwcmd .= "-m ";
 
-    print "\npw command is: \n$pwcmd\n" if $debug;
+    $prov->audit("pw command is: $pwcmd");
     return 1 if $p{test_mode};
 
     if ( $p{password} ) {
-        print "\npw command is: \n$pwcmd -h 0 (****)\n" if $debug;
+        $prov->audit("pw command is: $pwcmd -h 0 (****)");
 
         ## no critic
         my $FH;
@@ -114,7 +114,7 @@ sub create {
         ## use critic
     }
     else {
-        print "\npw command is: \n$pwcmd -h-\n" if $debug;
+        $prov->audit( "pw command is: $pwcmd -h-");
         $util->syscmd( cmd => "$pwcmd -h-", debug => 0 );
     }
 
@@ -122,7 +122,9 @@ sub create {
     # call verify_master_passwd
     # set up user quotas
 
-    return $user->exists($username);
+    $user->exists($username)
+        ? return $prov->progress( num=>10, desc=>'created successfully')
+        : return $prov->error( message=>'create user failed' );
 }
 
 sub create_group {
@@ -226,6 +228,7 @@ sub destroy_group {
     my %p = validate(   
         @_, 
         {   'group'     => { type => SCALAR, },
+            'gid'       => { type => SCALAR,  optional => 1 },
             'test_mode' => { type => BOOLEAN, optional => 1, default => 0 },
             'fatal'     => { type => SCALAR,  optional => 1, default => 1 },
             'debug'     => { type => SCALAR,  optional => 1, default => 1 },
@@ -405,6 +408,7 @@ returns a boolean.
 }
 
 
+1;
 
 =head1 NAME
 
@@ -412,7 +416,7 @@ Provision::Unix::User::FreeBSD - Provision Unix Accounts on FreeBSD systems
 
 =head1 VERSION
 
-Version 0.05
+Version 0.06
 
 =head1 SYNOPSIS
 
@@ -485,4 +489,3 @@ under the same terms as Perl itself.
 
 =cut
 
-1;

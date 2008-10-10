@@ -147,16 +147,16 @@ The Provision::Unix::DNS provides a consistent API for managing DNS zones and re
     use Provision::Unix::DNS;
 
     my $dns = Provision::Unix::DNS->new();
-    $dns->zone_create({ zone=>'example.com' });
+    $dns->zone_create( zone=>'example.com' );
 
-    $dns->zone_modify({ zone=>'example.com', hostmaster=>'dnsadmin@admin-zone.com' });
+    $dns->zone_modify( zone=>'example.com', hostmaster=>'dnsadmin@admin-zone.com' );
 
 
 =head1 DESCRIPTION
 
 Rather than write code to generate BIND zone files, tinydns data files, or API calls to various servers, write your application to use Provision::Unix::DNS instead. The higher level DNS class contains methods for each type of DNS task as well as error handling, rollback support, and logging. Based on the settings in your provision.conf file, your request will be dispatched to your DNS Server of choice.  Subclasses are created for each type of DNS server.
 
-Support will be included for NicTool via its native API. I will leave it to others (or myself in the unforeseen future) to write modules to interface with other DNS servers. Good candidates for modules are BIND, tinydns, and PowerDNS.
+Support is included for NicTool via its native API and tinydns. I will leave it to others (or myself in the unplanned future) to write modules to interface with other DNS servers. Good candidates for modules are BIND and PowerDNS.
 
 =head1 FUNCTIONS
 

@@ -3,7 +3,6 @@ package Provision::Unix::Utility;
 use strict;
 use warnings;
 
-use lib "inc";
 use lib "lib";
 
 use Cwd;
@@ -36,6 +35,7 @@ sub new {
     $prov = $p{prov};
     return $self;
 }
+
 
 =for TODO
 
@@ -342,7 +342,7 @@ sub chown {
 
     if ( $p{gid} =~ /\A[0-9\-]+\z/ ) {
         $ngid = int( $p{gid} );
-        prov->audit( "using $ngid from int($p{gid})" );
+        $prov->audit( "using $ngid from int($p{gid})" );
     }
     else {
         $ngid = getgrnam( $p{gid} );

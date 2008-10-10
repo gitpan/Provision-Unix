@@ -94,6 +94,7 @@ SKIP: {
     # destroy group if exists
     ok( $user->destroy_group(
             group => $group,
+            gid   => $gid,
             debug => 0,
         ),
         "destroy_group $group"

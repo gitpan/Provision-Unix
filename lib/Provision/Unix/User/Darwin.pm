@@ -3,7 +3,7 @@ package Provision::Unix::User::Darwin;
 use warnings;
 use strict;
 
-our $VERSION = '0.10';
+our $VERSION = '0.13';
 
 use English qw( -no_match_vars );
 use Carp;
@@ -43,34 +43,32 @@ sub create {
         {   'username'  => { type => SCALAR },
             'uid'       => { type => SCALAR },
             'gid'       => { type => SCALAR },
-            'password' => { type => SCALAR, optional => 1 },
-            'shell'    => { type => SCALAR, optional => 1 },
-            'homedir'  => { type => SCALAR, optional => 1 },
-            'gecos'    => { type => SCALAR, optional => 1 },
-            'domain'   => { type => SCALAR, optional => 1 },
-            'expire'   => { type => SCALAR, optional => 1 },
-            'quota'    => { type => SCALAR, optional => 1 },
-            'prompt'    => { type => BOOLEAN, optional => 1, default => 0 },
-            'debug'    => { type => SCALAR, optional => 1, default => 1 },
-            'fatal'    => { type => SCALAR, optional => 1, default => 1 },
-            'test_mode' => { type => BOOLEAN, optional => 1, default => 0 },
+            'password'  => { type => SCALAR|UNDEF, optional => 1 },
+            'shell'     => { type => SCALAR|UNDEF, optional => 1 },
+            'homedir'   => { type => SCALAR|UNDEF, optional => 1 },
+            'gecos'     => { type => SCALAR|UNDEF, optional => 1 },
+            'domain'    => { type => SCALAR|UNDEF, optional => 1 },
+            'expire'    => { type => SCALAR|UNDEF, optional => 1 },
+            'quota'     => { type => SCALAR|UNDEF, optional => 1 },
+            'debug'     => { type => SCALAR, optional => 1, default => 1 },
+            'fatal'     => { type => SCALAR, optional => 1, default => 1 },
+            'test_mode' => { type => BOOLEAN,optional => 1, default => 0 },
         }
     );
+
+    $prov->progress( num => 1, desc => 'gathering input' );
 
     $p_user->{username} = $p{username};
     $p_user->{uid}      = $p{uid};
     $p_user->{gid}      = $p{gid};
-    $p_user->{password} = $p{password};
-    $p_user->{shell}    = $p{shell} || $prov->{config}{User}{shell_default};
-    $p_user->{homedir}  = $p{homedir}
-        || $p{domain} ? "/Users/$p{domain}" : "/Users/$p{username}";
-    $p_user->{gecos}  = $p{gecos};
-    $p_user->{expire} = $p{expire};
-    $p_user->{quota}  = $p{quota} || $prov->{config}{User}{quota_default};
-    $p_user->{debug}  = $p{debug};
+    $p_user->{debug}    = $p{debug};
 
-    $prov->progress( num => 1, desc => 'gathering input' );
-    $p_user->get_user_attributes() if $p{prompt};
+    $p_user->{password} ||= $p{password};
+    $p_user->{shell}    ||= $p{shell}  ||= $prov->{config}{User}{shell_default};
+    $p_user->{homedir}  ||= $p{homedir} || "$prov->{config}{User}{home_base}/$p{username}";
+    $p_user->{gecos}    ||= $p{gecos}  || '';
+    $p_user->{expire}   ||= $p{expire} || '';
+    $p_user->{quota}    ||= $p{quota}  || $prov->{config}{User}{quota_default};
 
     $prov->progress( num => 2, desc => 'validating input' );
     $p_user->_is_valid_request() or return;
@@ -97,7 +95,7 @@ sub create {
     # validate user creation
     my $uid = $self->exists();
     if ($uid) {
-        $prov->progress( num => 10, desc => 'validated' );
+        $prov->progress( num => 10, desc => 'created successfully' );
         return $uid;
     }
 
@@ -142,19 +140,21 @@ sub _create_dscl {
         debug => $debug,
     );
 
+    my $homedir = $p_user->{homedir};
+
     $util->syscmd(
-        cmd => "$dirutil . -createprop /users/$user home $p_user->{homedir}",
+        cmd => "$dirutil . -createprop /users/$user home $homedir",
         debug => $debug,
-    ) if $p_user->{homedir};
+    ) if $homedir;
 
     $util->syscmd(
         cmd   => "$dirutil . -createprop /users/$user passwd '*'",
         debug => $debug,
     );
 
-    if ( $p_user->{homedir} ) {
-        my $homedir = $p_user->{homedir};
-        mkdir $homedir, 0755;
+    if ( $homedir ) {
+        mkdir $homedir, 0755 or 
+            $util->mkdir_system( dir=>$homedir, mode=>'0755', debug=>0 );
         $util->chown( dir => $homedir, uid => $user, debug => $debug );
     }
 
@@ -192,8 +192,9 @@ sub _create_niutil {
         debug => $debug,
     );
 
+    my $homedir = $p_user->{homedir};
     $util->syscmd(
-        cmd => "$dirutil -createprop . /users/$user home $p_user->{homedir}",
+        cmd => "$dirutil -createprop . /users/$user home $homedir",
         debug => $debug,
     );
 
@@ -207,8 +208,7 @@ sub _create_niutil {
         debug => $debug,
     );
 
-    if ( $p_user->{homedir} ) {
-        my $homedir = $p_user->{homedir};
+    if ( $homedir ) {
         mkdir $homedir, 0755;
         $util->chown( dir => $homedir, uid => $user, debug => $debug );
     }
@@ -222,7 +222,7 @@ sub destroy {
 
     my %p = validate(
         @_,
-        {   'username' => { type => SCALAR, optional => 0 },
+        {   'username' => { type => SCALAR },
             'debug'    => { type => SCALAR, optional => 1, default => 1 },
             'test_mode'=> { type => SCALAR, optional => 1, },
         }
@@ -230,32 +230,29 @@ sub destroy {
 
     my $user = $p{username};
 
-    print "destroy user $user on Darwin (MacOS)\n" if $p{debug};
+    $prov->progress( num => 5, desc => "destroy Darwin user $user");
 
-    return 1 if $p{test_mode};
+    return $prov->progress(num=>10, desc=>'test completed') if $p{test_mode};
 
     # this works on 10.5
     my $dirutil = $util->find_bin( bin => "dscl", debug => 0, fatal => 0 );
 
-    if ($dirutil) {
+    my $cmd;
 
-        # 10.5
-        $util->syscmd(
-            cmd   => "$dirutil . -destroy /users/$user",
-            debug => 0,
-        );
-        $self->exists($user) ? return : return 1;
+    if ($dirutil) { # 10.5
+        $cmd = "$dirutil . -destroy /users/$user";
     }
+    else {
+        # this works on 10.4 and previous
+        $dirutil = $util->find_bin( bin => "niutil", debug => 0 );
+        $cmd = "$dirutil -destroy . /users/$user";
+    };
 
-    # this works on 10.4 and previous
-    $dirutil = $util->find_bin( bin => "niutil", debug => 0 );
+    $util->syscmd( cmd => $cmd, debug => 0 );
 
-    $util->syscmd(
-        cmd   => "$dirutil -destroy . /users/$user",
-        debug => 0,
-    );
-
-    $self->exists($user) ? return : return 1;
+    $self->exists($user) 
+        ? return $prov->progress(num=>10, 'err' => 'failed')
+        : return $prov->progress(num=>10, desc=>'user destroyed');
 }
 
 sub exists {
@@ -274,51 +271,69 @@ sub create_group {
     my %p = validate(
         @_,
         {   'group' => { type => SCALAR },
+            'gid'   => { type => SCALAR },
+            'debug' => { type => SCALAR, optional => 1, default => 1 },
+        }
+    );
+
+    my $group = $p{group};
+    my $gid = $p{gid};
+
+    $prov->progress( num => 5, desc => "adding Darwin group $group" );
+
+    my $dirutil
+        = $util->find_bin( bin => "dscl", debug => $p{debug}, fatal => 0 );
+
+    if ( $dirutil ) { # 10.5
+        $util->syscmd( cmd => "$dirutil . -create /groups/$group", debug=>$p{debug} );
+        $util->syscmd( cmd => "$dirutil . -createprop /groups/$group gid $gid", debug=>$p{debug} )
+            if $gid;
+        $util->syscmd( cmd => "$dirutil . -createprop /groups/$group passwd '*'", debug=>$p{debug} );
+    }
+    else {
+        $dirutil = $prov->find_bin( bin => "niutil", debug=>$p{debug} );
+        $util->syscmd( cmd => "$dirutil -create . /groups/$group", debug=>$p{debug} );
+        $util->syscmd( cmd => "$dirutil -createprop . /groups/$group gid $gid", debug=>$p{debug} )
+            if $gid;
+        $util->syscmd( cmd => "$dirutil -createprop . /groups/$group passwd '*'", debug=>$p{debug} );
+    }
+
+    getgrnam( $p{group} )
+        ? return $prov->progress( num=>10, desc=>'group added' )
+        : return $prov->progress( num=>10, 'err'=>'failed!' );
+}
+
+sub destroy_group {
+
+    my $self = shift;
+
+    my %p = validate(
+        @_,
+        {   'group' => { type => SCALAR },
             'gid'   => { type => SCALAR, optional => 0 },
             'debug' => { type => SCALAR, optional => 1, default => 1 },
         }
     );
 
-    print "create_group '$p{group}' on Darwin (Mac OS X)\n" if $p{debug};
+    my $group = $p{group};
+    my $gid = $p{gid};
+
+    $prov->progress( num => 5, desc => "destroy Darwin group $p{group}" );
 
     my $dirutil
         = $util->find_bin( bin => "dscl", debug => $p{debug}, fatal => 0 );
 
-    $prov->progress( num => 5, desc => "adding Darwin group $p{group}" );
-    if ( !$dirutil ) {
-        return $self->_create_niutil( $p{group}, $p{gid} )
-            ;    # 10.4 and previous
+    if ( $dirutil ) { # 10.5
+        $util->syscmd( cmd => "$dirutil . -delete /groups/$group", debug=>$p{debug} );
     }
-    else {
-        return $self->_create_dscl( $p{group}, $p{gid} );    # 10.5
+    else { # =< 10.4
+        $dirutil = $util->find_bin( bin => "niutil", debug=>$p{debug} );
+        $util->syscmd( cmd => "$dirutil -delete . /groups/$group", debug=>$p{debug} );
     }
-}
 
-sub _create_group_dscl {
-
-    my ( $self, $group, $gid ) = @_;
-
-    my $niutil = $prov->find_bin( bin => "dscl" );
-    $prov->syscmd( cmd => "$niutil . -create /groups/$group" );
-    $prov->syscmd( cmd => "$niutil . -createprop /groups/$group gid $gid" )
-        if $gid;
-
-    $prov->syscmd( cmd => "$niutil . -createprop /groups/$group passwd '*'" );
-
-## TODO  validate and return
-}
-
-sub _create_group_niutil {
-
-    my ( $self, $group, $gid ) = @_;
-
-    my $niutil = $prov->find_bin( bin => "niutil" );
-    $prov->syscmd( cmd => "$niutil -create . /groups/$group" );
-    $prov->syscmd( cmd => "$niutil -createprop . /groups/$group gid $gid" )
-        if $gid;
-
-    $prov->syscmd( cmd => "$niutil -createprop . /groups/$group passwd '*'" );
-## TODO  validate and return
+    getgrnam( $p{group} )
+        ? return $prov->progress( num=>10, 'err'=>'failed!' )
+        : return $prov->progress( num=>10, desc=>'group deleted' );
 }
 
 1;
@@ -331,7 +346,7 @@ Provision::Unix::User::Darwin - Provision Accounts on Darwin systems
 
 =head1 VERSION
 
-Version 0.10
+Version 0.13
 
 =head1 SYNOPSIS
 

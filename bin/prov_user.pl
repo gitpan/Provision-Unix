@@ -1,7 +1,8 @@
-#!/usr/bin/perl
+#!perl
 
 use strict;
 use warnings;
+
 use English;
 use Getopt::Long;
 use Pod::Usage;
@@ -11,57 +12,126 @@ if ( !$EFFECTIVE_USER_ID == 0 ) {
 }
 
 use lib 'lib';
-
 use Provision::Unix;
 use Provision::Unix::User;
+use Provision::Unix::Utility;
 
-my ( $action, $vals );
+my $prov = Provision::Unix->new( debug => 0 );
+my $user = Provision::Unix::User->new( prov => $prov, debug => 0 );
 
 # process command line options
 Getopt::Long::GetOptions(
 
-    'create'  => \$action->{'create'},
-    'modify'  => \$action->{'modify'},
-    'destroy' => \$action->{'destroy'},
+    'action=s' => \my $action,
 
-    'suspend' => \$action->{'suspend'},
-    'restore' => \$action->{'restore'},
-
-    'show'   => \$action->{'show'},
-    'repair' => \$action->{'repair'},
-    'test'   => \$action->{'test'},
-
-    'comment=s'  => \$vals->{'gecos'},
-    'domain=s'   => \$vals->{'domain'},
-    'expire=s'   => \$vals->{'expire'},
-    'gid=s'      => \$vals->{'gid'},
-    'homedir=s'  => \$vals->{'homedir'},
-    'password=s' => \$vals->{'password'},
-    'quota=s'    => \$vals->{'quota'},
-    'shell=s'    => \$vals->{'shell'},
-    'uid=s'      => \$vals->{'uid'},
-    'username=s' => \$vals->{'username'},
-    'verbose'    => \$vals->{'debug'},
+    'comment=s'  => \$user->{gecos},
+    'domain=s'   => \$user->{domain},
+    'expire=s'   => \$user->{expire},
+    'gid=s'      => \$user->{gid},
+    'homedir=s'  => \$user->{homedir},
+    'password=s' => \$user->{password},
+    'quota=s'    => \$user->{quota},
+    'shell=s'    => \$user->{shell},
+    'uid=s'      => \$user->{uid},
+    'username=s' => \$user->{username},
+    'verbose'    => \$user->{debug},
 
 ) or die "erorr parsing command line options";
 
-$vals->{'debug'} ||= 0;
+my $conf = $prov->{config};
+$user->{debug} || 0;   # so it's not undef
 
-my $prov = Provision::Unix->new();
-my $user = Provision::Unix::User->new( prov => $prov, request => $vals );
+my $util
+    = Provision::Unix::Utility->new( prov => $prov, debug => $user->{debug} );
 
-$action->{'create'}
-    ? $user->create( prompt => 1 )
-    : $action->{'destroy'} ? $user->destroy( prompt => 1 )
+my %actions = map { $_ => 1 }
+    qw/ create destroy suspend restore show repair test creategroup destroygroup /;
+pod2usage( { -verbose => 1 } ) if !$actions{$action};
 
-    # future functions....
-    #: $action->{'modify'}  ? $user->modify ( prompt=>1 )
-    #: $action->{'suspend'} ? $user->suspend( prompt=>1 )
-    #: $action->{'restore'} ? $user->restore( prompt=>1 )
-    #: $action->{'show'}    ? $user->show   ( prompt=>1 )
-    #: $action->{'repair'}  ? $user->repair ( prompt=>1 )
-    #: $action->{'test'}    ? $user->test   ( prompt=>1 )
-    : pod2usage( { -verbose => $vals->{'verbose'} } );
+  $action eq 'create'       ? user_create() 
+: $action eq 'creategroup'  ? group_create() 
+: $action eq 'destroy'      ? user_destroy()
+: $action eq 'destroygroup' ? group_destroy()
+: die "oops, that feature isn't ready yet\n";
+
+# future functions....
+#: $action->{'modify'}  ? $user->modify ( prompt=>1 )
+#: $action->{'suspend'} ? $user->suspend( prompt=>1 )
+#: $action->{'restore'} ? $user->restore( prompt=>1 )
+#: $action->{'show'}    ? $user->show   ( prompt=>1 )
+#: $action->{'repair'}  ? $user->repair ( prompt=>1 )
+#: $action->{'test'}    ? $user->test   ( prompt=>1 )
+
+sub user_create {
+    $user->{username} ||= $util->ask( question => 'Username' ) || die;
+    $prov->error(message=> "user exists",debug=>0) if $user->exists($user->{username});
+    $user->{password} ||= $util->ask( question => 'Password', password => 1 );
+    $user->{uid} ||= $util->ask( question => 'uid' ) || die;
+    $user->{gid} ||= $util->ask( question => 'gid' ) || die;
+    if ( $user->{gid} =~ /^[a-zA-Z]+$/ ) {
+        my $gid = getgrnam($user->{gid});
+        if ( ! $gid ) {
+            $user->create_group(group=>$user->{gid}) 
+                if $util->ask( question=>'group does not exist, create it');
+            $gid = getgrnam($user->{gid}) || die;
+            $user->{gid} = $gid;
+        }
+    }
+    $user->{shell} ||= $util->ask(
+        question => 'shell',
+        default  => $conf->{User}{shell_default}
+    );
+    $user->{homedir} ||= $util->ask(
+        question => 'homedir',
+        default  => "$conf->{User}{home_base}/$user->{username}"
+    );
+    $user->{gecos} ||= $util->ask( question => 'gecos' );
+    if ( $conf->{quota_enable} ) {
+        $user->{quota} ||= $util->ask(
+            question => 'quota',
+            default  => $conf->{User}{quota_default}
+        );
+    }
+
+    $user->_is_valid_request();
+    $user->create(
+        username => $user->{username},
+        password => $user->{password},
+        uid      => $user->{uid},
+        gid      => $user->{gid},
+        shell    => $user->{shell},
+        homedir  => $user->{homedir},
+        gecos    => $user->{gecos},
+        quota    => $user->{quota},
+        debug    => $user->{debug},
+    );
+};
+
+sub user_destroy {
+
+    $user->{username} ||= $util->ask( question => 'Username' ) || die;
+
+    $user->exists() or die "user $user->{username} does not exist\n";
+    $user->_is_valid_request();
+    $user->destroy( username => $user->{username} );
+};
+sub group_create {
+    $user->{group} ||= $util->ask( question => 'Group' ) || die;
+    $user->create_group( group=>$user->{group} );
+}
+
+sub group_destroy {
+    my $gid = $user->{gid} || $util->ask( question => 'gid' );
+    if ( $gid ) {
+        $user->{group} = getgrgid( $gid );
+    }
+    my $group = $user->{group} || $util->ask( question => 'Group' ) || die;
+    $gid   ||= getgrnam($group);
+    $group = getgrnam($gid);
+    die "invalid group or gid" if ( !$gid || ! $group);
+    $user->destroy_group( gid=>$gid, group=>$group );
+}
+
 
 =head1 NAME 
 
@@ -69,17 +139,17 @@ prov_user.pl - a command line interface for provisioning system accounts
 
 =head1 SYNOPSIS
 
-  prov_user.pl <action>
+  prov_user.pl --action=[]
 
-Where action is one of the following:
+Action is one of the following:
 
-  --create   - creates a new system user
-  --modify   - make changes to an existing user
-  --destroy  - remove a user from the system
-  --suspend  - disable an account
-  --restore  - restore an account
+  create   - creates a new system user
+  modify   - make changes to an existing user
+  destroy  - remove a user from the system
+  suspend  - disable an account
+  restore  - restore an account
 
-Additionally, --username is required but if you fail to pass it, you'll be prompted.
+Other parameters are optional. Unless you specify --noprompt, you will be prompted for fill in any missing values.
 
    --username
    --comment   - gecos description
@@ -93,13 +163,12 @@ Additionally, --username is required but if you fail to pass it, you'll be promp
    --uid       - user id
    --verbose   - enable debugging options
 
-When there are required options that are not set on the command line, you will be prompted for them.
 
 =head1 USAGE
  
- prov_user.pl --create  --user=matt --pass='neat0app!'
- prov_user.pl --destroy --user=matt
- prov_user.pl --modify  --user=matt --quota=500
+ prov_user.pl --action create  --user=matt --pass='neat0app!'
+ prov_user.pl --action destroy --user=matt
+ prov_user.pl --action modify  --user=matt --quota=500
  
 
 =head1 DESCRIPTION

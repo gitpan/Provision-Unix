@@ -579,6 +579,8 @@ L<http://search.cpan.org/dist/Provision-Unix>
 
 =head1 ACKNOWLEDGEMENTS
 
+some of the record generation logic was lifted from http://www.anders.com/projects/sysadmin/djbdnsRecordBuilder/
+
 
 =head1 COPYRIGHT & LICENSE
 

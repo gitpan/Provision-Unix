@@ -12,12 +12,8 @@ Every module in the Provision::Unix package adheres to the following guidelines:
 
 Provision/Unix/DNS/BIND.pm
   - needs to be authored
-Provision/Unix/DNS/NicTool.pm
-  - needs to be authored
-Provision/Unix/DNS/tinydns.pm
-  - needs to be authored
 Provision/Unix/DNS.pm
-  - needs to be authored
+  - write a frontend prov_dns.pl
 Provision/Unix/Mail/Qmail.pm
   - needs to be authored
 Provision/Unix/Mail/Sendmail.pm
@@ -30,10 +26,9 @@ Provision/Unix/Mail.pm
   - needs to be authored
 Provision/Unix/User.pm
   - finish & test quota support
+  - write tests for creategroup and destroygroup
 Provision/Unix/User/Darwin.pm
   - set passwords for newly created accounts
-Provision/Unix/User/FreeBSD.pm
-  - needs to be validated and cleaned up
 Provision/Unix/User/Linux.pm
   - needs to be authored
 Provision/Unix/Utility.pm
@@ -53,4 +48,3 @@ Provision/Unix/Web/Lighttpd.pm
   - needs to be authored
 Provision/Unix/Web.pm
   - needs to be authored
-Provision/Unix.pm

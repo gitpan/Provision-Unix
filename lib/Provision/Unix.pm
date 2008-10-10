@@ -1,4 +1,5 @@
 package Provision::Unix;
+our $VERSION = '0.28';
 
 use warnings;
 use strict;
@@ -10,8 +11,6 @@ use Data::Dumper;
 use English qw( -no_match_vars );
 use Params::Validate qw(:all);
 use Scalar::Util qw( openhandle );
-
-our $VERSION = '0.27';
 
 sub new {
     my $class = shift;
@@ -164,7 +163,7 @@ sub error {
     # print audit and error results to stderr
     if ( $p{fatal} ) {
         warn "$p{message}\n\n";
-        warn Dumper( $self->{audit}, $self->{errors} );
+        warn Dumper( $self->{audit}, $self->{errors} ) if $p{debug};
         croak "FATAL ERROR";
     }
 
@@ -250,16 +249,16 @@ Provision::Unix - provision accounts on unix systems
 
 =head1 VERSION
 
-Version 0.27
+Version 0.28
 
 =head1 SYNOPSIS
 
 Provision::Unix is an application to create, modify, and destroy accounts
 on Unix systems in a reliable and consistent manner. 
 
-    prov_user.pl --create --username=matt --pass='neat0app!'
-    prov_dns.pl  --create --zone=example.com
-    prov_web.pl  --create --vhost=www.example.com
+    prov_user.pl --action=create --username=matt --pass='neat0app!'
+    prov_dns.pl  --action=create --zone=example.com
+    prov_web.pl  --action=create --vhost=www.example.com
 
 The types of accounts that can be provisioned are organized by class with each
 class including a standard set of operations. All classes support at least
@@ -302,9 +301,9 @@ Setting fatal will cause it to return undef instead:
 
 =head2 Warnings and Messages
 
-Methods have an optional debug parameter that defaults to enabled. Often, that means methods spit out more messages than you want to see. While this is helpful at first, it quickly gets annoying so you can pass along debug=>0 to surpress them.
+Methods have an optional debug parameter that defaults to enabled. Often, that means methods spit out more messages than you want to see. You can supress them by setting debug=>0.
 
-Lucky for you, the messages aren't lost! All error messages are stored in $prov->errors and all status messages are in $prov->audit. Any time you want to inspect the status or error messages, you can dump those arrays. A handy way to do so is:
+Supressed messages are not lost! All error messages are stored in $prov->errors and all status messages are in $prov->audit. You can dump those arrays any time to to inspect the status or error messages. A handy way to do so is:
 
   $prov->error(message=>'test breakpoint');
 

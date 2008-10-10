@@ -6,6 +6,7 @@ system_config_dir              = /etc
 [User]
 # If using FreeBSD, set up system defaults in /etc/pw.conf.
 shell_default       = /sbin/nologin
+home_base           = /home
 quota_enable        = 1
 quota_fs            = /usr
 quota_default       = 250

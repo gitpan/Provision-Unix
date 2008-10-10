@@ -2,7 +2,7 @@ package Provision::Unix::User;
 use strict;
 use warnings;
 
-our $VERSION = '0.11';
+our $VERSION = '0.13';
 
 use English qw( -no_match_vars );
 use Params::Validate qw( :all );
@@ -107,9 +107,10 @@ sub exists {
     #               and also after adding a user to verify success.
 
     my $self = shift;
-    my $username = lc(shift) or die "missing user";
+    my $username = lc(shift) || $self->{username} || die "missing user";
 
     my $uid = getpwnam($username);
+    $self->{uid} = $uid;
 
     ( $uid && $uid > 0 ) ? return $uid : return;
 }
@@ -131,27 +132,6 @@ sub exists_group {
     my $gid = getgrnam($group);
 
     ( $gid && $gid > 0 ) ? return $gid : return;
-}
-
-sub get_user_attributes {
-
-    my $self = shift;
-
-    # prompt for missing values
-    $self->{username} ||= $util->ask( question => 'Username' );
-    $self->{password} ||= $util->ask( question => 'Password', password => 1 );
-    $self->{uid}      ||= $util->ask( question => 'uid' );
-    $self->{gid}      ||= $util->ask( question => 'gid' );
-    $self->{shell}
-        = $util->ask( question => 'shell', default => $self->{shell} );
-    $self->{homedir}
-        = $util->ask( question => 'homedir', default => $self->{homedir} );
-    $self->{gecos}
-        ||= $util->ask( question => 'gecos', default => $self->{gecos} );
-    $self->{expire}
-        ||= $util->ask( question => 'expire', default => $self->{expire} );
-    $self->{quota}
-        = $util->ask( question => 'quota', default => $self->{quota} );
 }
 
 sub user_quota {
@@ -348,9 +328,6 @@ sub is_valid_password {
 =head2 is_valid_password
 
 Check a password for sanity.
-
-    use Mail::Toaster::Passwd;
-    my $pass = Mail::Toaster::Passwd->new();
 
     $r =  $user->is_valid_password($password, $username);
 
@@ -585,7 +562,7 @@ Provision::Unix::User - Provision Unix Accounts on Unix(like) systems!
 
 =head1 VERSION
 
-Version 0.11
+Version 0.13
 
 =head1 SYNOPSIS
 
@@ -691,3 +668,4 @@ This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.
 
 =cut
+
