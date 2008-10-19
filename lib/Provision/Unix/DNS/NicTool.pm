@@ -3,7 +3,7 @@ package Provision::Unix::DNS::NicTool;
 use warnings;
 use strict;
 
-our $VERSION = '0.21';
+our $VERSION = '0.22';
 
 use English qw( -no_match_vars );
 use Params::Validate qw(:all);
@@ -155,9 +155,9 @@ sub create_zone_record {
     my %request = (
         nt_zone_record_id => undef,
         nt_zone_id        => $zone_id,
+        type              => $type,
         name              => $p{name},
         address           => $p{address},
-        type              => $type,
         ttl               => $p{ttl} || $prov->{config}{DNS}{ttl},
     );
 
@@ -267,6 +267,21 @@ sub delete_zone {
     return $id;
 }
 
+sub delete_zone_record {
+    my $self = shift;
+
+    my %p = validate(
+        @_,
+        {   'id'     => { type => SCALAR, optional => 1 },
+            'zone'   => { type => SCALAR },
+            'record' => { type => SCALAR },
+            'fatal'  => { type => BOOLEAN, optional => 1, default => 1 },
+            'debug'  => { type => BOOLEAN, optional => 1, default => 1 },
+        }
+    );
+
+
+}
 
 1;
 
@@ -276,7 +291,7 @@ Provision::Unix::DNS::NicTool - Provision NicTool DNS entries
 
 =head1 VERSION
 
-Version 0.21
+Version 0.22
 
 =head1 SYNOPSIS
 

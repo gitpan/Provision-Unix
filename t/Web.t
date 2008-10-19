@@ -1,6 +1,3 @@
-#
-# $Id: User.t, Exp $
-#
 use strict;
 use warnings;
 
@@ -8,7 +5,6 @@ use Config::Std { def_sep => '=' };
 use English qw( -no_match_vars );
 use Test::More 'no_plan';
 
-use lib "inc";
 use lib "lib";
 
 BEGIN {

@@ -14,9 +14,9 @@ if ( $EFFECTIVE_USER_ID != 0 ) {
 
 use lib 'lib';
 use Provision::Unix;
-my $prov = Provision::Unix->new;
+my $prov = Provision::Unix->new (debug=>0);
 use Provision::Unix::Web;
-my $web = Provision::Unix::Web->new;
+my $web = Provision::Unix::Web->new( prov=> $prov, debug=>0);
 
 ###########    SITE CONFIGURATION    ###########
 # Load named config file into specified hash...

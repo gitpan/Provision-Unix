@@ -1,5 +1,6 @@
 .cvsignore
 bin/install_deps.pl
+bin/prov_dns.pl
 bin/prov_user.pl
 bin/prov_web.pl
 Changes
@@ -28,6 +29,7 @@ lib/Provision/Unix/Web/Apache.pm
 lib/Provision/Unix/Web/Lighttpd.pm
 Makefile.PL
 MANIFEST
+META.yml
 provision.conf-dist
 README
 t/00-load.t
@@ -41,4 +43,3 @@ t/User.t
 t/Utility.t
 t/Web.t
 TODO
-META.yml                                 Module meta-data (added by MakeMaker)

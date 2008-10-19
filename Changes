@@ -1,10 +1,12 @@
 Revision history for Provision-Unix
 
-0.28
+0.28    Oct 19, 2008
+	added bin/prov_dns.pl, add zones & records, delete zones
+
+0.28    Oct 09, 2008
         reworked guts of user creation modules
         altered t/utility.t so tests will pass on systems w/o sudo installed
         tests pass for user/group. create/destroy works on Darwin & FreeBSD
-
 
 0.27    Sep 28, 2008
         Initial release on CPAN

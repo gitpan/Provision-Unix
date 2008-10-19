@@ -10,10 +10,11 @@ Every module in the Provision::Unix package adheres to the following guidelines:
 4. Every class must have a corresponding suite of tests in t.
 
 
+Provision/Unix/DNS.pm
+  - prov_dns.pl
+    - add delete_zone_record function
 Provision/Unix/DNS/BIND.pm
   - needs to be authored
-Provision/Unix/DNS.pm
-  - write a frontend prov_dns.pl
 Provision/Unix/Mail/Qmail.pm
   - needs to be authored
 Provision/Unix/Mail/Sendmail.pm

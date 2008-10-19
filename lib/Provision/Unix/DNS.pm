@@ -3,7 +3,7 @@ package Provision::Unix::DNS;
 use strict;
 use warnings;
 
-our $VERSION = '0.22';
+our $VERSION = '0.23';
 
 use English qw( -no_match_vars );
 use Params::Validate qw(:all);
@@ -93,6 +93,12 @@ sub delete_zone {
     return $self->{server}->delete_zone(@_);
 }
 
+sub delete_zone_record {
+
+    my $self = shift;
+    return $self->{server}->delete_zone_record(@_);
+}
+
 sub fully_qualify {
 
 # this is server dependent. BIND and NicTool support shortcuts like @. Others
@@ -138,7 +144,7 @@ Provision::Unix::DNS - A generic class for common DNS tasks
 
 =head1 VERSION
 
-Version 0.22
+Version 0.23
 
 =head1 SYNOPSIS
 

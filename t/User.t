@@ -5,7 +5,6 @@ use warnings;
 use English qw( -no_match_vars );
 use Test::More 'no_plan';
 
-use lib "inc";
 use lib "lib";
 
 BEGIN { use_ok('Provision::Unix'); }

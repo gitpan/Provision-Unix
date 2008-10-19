@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use English;
+use English qw( -no_match_vars );
 use Getopt::Long;
 use Pod::Usage;
 
@@ -36,7 +36,7 @@ Getopt::Long::GetOptions(
     'username=s' => \$user->{username},
     'verbose'    => \$user->{debug},
 
-) or die "erorr parsing command line options";
+) or die "error parsing command line options";
 
 my $conf = $prov->{config};
 $user->{debug} || 0;   # so it's not undef

@@ -1,11 +1,7 @@
-#!/usr/bin/perl
-#
-# t/Utility.t - test suite written by Matt Simerson in 2006
-#
+#!perl
 use strict;
 #use warnings;
 
-use lib "inc";
 use lib "lib";
 
 use Cwd;
