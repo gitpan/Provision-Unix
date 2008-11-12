@@ -1,7 +1,13 @@
 Revision history for Provision-Unix
 
-0.28    Oct 19, 2008
-	added bin/prov_dns.pl, add zones & records, delete zones
+0.30    Nov 14, 2008
+        added license=>'perl' to Makefile.PL
+        initial coding of VirtualOS module begun
+	added Virtual::OS::FreeBSD::Ezjail
+	created Ezjail->create_virtualos
+
+0.29    Oct 19, 2008
+        added bin/prov_dns.pl, add zones & records, delete zones
 
 0.28    Oct 09, 2008
         reworked guts of user creation modules

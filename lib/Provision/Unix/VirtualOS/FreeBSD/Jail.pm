@@ -3,11 +3,47 @@ package Provision::Unix::VirtualOS::FreeBSD::Jail;
 use warnings;
 use strict;
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
+use English qw( -no_match_vars );
+use Params::Validate qw(:all);
 
-sub function1 {
+sub new {
+    my $class = shift;
+
+    my %p = validate( @_, { 'prov' => { type => HASHREF }, } );
+
+    my $self = { prov => $p{prov}, };
+    bless( $self, $class );
+    
+    return $self;
 }
+
+sub create_virtualos {
+
+# Usage      : $virtual->create_virtualos( name => 'mysql', ip=>'127.0.0.2' );
+# Purpose    : create a virtual OS instance
+# Returns    : true or undef on failure
+# Parameters :
+#   Required : name     - name/ID of the virtual instance
+#            : ip       - IP address(es), space delimited
+#   Optional : fsroot   - the root directory of the virt os
+#            : template - a 'template' or tarball to pattern as
+#            : 
+
+    my $self = shift;
+
+    my %p = validate(
+        @_,
+        {   'name'      => { type => SCALAR },
+            'ip'        => { type => SCALAR },
+            'fsroot'    => { type => SCALAR },
+            'template'  => { type => SCALAR | UNDEF, optional => 1 },
+        }
+    );
+
+
+};
 
 1;
 
@@ -19,7 +55,7 @@ Provision::Unix::VirtualOS::FreeBSD::Jail -
 
 =head1 VERSION
 
-Version 0.02
+Version 0.03
 
 =head1 SYNOPSIS
 
@@ -45,7 +81,7 @@ Matt Simerson, C<< <matt at tnpi.net> >>
 
 =head1 BUGS
 
-Please report any bugs or feature requests to C<bug-unix-provision-virualos at rt.cpan.org>, or through the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Provision-Unix>.  I will be notified, and then you'll automatically be notified of progress on your bug as I make changes.
+Please report any bugs or feature requests to C<bug-unix-provision-virtualos at rt.cpan.org>, or through the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Provision-Unix>.  I will be notified, and then you'll automatically be notified of progress on your bug as I make changes.
 
 
 =head1 SUPPORT

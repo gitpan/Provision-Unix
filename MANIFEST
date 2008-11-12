@@ -20,6 +20,7 @@ lib/Provision/Unix/User/FreeBSD.pm
 lib/Provision/Unix/User/Linux.pm
 lib/Provision/Unix/Utility.pm
 lib/Provision/Unix/VirtualOS.pm
+lib/Provision/Unix/VirtualOS/FreeBSD/Ezjail.pm
 lib/Provision/Unix/VirtualOS/FreeBSD/Jail.pm
 lib/Provision/Unix/VirtualOS/Linux/OpenVZ.pm
 lib/Provision/Unix/VirtualOS/Linux/Xen.pm
@@ -41,5 +42,6 @@ t/pod.t
 t/Unix.t
 t/User.t
 t/Utility.t
+t/VirtualOS.t
 t/Web.t
 TODO

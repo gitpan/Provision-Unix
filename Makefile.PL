@@ -15,6 +15,7 @@ WriteMakefile(
     VERSION_FROM        => 'lib/Provision/Unix.pm',
     ABSTRACT_FROM       => 'lib/Provision/Unix.pm',
     PL_FILES            => {},
+    LICENSE             => 'perl',
     PREREQ_PM => {
         'Test::More' => 0,
         'Params::Validate' => .8,

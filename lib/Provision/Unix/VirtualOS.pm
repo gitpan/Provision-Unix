@@ -3,11 +3,83 @@ package Provision::Unix::VirtualOS;
 use warnings;
 use strict;
 
-our $VERSION = '0.02';
+our $VERSION = '0.04';
+
+use English qw( -no_match_vars );
+use Params::Validate qw(:all);
 
 sub new {
+    my $class = shift;
+    my %p     = validate(
+        @_,
+        {   prov  => { type => HASHREF },
+            debug => { type => BOOLEAN, optional => 1, default => 1 },
+            fatal => { type => BOOLEAN, optional => 1, default => 1 },
+        }
+    );
 
+    my $self = {
+        prov  => $p{prov},
+        debug => $p{debug},
+        fatal => $p{fatal},
+    };
+    bless( $self, $class );
+
+    $self->{prov}->audit("loaded Virtual OS");
+    $self->{vtype} = $self->_get_virt_type();
+    return $self;
 }
+
+sub create_virtualos {
+
+# Usage      : $virtual->create_virtualos( name => 'mysql', ip=>'127.0.0.2' );
+# Purpose    : create a virtual OS instance
+# Returns    : true or undef on failure
+# Parameters :
+#   Required : name     - name/ID of the virtual instance
+#            : ip       - IP address(es), space delimited
+#   Optional : fsroot   - the root directory of the virt os
+#            : template - a 'template' or tarball to pattern as
+#            : size     - disk space allotment
+
+    my $self = shift;
+    $self->{vtype}->create_virtualos(@_);
+};
+
+sub _get_virt_type {
+
+    my $self = shift;
+    my $prov = $self->{prov};
+
+    my $type = $prov->{config}{VirtualOS}{type}
+        or $prov->error(
+        message => 'missing [VirtualOS] settings in provision.conf' );
+
+    if ( $type eq 'jail' ) {
+        require Provision::Unix::VirtualOS::FreeBSD::Jail;
+        return Provision::Unix::VirtualOS::FreeBSD::Jail->new( prov => $prov );
+    }
+    elsif ( $type eq 'ezjail' ) {
+        require Provision::Unix::VirtualOS::FreeBSD::Ezjail;
+        return Provision::Unix::VirtualOS::FreeBSD::Ezjail->new( prov => $prov );
+    }
+    elsif ( $type eq 'container' ) {
+        require Provision::Unix::VirtualOS::Solaris::Container;
+        return Provision::Unix::VirtualOS::Solaris::Container->new( prov => $prov );
+    }
+    elsif ( $type eq 'xen' ) {
+        require Provision::Unix::VirtualOS::Linux::Xen;
+        return Provision::Unix::VirtualOS::Linux::Xen->new( prov => $prov );
+    }
+    elsif ( $type eq 'openvz' ) {
+        require Provision::Unix::VirtualOS::Linux::OpenVZ;
+        return Provision::Unix::VirtualOS::Linux::OpenVZ->new( prov => $prov );
+    }
+    else {
+        $prov->error( message => "no support for $type yet" );
+    }
+}
+
 
 1;
 
@@ -19,7 +91,7 @@ Provision::Unix::VirtualOS - Provision virtual OS instances (jail|vps|container)
 
 =head1 VERSION
 
-Version 0.02
+Version 0.04
 
 
 =head1 SYNOPSIS
@@ -40,7 +112,7 @@ Matt Simerson, C<< <matt at tnpi.net> >>
 
 =head1 BUGS
 
-Please report any bugs or feature requests to C<bug-unix-provision-virualos at rt.cpan.org>, or through the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Provision-Unix>.  I will be notified, and then you'll automatically be notified of progress on your bug as I make changes.  
+Please report any bugs or feature requests to C<bug-unix-provision-virtualos at rt.cpan.org>, or through the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Provision-Unix>.  I will be notified, and then you'll automatically be notified of progress on your bug as I make changes.  
 
 
 
