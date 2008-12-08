@@ -30,13 +30,11 @@ my $user_that_exists_by_default
 ok( $user->exists($user_that_exists_by_default), 'exists' );
 
 # _is_valid_username
-$user->{username} = 'provunix';
-ok( $user->_is_valid_username(), '_is_valid_username valid' )
+ok( $user->_is_valid_username( 'provunix' ), '_is_valid_username valid' )
     or diag $prov->{errors}[-1]{errmsg};
-$user->{username} = 'unix_geek';
-ok( !$user->_is_valid_username(), '_is_valid_username invalid' );
-$user->{username} = 'unix,geek';
-ok( !$user->_is_valid_username(), '_is_valid_username invalid' );
+ok( !$user->_is_valid_username( 'unix_geek' ), '_is_valid_username invalid' );
+ok( !$user->_is_valid_username( 'unix,geek' ), '_is_valid_username invalid' );
+ok( $user->_is_valid_username( 'provunix' ), '_is_valid_username valid' );
 
 my $gid      = 65530;
 my $uid      = 65530;
@@ -90,14 +88,27 @@ ok( !$user->create(
 SKIP: {
     skip "you are not root", 7 if $EFFECTIVE_USER_ID != 0;
 
+# destroy user first, as group deletion may fail if a user exists with the
+# group as its primary gid.
+
+    # destroy user if exists
+    ok( $user->destroy(
+            username => $username,
+            debug    => 0,
+        ),
+        "destroy $username if exists"
+    ) if $user->exists( $username );
+
     # destroy group if exists
     ok( $user->destroy_group(
             group => $group,
             gid   => $gid,
             debug => 0,
         ),
-        "destroy_group $group"
+        "destroy_group $group if exists"
     ) if $user->exists_group($group);
+
+# create the group first, for the same reason as above.
 
     # create group
     ok( $user->create_group(
@@ -108,15 +119,6 @@ SKIP: {
         "create group $group ($gid)"
     );
 
-    # destroy user
-    ok( $user->destroy(
-            username => $username,
-            debug    => 0
-        ),
-        'destroy valid'
-    ) if $user->exists( username => $username );
-    sleep 1;
-
     # create user, valid request in test mode
     ok( $user->create(
             username  => $username,
@@ -125,7 +127,7 @@ SKIP: {
             debug     => 0,
             test_mode => 1,
         ),
-        'create user, valid test'
+        "create user $username, test mode"
     );
 
     # destroy user, valid request in test mode
@@ -134,7 +136,7 @@ SKIP: {
             debug     => 0,
             test_mode => 1,
         ),
-        'destroy user, test'
+        "destroy user $username, test mode"
     );
 
     #   valid request
@@ -147,14 +149,14 @@ SKIP: {
                 gid      => $gid,
                 debug    => 0,
             ),
-            'create valid'
+            "create $username"
         );
 
         ok( $user->destroy(
                 username => $username,
                 debug    => 0,
             ),
-            'destroy valid'
+            "destroy $username"
         );
     }
 }

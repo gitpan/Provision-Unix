@@ -1,8 +1,9 @@
 package Provision::Unix::User;
-use strict;
-use warnings;
 
 our $VERSION = '0.13';
+
+use strict;
+use warnings;
 
 use English qw( -no_match_vars );
 use Params::Validate qw( :all );
@@ -62,25 +63,7 @@ sub create {
 sub modify {
 
     my $self = shift;
-
-    my %p = validate(
-        @_,
-        {   'request'   => { type => HASHREF, optional => 1, },
-            'prompt'    => { type => BOOLEAN, optional => 1, default => 0 },
-            'test_mode' => { type => BOOLEAN, optional => 1, default => 0 },
-            'fatal'     => { type => SCALAR,  optional => 1, default => 1 },
-            'debug'     => { type => SCALAR,  optional => 1, default => 1 },
-        },
-    );
-
-    my $request = $p{request};
-
-    $prov->progress( num => 1, desc => 'validating' );
-
-    $self->{os}->modify( $self->{request} );
-
-## TODO
-
+    $self->{os}->modify( @_ );
 }
 
 sub destroy {
@@ -107,12 +90,7 @@ sub exists {
     #               and also after adding a user to verify success.
 
     my $self = shift;
-    my $username = lc(shift) || $self->{username} || die "missing user";
-
-    my $uid = getpwnam($username);
-    $self->{uid} = $uid;
-
-    ( $uid && $uid > 0 ) ? return $uid : return;
+    return $self->{os}->exists(@_);
 }
 
 sub exists_group {
@@ -126,12 +104,8 @@ sub exists_group {
     # Comments   : Use this before adding a new group (error trapping)
     #               and also after adding to verify success.
 
-    my $self  = shift;
-    my $group = lc(shift) or die "missing user";
-
-    my $gid = getgrnam($group);
-
-    ( $gid && $gid > 0 ) ? return $gid : return;
+    my $self = shift;
+    return $self->{os}->exists_group(@_);
 }
 
 sub user_quota {
@@ -410,6 +384,21 @@ sub archive {
 
 }
 
+sub get_username {
+    my $self = shift;
+    $prov->error( message=> "too many arguments to get_username") if scalar @_ > 0;
+#    $prov->audit( "\tget_username \$user->{username} ($self->{username})" );
+    return $self->{username};
+};
+
+sub set_username {
+    my $self = shift;
+    $prov->error( message=> "too many arguments to set_username" ) if scalar @_ > 1;
+    $self->{username} = shift || $prov->error( message=> "missing username");
+#    $prov->audit( "\tset \$user->{username} to $self->{username}" );
+    return 1;
+};
+
 sub _get_os {
 
     my $self = shift;
@@ -431,15 +420,15 @@ sub _get_os {
             user => $self
         );
     }
-#    elsif ( lc($OSNAME) eq 'linux' ) {
-#        require Provision::Unix::User::Linux;
-#        return Provision::Unix::User::Linux->new( 
-#            prov => $prov,
-#            user => $self );
-#    }
+    elsif ( lc($OSNAME) eq 'linux' ) {
+        require Provision::Unix::User::Linux;
+        return Provision::Unix::User::Linux->new( 
+            prov => $prov,
+            user => $self );
+    }
     else {
         return $prov->error( message => "create: "
-                . $self->{request}{username}
+                . $self->{username}
                 . " FAILED! There is no support for $OSNAME yet. Consider submitting a patch."
         );
     }
@@ -487,22 +476,23 @@ sub _is_valid_username {
     # set this to fully define your username restrictions. It will
     # get returned every time an invalid username is submitted.
 
-    my $username = $self->{username};
-
-    if ( !$username ) {
-        return $self->{prov}->error(
+    my $username = shift 
+        || $self->{username} 
+        || return $self->{prov}->error(
             message  => "username missing",
-            location => join( '\t', caller ),
+            location => join( ',', caller ),
             fatal    => 0,
             debug    => 0,
         );
-    }
+
+    $prov->audit("checking validity of username $username");
+    $self->set_username( $username );
 
     # min 2 characters
     if ( length($username) < 2 ) {
         return $prov->error(
-            {   message  => "username $username is too short",
-                location => join( '\t', caller ),
+            {   message  => "\tusername $username is too short",
+                location => join( ',', caller ),
                 fatal    => 0,
                 debug    => 0,
             }
@@ -512,8 +502,8 @@ sub _is_valid_username {
     # max 16 characters
     if ( length($username) > 16 ) {
         return $prov->error(
-            {   message  => "username $username is too long",
-                location => join( '\t', caller ),
+            {   message  => "\tusername $username is too long",
+                location => join( ',', caller ),
                 fatal    => 0,
                 debug    => 0,
             }
@@ -524,8 +514,8 @@ sub _is_valid_username {
     # begins with an alpha character
     if ( $username !~ /^[a-z][a-z0-9]+$/ ) {
         return $prov->error(
-            {   message  => "username $username has invalid characters",
-                location => join( '\t', caller ),
+            {   message  => "\tusername $username has invalid characters",
+                location => join( ',', caller ),
                 fatal    => 0,
                 debug    => 0,
             }
@@ -539,8 +529,8 @@ sub _is_valid_username {
         {
             if ( $username eq $line ) {
                 return $prov->error(
-                    {   message  => "$username is reserved.",
-                        location => join( '\t', caller ),
+                    {   message  => "\t$username is a reserved username.",
+                        location => join( ',', caller ),
                         fatal    => 0,
                         debug    => 1,
                     }
@@ -549,6 +539,7 @@ sub _is_valid_username {
         }
     }
 
+    $prov->audit("\tusername $username looks valid");
     return 1;
 }
 

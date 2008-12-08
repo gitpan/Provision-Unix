@@ -3,7 +3,7 @@ package Provision::Unix::User::Darwin;
 use warnings;
 use strict;
 
-our $VERSION = '0.13';
+our $VERSION = '0.14';
 
 use English qw( -no_match_vars );
 use Carp;
@@ -65,7 +65,8 @@ sub create {
 
     $p_user->{password} ||= $p{password};
     $p_user->{shell}    ||= $p{shell}  ||= $prov->{config}{User}{shell_default};
-    $p_user->{homedir}  ||= $p{homedir} || "$prov->{config}{User}{home_base}/$p{username}";
+    $p_user->{homedir}  ||= $p{homedir} || 
+        $prov->{config}{User}{home_base} eq '/home' ? "/Users/$p{username}" : "$prov->{config}{User}{home_base}/$p{username}";
     $p_user->{gecos}    ||= $p{gecos}  || '';
     $p_user->{expire}   ||= $p{expire} || '';
     $p_user->{quota}    ||= $p{quota}  || $prov->{config}{User}{quota_default};
@@ -250,18 +251,9 @@ sub destroy {
 
     $util->syscmd( cmd => $cmd, debug => 0 );
 
-    $self->exists($user) 
-        ? return $prov->progress(num=>10, 'err' => 'failed')
-        : return $prov->progress(num=>10, desc=>'user destroyed');
-}
-
-sub exists {
-
-    my ( $self, $user ) = @_;
-    $user ||= $p_user->{username};
-    $user = lc($user);
-
-    ( getpwnam($user) && getpwnam($user) > 0 ) ? return 1 : return;
+    return $self->exists($user) 
+        ? $prov->progress(num=>10, 'err' => 'failed')
+        : $prov->progress(num=>10, desc=>'user destroyed');
 }
 
 sub create_group {
@@ -298,9 +290,9 @@ sub create_group {
         $util->syscmd( cmd => "$dirutil -createprop . /groups/$group passwd '*'", debug=>$p{debug} );
     }
 
-    getgrnam( $p{group} )
-        ? return $prov->progress( num=>10, desc=>'group added' )
-        : return $prov->progress( num=>10, 'err'=>'failed!' );
+    return $self->exists_group( $p{group} )
+        ? $prov->progress( num=>10, desc=>'group added' )
+        : $prov->progress( num=>10, 'err'=>'failed!' );
 }
 
 sub destroy_group {
@@ -335,6 +327,26 @@ sub destroy_group {
         ? return $prov->progress( num=>10, 'err'=>'failed!' )
         : return $prov->progress( num=>10, desc=>'group deleted' );
 }
+
+sub exists {
+
+    my ( $self, $user ) = @_;
+    $user ||= $p_user->{username};
+    $user = lc($user);
+
+    ( getpwnam($user) && getpwnam($user) > 0 ) ? return 1 : return;
+}
+
+sub exists_group {
+
+    my ( $self, $group ) = @_;
+    $group or die "missing user";
+
+    my $gid = getgrnam($group);
+    
+    ( $gid && $gid > 0 ) ? return $gid : return;
+}
+
 
 1;
 

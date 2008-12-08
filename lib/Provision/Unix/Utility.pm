@@ -1,5 +1,7 @@
 package Provision::Unix::Utility;
 
+our $VERSION = '5.14';
+
 use strict;
 use warnings;
 
@@ -12,8 +14,7 @@ use File::Copy;
 use Params::Validate qw(:all);
 use Scalar::Util qw( openhandle );
 
-use vars qw($VERSION $fatal_err $err $prov);
-$VERSION = '5.14';
+use vars qw($fatal_err $err $prov);
 
 sub new {
 
@@ -2506,7 +2507,7 @@ sub syscmd {
         # \z   to the end of string
         $bin  = $1;
         $args = $2;
-        carp "syscmd: program is: $bin, args are: $args" if $debug;
+        $prov->audit("syscmd: program is: $bin, args are: $args");
     }
     else {
 
@@ -2530,10 +2531,11 @@ sub syscmd {
     }
 
     if ( $bin && -e $bin && !-x $bin ) {
-        $err = "I found $bin but it's not executable!";
-        croak $err if $p{fatal};
-        carp $err;
-        return;
+        return $prov->error(
+            message => "I found $bin but it's not executable!",
+            fatal   => $p{fatal},
+            debug   => $p{debug},
+        );
     }
 
     if ( $bin && !-e $bin ) {
@@ -2553,11 +2555,11 @@ sub syscmd {
         }
 
         if ( !-x $bin ) {
-            carp
-                "\t cmd: $cmd_to_exec \t bin: $bin is not found (improper cmd format?)"
-                if $debug;
-            print "syscmd was passed invalid argument(s).\n" if $debug;
-            croak if $p{fatal};
+            return $prov->error(
+                message => "\t cmd: $cmd_to_exec \t bin: $bin is not found (improper cmd format?)",
+                fatal => $p{fatal},
+                debug => $p{debug},
+            );
         }
     }
 
@@ -2580,9 +2582,11 @@ sub syscmd {
         # safety for now.
         # $ENV{PATH} = '';
 
-        croak "$status_message ...TAINTED!" if $p{fatal};
-        carp "$status_message ...TAINTED!"  if $debug;
-        return;
+        return $prov->error(
+            message => "$status_message ...TAINTED!",
+            fatal => $p{fatal},
+            debug => $p{debug},
+        );
     }
 
     if ($is_safe) {
@@ -2623,11 +2627,11 @@ sub syscmd {
     # in perl < 6, system commands return zero on success. Check to see that
     # the result of the command was zero, and warn (or die) otherwise.
     if ( $result_code != 0 ) {
-        $self->_formatted( "syscmd: $cmd_to_exec", "FAILED" )
-            if $debug;
-        $err = "syscmd: program exited: $result_code";
-        croak $err if $p{fatal};
-        carp $err  if $debug;
+        $prov->error(
+            message => "syscmd: program exited: $result_code",
+            fatal => $p{fatal},
+            debug => $p{debug},
+        );
     }
 
     $result_code ? return : return 1;
@@ -3455,7 +3459,7 @@ This sub proved quite useful during 2005 as many packages began to be distribute
 
    my $sudo = $utility->sudo();
 
-   $utility->syscmd( command=>"$sudo rm /etc/root-owned-file" );
+   $utility->syscmd( cmd=>"$sudo rm /etc/root-owned-file" );
 
 Often you want to run a script as an unprivileged user. However, the script may need elevated privileges for a plethora of reasons. Rather than running the script suid, or as root, configure sudo allowing the script to run system commands with appropriate permissions.
 
@@ -3475,12 +3479,11 @@ If sudo is not installed and you're running as root, it'll offer to install sudo
 
    Just a little wrapper around system calls, that returns any failure codes and prints out the error(s) if present. A bit of sanity testing is also done to make sure the command to execute is safe. 
 
-      my $r = $utility->syscmd( command=>"gzip /tmp/example.txt" );
+      my $r = $utility->syscmd( cmd=>"gzip /tmp/example.txt" );
       $r ? print "ok!\n" : print "not ok.\n";
 
     arguments required:
-      command - the command to execute
-      cmd     - alias of command
+      cmd     - the command to execute
 
     arguments optional:
       debug

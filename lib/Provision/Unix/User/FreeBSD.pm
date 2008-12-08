@@ -3,7 +3,7 @@ package Provision::Unix::User::FreeBSD;
 use warnings;
 use strict;
 
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 
 use English qw( -no_match_vars );
 use Carp;
@@ -122,9 +122,9 @@ sub create {
     # call verify_master_passwd
     # set up user quotas
 
-    $user->exists($username)
-        ? return $prov->progress( num=>10, desc=>'created successfully')
-        : return $prov->error( message=>'create user failed' );
+    return $self->exists($username)
+        ? $prov->progress( num=>10, desc=>'created successfully')
+        : $prov->error( message=>'create user failed' );
 }
 
 sub create_group {
@@ -141,9 +141,7 @@ sub create_group {
     );
 
     # see if the group exists
-    my $r = getgrnam( $p{group} );
-
-    if ($r) {
+    if ( $self->exists_group($p{group}) ) {
         $prov->audit( "create_group: $p{group} exists" );
         return 2;
     };
@@ -217,7 +215,7 @@ sub destroy {
     return $prov->progress(
         num    => 10,
         desc   => 'error',
-        errmsg => $prov->{errors}->[-1]->{errmsg},
+        'err'  => $prov->{errors}->[-1]->{errmsg},
     );
 }
 
@@ -269,9 +267,28 @@ sub destroy_group {
     return $prov->progress(
         num    => 10,
         desc   => 'error',
-        errmsg => $prov->{errors}->[-1]->{errmsg},
+        'err'  => $prov->{errors}->[-1]->{errmsg},
     );
 }
+
+sub exists {
+    my $self = shift;
+    my $username = lc(shift) || $user->{username} || die "missing user";
+
+    my $uid = getpwnam($username);
+    $self->{uid} = $uid;
+    ( $uid && $uid > 0 ) ? return $uid : return;
+}
+
+sub exists_group {
+
+    my $self  = shift;
+    my $group = lc(shift) or die "missing user";
+    
+    my $gid = getgrnam($group);
+    
+    ( $gid && $gid > 0 ) ? return $gid : return;
+};
 
 sub verify_master_passwd {
 
@@ -374,7 +391,7 @@ returns a boolean.
     my $tar = $util->find_bin( bin => "tar" );
     my $rm  = $util->find_bin( bin => "rm" );
 
-    if ( !$user->exists($user) ) {
+    if ( !$self->exists($user) ) {
         $prov->error( { message => "user $user does not exist!" } );
     }
 
@@ -416,7 +433,7 @@ Provision::Unix::User::FreeBSD - Provision Unix Accounts on FreeBSD systems
 
 =head1 VERSION
 
-Version 0.06
+Version 0.07
 
 =head1 SYNOPSIS
 

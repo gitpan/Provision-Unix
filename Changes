@@ -1,6 +1,13 @@
 Revision history for Provision-Unix
 
-0.30    Nov 14, 2008
+0.32    Dec 07, 2008
+        added user support for Linux
+
+0.31    Nov 12, 2008
+        fixed Darwin user creation bug: 
+          http://rt.cpan.org/Ticket/Display.html?id=40189
+
+0.30    Nov 10, 2008
         added license=>'perl' to Makefile.PL
         initial coding of VirtualOS module begun
 	added Virtual::OS::FreeBSD::Ezjail
