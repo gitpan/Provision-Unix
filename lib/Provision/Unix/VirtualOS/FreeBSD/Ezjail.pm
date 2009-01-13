@@ -1,61 +1,55 @@
 package Provision::Unix::VirtualOS::FreeBSD::Ezjail;
 
+our $VERSION = '0.08';
+
 use warnings;
 use strict;
-
-our $VERSION = '0.03';
 
 use English qw( -no_match_vars );
 use Params::Validate qw(:all);
 
-my ($prov, $util);
+my ( $prov, $vos, $util );
 
 sub new {
     my $class = shift;
 
-    my %p = validate( @_, { 'prov' => { type => HASHREF }, } );
+    my %p = validate( @_, { 'vos' => { type => OBJECT }, } );
 
-    my $self = { prov => $p{prov}, };
+    $vos  = $p{vos};
+    $prov = $vos->{prov};
+
+    my $self = { prov => $prov };
     bless( $self, $class );
-    
-    $prov = $p{prov};
+
     $prov->audit("loaded VirtualOS::FreeBSD::Ezjail");
 
     require Provision::Unix::Utility;
-    $util = Provision::Unix::Utility->new( prov=> $prov );
+    $util = Provision::Unix::Utility->new( prov => $prov );
 
     return $self;
 }
 
 sub create_virtualos {
     my $self = shift;
-    my %p = validate(
-        @_,
-        {   'name'      => { type => SCALAR },
-            'ip'        => { type => SCALAR },
-            'fsroot'    => { type => SCALAR | UNDEF, optional => 1 },
-            'template'  => { type => SCALAR | UNDEF, optional => 1 },
-            'size'      => { type => SCALAR | UNDEF, optional => 1 },
-            'test_mode' => { type => SCALAR | UNDEF, optional => 1 },
-        }
-    );
 
-# Templates in ezjail are 'flavours' or archives
+    # Templates in ezjail are 'flavours' or archives
 
     # ezjail-admin create -f default [-r jailroot] [-i|c -s 512]
     # ezjail-admin create -a archive
 
-    my $admin = $util->find_bin(bin=>'ezjail-admin', debug=>0);
-    my $cmd   = "$admin ";
+    my $admin = $util->find_bin( bin => 'ezjail-admin', debug => 0 );
+    my $cmd = "$admin ";
 
     my $jails_root = _get_jails_root() || '/usr/jails';
 
-    if ( $p{fs_root} && $p{fs_root} ne "$jails_root/$p{name}" ) {
-        $cmd .= " -r $p{fs_root}";
-    };
+    if (   $vos->{disk_root}
+        && $vos->{disk_root} ne "$jails_root/$vos->{name}" )
+    {
+        $cmd .= " -r $vos->{disk_root}";
+    }
 
-    my $template = $p{template} || 'default';
-    if ( $template ) {
+    my $template = $vos->{template} || 'default';
+    if ($template) {
         if ( -d "$jails_root/flavours/$template" ) {
             $prov->audit("detected ezjail flavour $template");
             $cmd .= " -f $template";
@@ -65,27 +59,28 @@ sub create_virtualos {
             $cmd .= " -a $jails_root/$template.tgz";
         }
         else {
-            $prov->error(message=>"You chose the template ($template) but it is not defined as a flavor in $jails_root/flavours or an archive at $jails_root/$template.tgz");
-        };
-    };
+            $prov->error( message =>
+                    "You chose the template ($template) but it is not defined as a flavor in $jails_root/flavours or an archive at $jails_root/$template.tgz"
+            );
+        }
+    }
 
-    $cmd .= " -s $p{size}" if $p{size};
+    $cmd .= " -s $vos->{disk_size}" if $vos->{disk_size};
 
-    $prov->audit("cmd: $cmd $p{name} $p{ip}");
-    return 1 if $p{test_mode};
-    return $util->syscmd( cmd=>$cmd );
-};
+    $prov->audit("cmd: $cmd $vos->{name} $vos->{ip}");
+    return 1 if $vos->{test_mode};
+    return $util->syscmd( cmd => $cmd );
+}
 
 sub _get_jails_root {
     my $r = `grep '^ezjail_jaildir' /usr/local/etc/ezjail.conf`;
-    if ( $r ) {
+    if ($r) {
         chomp $r;
-        (undef, $r) = split /=/, $r;
+        ( undef, $r ) = split /=/, $r;
         return $r;
     }
     return undef;
-};
-
+}
 
 1;
 
@@ -97,7 +92,7 @@ Provision::Unix::VirtualOS::FreeBSD::Ezjail -
 
 =head1 VERSION
 
-Version 0.03
+Version 0.08
 
 =head1 SYNOPSIS
 

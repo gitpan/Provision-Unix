@@ -12,7 +12,7 @@ use Params::Validate qw( :all );
 use lib 'lib';
 use Provision::Unix;
 my $provision = Provision::Unix->new();
-my ($prov, $user, $util);
+my ( $prov, $user, $util );
 
 sub new {
 
@@ -20,8 +20,8 @@ sub new {
 
     my %p = validate(
         @_,
-        {   prov  => { type => HASHREF },
-            user  => { type => HASHREF },
+        {   prov  => { type => OBJECT },
+            user  => { type => OBJECT },
             debug => { type => BOOLEAN, optional => 1, default => 1 },
             fatal => { type => BOOLEAN, optional => 1, default => 1 },
         }
@@ -41,7 +41,7 @@ sub new {
     $prov->audit("loaded User/Linux");
 
     require Provision::Unix::Utility;
-    $util = Provision::Unix::Utility->new( prov=> $prov );
+    $util = Provision::Unix::Utility->new( prov => $prov );
     return $self;
 }
 
@@ -62,7 +62,7 @@ sub create {
             'expire'   => { type => SCALAR | UNDEF, optional => 1 },
             'quota'    => { type => SCALAR | UNDEF, optional => 1 },
             'debug'    => { type => SCALAR, optional => 1, default => 1 },
-            'test_mode'=> { type => SCALAR, optional => 1 },
+            'test_mode' => { type => SCALAR, optional => 1 },
         }
     );
 
@@ -71,7 +71,7 @@ sub create {
 
     $user->_is_valid_username( $p{username} ) or return;
 
-    my $cmd = $util->find_bin( bin=>'useradd', debug => $p{debug} );
+    my $cmd = $util->find_bin( bin => 'useradd', debug => $p{debug} );
     $cmd .= " -c $p{gecos}"   if $p{gecos};
     $cmd .= " -d $p{homedir}" if $p{homedir};
     $cmd .= " -e $p{expire}"  if $p{expire};
@@ -86,21 +86,24 @@ sub create {
     $util->syscmd( cmd => $cmd, debug => 0 );
 
     if ( $p{password} ) {
-        my $passwd = $util->find_bin( bin=>'passwd', debug => $p{debug} );
+        my $passwd = $util->find_bin( bin => 'passwd', debug => $p{debug} );
         ## no critic
         my $FH;
         unless ( open $FH, "| $passwd --stdin" ) {
-            return $prov->error(
-                message => "user_add: opening passwd failed for $p{username}" );
+            return $prov->error( message =>
+                    "user_add: opening passwd failed for $p{username}" );
         }
         print $FH "$p{password}\n";
         close $FH;
         ## use critic
-    };
+    }
 
     return $self->exists()
-        ? $prov->progress( num=>10, desc=>"created user $p{username} successfully")
-        : $prov->error( message=>"create user $p{username} failed" );
+        ? $prov->progress(
+        num  => 10,
+        desc => "created user $p{username} successfully"
+        )
+        : $prov->error( message => "create user $p{username} failed" );
 }
 
 sub create_group {
@@ -109,22 +112,22 @@ sub create_group {
 
     my %p = validate(
         @_,
-        {   'group'  => { type => SCALAR },
-            'gid'    => { type => SCALAR,  optional => 1, },
-            'debug'  => { type => SCALAR,  optional => 1, default => 1 },
-            'fatal'  => { type => BOOLEAN, optional => 1, default => 1 },
+        {   'group' => { type => SCALAR },
+            'gid'   => { type => SCALAR, optional => 1, },
+            'debug' => { type => SCALAR, optional => 1, default => 1 },
+            'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
         }
     );
 
     # see if the group exists
     if ( $self->exists_group( $p{group} ) ) {
-        $prov->audit( "create_group: '$p{group}', already exists" );
+        $prov->audit("create_group: '$p{group}', already exists");
         return 2;
-    };
+    }
 
     $prov->audit("create_group: installing $p{group} on $OSNAME");
 
-    my $cmd = $util->find_bin( bin=>'groupadd', debug => $p{debug} );
+    my $cmd = $util->find_bin( bin => 'groupadd', debug => $p{debug} );
     $cmd .= " -g $p{gid}" if $p{gid};
     $cmd .= " $p{group}";
 
@@ -135,15 +138,15 @@ sub destroy {
 
     my $self = shift;
 
-    my %p = validate(   
-        @_, 
+    my %p = validate(
+        @_,
         {   'username'  => { type => SCALAR, },
-            'homedir'   => { type => SCALAR,  optional => 1, },
+            'homedir'   => { type => SCALAR, optional => 1, },
             'archive'   => { type => BOOLEAN, optional => 1, default => 0 },
             'prompt'    => { type => BOOLEAN, optional => 1, default => 0 },
             'test_mode' => { type => BOOLEAN, optional => 1, default => 0 },
-            'fatal'     => { type => SCALAR,  optional => 1, default => 1 },
-            'debug'     => { type => SCALAR,  optional => 1, default => 1 },
+            'fatal'     => { type => SCALAR, optional => 1, default => 1 },
+            'debug'     => { type => SCALAR, optional => 1, default => 1 },
         },
     );
 
@@ -165,17 +168,20 @@ sub destroy {
     my $cmd = $util->find_bin( bin => 'userdel', debug => $p{debug} );
     $cmd .= " -r $p{username}";
 
-    my $r = $util->syscmd( cmd => $cmd, debug => 0, fatal=>$p{fatal} );
+    my $r = $util->syscmd( cmd => $cmd, debug => 0, fatal => $p{fatal} );
 
     # validate that the user was removed
     if ( !$self->exists() ) {
-        return $prov->progress( num => 10, desc => "\tdeleted user $p{username}" );
+        return $prov->progress(
+            num  => 10,
+            desc => "\tdeleted user $p{username}"
+        );
     }
 
     return $prov->progress(
-        num    => 10,
-        desc   => 'error',
-        'err'  => "\tfailed to remove user '$p{username}'",
+        num   => 10,
+        desc  => 'error',
+        'err' => "\tfailed to remove user '$p{username}'",
     );
 }
 
@@ -183,13 +189,13 @@ sub destroy_group {
 
     my $self = shift;
 
-    my %p = validate(   
-        @_, 
+    my %p = validate(
+        @_,
         {   'group'     => { type => SCALAR, },
-            'gid'       => { type => SCALAR,  optional => 1 },
+            'gid'       => { type => SCALAR, optional => 1 },
             'test_mode' => { type => BOOLEAN, optional => 1, default => 0 },
-            'fatal'     => { type => SCALAR,  optional => 1, default => 1 },
-            'debug'     => { type => SCALAR,  optional => 1, default => 1 },
+            'fatal'     => { type => SCALAR, optional => 1, default => 1 },
+            'debug'     => { type => SCALAR, optional => 1, default => 1 },
         },
     );
 
@@ -214,9 +220,9 @@ sub destroy_group {
 
     $util->syscmd( cmd => $cmd, debug => $p{debug} )
         or return $prov->progress(
-            num    => 10,
-            desc   => 'error',
-            'err'  => $prov->{errors}->[-1]->{errmsg},
+        num   => 10,
+        desc  => 'error',
+        'err' => $prov->{errors}->[-1]->{errmsg},
         );
 
     # validate that the group was removed
@@ -231,21 +237,22 @@ sub exists {
     my $self = shift;
     my $username = shift || $user->get_username();
 
-    $user->_is_valid_username( $username )
-        or $prov->error( message=> "missing username param in request" );
+    $user->_is_valid_username($username)
+        or $prov->error( message => "missing username param in request" );
 
     $username = lc $username;
-    #$prov->error(message=>"\tchecking for existence of '$username'", fatal=>0);
+
+  #$prov->error(message=>"\tchecking for existence of '$username'", fatal=>0);
 
     # double check
     if ( -f '/etc/passwd' ) {
         my $exists = `grep '^$username:' /etc/passwd`;
-        if ( $exists ) {
+        if ($exists) {
             $prov->audit("\t'$username' exists (passwd: $exists)");
             return $exists;
-        };
+        }
         return;
-    };
+    }
 
     my $uid = getpwnam $username;
     $prov->audit("\t'$username' exists (uid: $uid)");
@@ -255,18 +262,17 @@ sub exists {
 
 sub exists_group {
 
-    my ($self, $group) = @_;
-    $group ||= $user->{group} || $prov->error( "missing group");
+    my ( $self, $group ) = @_;
+    $group ||= $user->{group} || $prov->error("missing group");
 
     if ( -f '/etc/group' ) {
         my $exists = `grep '^$group:' /etc/group`;
         return $exists ? 1 : 0;
-    };
+    }
 
     my $gid = getgrnam($group);
     return $gid ? 1 : 0;
 }
-
 
 1;
 

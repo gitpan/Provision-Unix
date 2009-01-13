@@ -1,5 +1,6 @@
 #!perl
 use strict;
+
 #use warnings;
 
 use lib "lib";
@@ -150,12 +151,18 @@ chdir($cwd) or die;
 print "\t\t wd: " . cwd . "\n" if $debug;
 
 # chown_system
-my $sudo_bin = $util->find_bin( bin => 'sudo', debug => 0, fatal=>0);
+my $sudo_bin = $util->find_bin( bin => 'sudo', debug => 0, fatal => 0 );
 if ( $UID == 0 && $sudo_bin && -x $sudo_bin ) {
 
     # avoid the possiblity of a sudo call in testing
-    ok( $util->chown_system( dir => $tmp, user => $<, debug => 0, fatal=>0 ),
-        'chown_system' );
+    ok( $util->chown_system(
+            dir   => $tmp,
+            user  => $<,
+            debug => 0,
+            fatal => 0
+        ),
+        'chown_system'
+    );
 }
 
 # check_pidfile - deprecated (see pidfile_check)
@@ -652,7 +659,7 @@ if ( !$< == 0 && $sudo_bin && -x $sudo_bin ) {
     ok( $util->sudo( debug => 0 ), 'sudo' );
 }
 else {
-    ok( !$util->sudo( debug => 0, fatal=>0 ), 'sudo' );
+    ok( !$util->sudo( debug => 0, fatal => 0 ), 'sudo' );
 }
 
 # syscmd

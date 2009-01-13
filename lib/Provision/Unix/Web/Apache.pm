@@ -19,10 +19,10 @@ my ( $prov, $util, $web );
 sub new {
     my $class = shift;
 
-    my %p     = validate(
+    my %p = validate(
         @_,
-        {   prov  => { type => HASHREF },
-            web   => { type => HASHREF },
+        {   prov  => { type => OBJECT },
+            web   => { type => OBJECT },
             debug => { type => BOOLEAN, optional => 1, default => 1 },
             fatal => { type => BOOLEAN, optional => 1, default => 1 },
         }
@@ -30,9 +30,9 @@ sub new {
 
     $web  = $p{web};
     $prov = $p{prov};
-    $util = Provision::Unix::Utility->new( prov=>$prov );
+    $util = Provision::Unix::Utility->new( prov => $prov );
 
-    my $self  = {};
+    my $self = {};
     bless( $self, $class );
 
     return $self;
@@ -47,23 +47,21 @@ sub create {
         {   'request'   => { type => HASHREF, optional => 1, },
             'prompt'    => { type => BOOLEAN, optional => 1, default => 0 },
             'test_mode' => { type => BOOLEAN, optional => 1, default => 0 },
-            'fatal'     => { type => SCALAR, optional => 1, default => 1 },
-            'debug'     => { type => SCALAR, optional => 1, default => 1 },
+            'fatal'     => { type => SCALAR,  optional => 1, default => 1 },
+            'debug'     => { type => SCALAR,  optional => 1, default => 1 },
         },
     );
 
     my $vals = $web->get_vhost_attributes(
         {   request => $p{request},
-            prompt  => $p{prompt}, 
-        }   
+            prompt  => $p{prompt},
+        }
     );
 
-    $prov->audit( "apache create" );
+    $prov->audit("apache create");
 
-    if ( $self->exists( request=>$vals ) ) {
-        return $prov->error( 
-            message => "that virtual host already exists",
-        );
+    if ( $self->exists( request => $vals ) ) {
+        return $prov->error( message => "that virtual host already exists", );
     }
 
     # test all the values and make sure we've got enough to form a vhost
@@ -76,10 +74,8 @@ sub create {
 
     unless ($docroot) {
         if ( -d "$home/$name" ) { $docroot = "$home/$name" }
-        return $prov->error (
-            message =>
-                "documentroot was not set and could not be determined!",
-            )
+        return $prov->error( message =>
+                "documentroot was not set and could not be determined!", )
             unless -d $docroot;
     }
 
@@ -122,13 +118,13 @@ sub create {
     push @lines, "	CustomError " . $vals->{'customerror'}
         if $vals->{'customerror'};
     if ( $vals->{'ssl'} ) {
-        if (  ! $vals->{'sslkey'} or ! $vals->{'sslcert'}
-            or ! -f $vals->{'sslkey'} or ! $vals->{'sslcert'} )
+        if (   !$vals->{'sslkey'}
+            or !$vals->{'sslcert'}
+            or !-f $vals->{'sslkey'}
+            or !$vals->{'sslcert'} )
         {
-            return $prov->error (
-                error_desc =>
-                    "ssl is enabled but either the key or cert is missing!"
-            );
+            return $prov->error( error_desc =>
+                    "ssl is enabled but either the key or cert is missing!" );
         }
         push @lines, "	SSLEngine on";
         push @lines, "	SSLCertificateKey " . $vals->{'sslkey'}
@@ -139,12 +135,12 @@ sub create {
     push @lines, "</VirtualHost>\n";
 
     # write vhost definition to a file
-    my ($vhosts_conf) = $self->get_file( $vals );
+    my ($vhosts_conf) = $self->get_file($vals);
 
     return 1 if $p{test_mode};
 
     if ( -f $vhosts_conf ) {
-        $prov->audit( "appending to file: $vhosts_conf");
+        $prov->audit("appending to file: $vhosts_conf");
         $util->file_write(
             file   => $vhosts_conf,
             lines  => \@lines,
@@ -152,13 +148,13 @@ sub create {
         );
     }
     else {
-        $prov->audit( "writing to file: $vhosts_conf");
+        $prov->audit("writing to file: $vhosts_conf");
         $util->file_write( file => $vhosts_conf, lines => \@lines );
     }
 
     $self->restart($vals);
 
-    $prov->audit( "returning success");
+    $prov->audit("returning success");
     return 1;
 }
 
@@ -174,7 +170,7 @@ sub conf_get_dir {
 
     my $conf = $p{'conf'};
 
-    my $prefix = "/usr/local";
+    my $prefix    = "/usr/local";
     my $apachectl = "$prefix/sbin/apachectl";
 
     unless ( -x $apachectl ) {
@@ -252,15 +248,12 @@ sub restart {
     print "restarting apache.\n" if $vals->{'debug'};
 
     if ( -x "/usr/local/etc/rc.d/apache2.sh" ) {
-        $util->syscmd(
-            cmd => "/usr/local/etc/rc.d/apache2.sh stop" );
-        $util->syscmd(
-            cmd => "/usr/local/etc/rc.d/apache2.sh start" );
+        $util->syscmd( cmd => "/usr/local/etc/rc.d/apache2.sh stop" );
+        $util->syscmd( cmd => "/usr/local/etc/rc.d/apache2.sh start" );
     }
     elsif ( -x "/usr/local/etc/rc.d/apache.sh" ) {
         $util->syscmd( cmd => "/usr/local/etc/rc.d/apache.sh stop" );
-        $util->syscmd(
-            cmd => "/usr/local/etc/rc.d/apache.sh start" );
+        $util->syscmd( cmd => "/usr/local/etc/rc.d/apache.sh start" );
     }
     else {
         my $apachectl = $util->find_bin( bin => "apachectl" );
@@ -277,7 +270,7 @@ sub restore {
 
     my ( $self, $vals ) = @_;
 
-    if ( $self->exists( $vals ) ) {
+    if ( $self->exists($vals) ) {
         return {
             error_code => 400,
             error_desc => "Sorry, that virtual host is already enabled."
@@ -287,7 +280,7 @@ sub restore {
     print "enabling $vals->{'vhost'} \n";
 
     # get the file the disabled vhost would live in
-    my ($vhosts_conf) = $self->get_file( $vals );
+    my ($vhosts_conf) = $self->get_file($vals);
 
     print "the disabled vhost should be in $vhosts_conf.disabled\n"
         if $vals->{'debug'};
@@ -302,7 +295,7 @@ sub restore {
     $vals->{'disabled'} = 1;
 
     # slit the file into two parts
-    ( undef, my $match, $vals ) = $self->get_match( $vals );
+    ( undef, my $match, $vals ) = $self->get_match($vals);
 
     print "enabling: \n", join( "\n", @$match ), "\n";
 
@@ -328,8 +321,7 @@ sub restore {
         # chmod 755 the documentroot directory
         if ( $vals->{'documentroot'} && -d $vals->{'documentroot'} ) {
             my $chmod = $util->find_bin( bin => "chmod" );
-            $util->syscmd(
-                cmd => "$chmod 755 $vals->{'documentroot'}" );
+            $util->syscmd( cmd => "$chmod 755 $vals->{'documentroot'}" );
         }
     }
 
@@ -341,7 +333,7 @@ sub suspend {
 
     my ( $self, $vals ) = @_;
 
-    unless ( $self->exists( $vals ) ) {
+    unless ( $self->exists($vals) ) {
         return {
             error_code => 400,
             error_desc => "Sorry, that virtual host does not exist."
@@ -352,10 +344,10 @@ sub suspend {
 
     # get the file the vhost lives in
     $vals->{'disabled'} = 0;
-    my ($vhosts_conf) = $self->get_file( $vals );
+    my ($vhosts_conf) = $self->get_file($vals);
 
     # split the file into two parts
-    ( my $new, my $match, $vals ) = $self->get_match( $vals );
+    ( my $new, my $match, $vals ) = $self->get_match($vals);
 
     print "Disabling: \n" . join( "\n", @$match ) . "\n";
 
@@ -366,8 +358,7 @@ sub suspend {
 
         # check to see if it's already in there
         $vals->{'disabled'} = 1;
-        ( undef, my $dis_match, $vals )
-            = $self->get_match( $vals );
+        ( undef, my $dis_match, $vals ) = $self->get_match($vals);
 
         if ( @$dis_match[1] ) {
             print "it's already in $vhosts_conf.disabled. skipping append.\n";
@@ -400,8 +391,7 @@ sub suspend {
         }
         else {
             my $mv = $util->find_bin( bin => "move" );
-            $util->syscmd(
-                cmd => "$mv $vhosts_conf.new $vhosts_conf" );
+            $util->syscmd( cmd => "$mv $vhosts_conf.new $vhosts_conf" );
         }
     }
     else {
@@ -428,7 +418,7 @@ sub destroy {
 
     my ( $self, $vals ) = @_;
 
-    unless ( $self->exists( $vals ) ) {
+    unless ( $self->exists($vals) ) {
         return {
             error_code => 400,
             error_desc => "Sorry, that virtual host does not exist."
@@ -442,8 +432,8 @@ sub destroy {
 # I'll do that by setting a counter that trips every time I enter a vhost and counts the lines (so if the servername declaration is on the 5th or 1st line, I'll still know where to nip the first line containing the virtualhost opening declaration)
 #
 
-    my ($vhosts_conf) = $self->get_file( $vals );
-    my ( $new, $drop ) = $self->get_match( $vals );
+    my ($vhosts_conf) = $self->get_file($vals);
+    my ( $new, $drop ) = $self->get_match($vals);
 
     print "Dropping: \n" . join( "\n", @$drop ) . "\n";
 
@@ -489,25 +479,21 @@ sub get_vhosts {
     my $vhosts_conf = $prov->{config}{Apache}{vhosts};
     return $vhosts_conf if $vhosts_conf;
 
-    $vhosts_conf 
-        = lc($OSNAME eq 'linux'  ) ? '/etc/httpd/conf.d'
-        : lc($OSNAME eq 'darwin' ) ? '/etc/apache2/extra/httpd-vhosts.conf'
-        : lc($OSNAME eq 'freebsd') ? '/usr/local/etc/apache2/Includes'
-        : warn "could not determine where your apache vhosts are\n";
+    $vhosts_conf
+        = lc( $OSNAME eq 'linux' )   ? '/etc/httpd/conf.d'
+        : lc( $OSNAME eq 'darwin' )  ? '/etc/apache2/extra/httpd-vhosts.conf'
+        : lc( $OSNAME eq 'freebsd' ) ? '/usr/local/etc/apache2/Includes'
+        :   warn "could not determine where your apache vhosts are\n";
 
     return $vhosts_conf if $vhosts_conf;
-    $prov->error(message=> "you must set [Apache][etc] in provision.conf");
-};
+    $prov->error( message => "you must set [Apache][etc] in provision.conf" );
+}
 
 sub exists {
 
     my $self = shift;
 
-    my %p = validate(
-        @_,
-        {   'request' => { type => HASHREF },
-        },
-    );
+    my %p = validate( @_, { 'request' => { type => HASHREF }, }, );
 
     my $vals = $p{'request'};
 
@@ -523,9 +509,9 @@ sub exists {
        # declarations live within the domain file.
 
         my ($vh_file_name) = $vhost =~ /([a-z0-9-]+\.[a-z0-9-]+)(\.)?$/;
-        $prov->audit( "cleaned up vhost name: $vh_file_name");
+        $prov->audit("cleaned up vhost name: $vh_file_name");
 
-        $prov->audit( "searching for vhost $vhost in $vh_file_name");
+        $prov->audit("searching for vhost $vhost in $vh_file_name");
         my $vh_file_path = "$vhosts_conf/$vh_file_name.conf";
 
         return if !-f $vh_file_path;    # file does not exist
@@ -590,16 +576,16 @@ sub show {
 
     my ( $self, $vals ) = @_;
 
-    unless ( $self->exists( $vals ) ) {
+    unless ( $self->exists($vals) ) {
         return {
             error_code => 400,
             error_desc => "Sorry, that virtual host does not exist."
         };
     }
 
-    my ($vhosts_conf) = $self->get_file( $vals );
+    my ($vhosts_conf) = $self->get_file($vals);
 
-    ( my $new, my $match, $vals ) = $self->get_match( $vals );
+    ( my $new, my $match, $vals ) = $self->get_match($vals);
     print "showing: \n" . join( "\n", @$match ) . "\n";
 
     return { error_code => 100, error_desc => "exiting normally" };
@@ -619,7 +605,7 @@ sub get_file {
     else {
         if ( $vhosts_conf !~ /\.conf$/ ) {
             $vhosts_conf .= ".conf";
-        };
+        }
     }
 
     return $vhosts_conf;
@@ -629,7 +615,7 @@ sub get_match {
 
     my ( $self, $vals ) = @_;
 
-    my ($vhosts_conf) = $self->get_file( $vals );
+    my ($vhosts_conf) = $self->get_file($vals);
     if ( $vals->{'disabled'} ) { $vhosts_conf .= ".disabled" }
 
     print "reading in the vhosts file $vhosts_conf\n" if $vals->{'debug'};

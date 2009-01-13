@@ -20,7 +20,6 @@ sub new {
     return $self;
 }
 
-
 1;
 
 __END__

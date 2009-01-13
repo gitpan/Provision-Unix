@@ -5,7 +5,6 @@ use strict;
 
 our $VERSION = '0.02';
 
-
 sub function1 {
 }
 

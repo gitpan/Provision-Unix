@@ -1,0 +1,130 @@
+#!perl
+
+use strict;
+use warnings;
+
+use Data::Dumper qw( Dumper );
+use English qw( -no_match_vars );
+use Getopt::Long;
+use Pod::Usage;
+
+use lib "lib";
+use Provision::Unix;
+use Provision::Unix::Utility;
+use Provision::Unix::VirtualOS;
+
+my $prov = Provision::Unix->new( debug => 0 );
+my $util = Provision::Unix::Utility->new( prov => $prov, debug => 0);
+my $vos  = Provision::Unix::VirtualOS->new( prov => $prov );
+
+
+# process command line options
+Getopt::Long::GetOptions(
+
+    'action=s'    => \my $action,
+    'name=s'      => \my $name,
+    'ip=s'        => \my $ip,
+
+    'template=s'  => \my $template,
+    'config=s'    => \my $config,
+    'disk_root=s' => \my $disk_root,
+    'disk_size=s' => \my $disk_size,
+    'hostname=s'  => \my $hostname,
+    'password=s'  => \my $password,
+    'nameservers=s' => \my $nameservers,
+    'searchdomain=s' => \my $searchdomain,
+
+    'verbose'     => \my $debug,
+
+) or die "error parsing command line options";
+
+my $questions = {
+    action    => "the action to perform: create, destroy, start, stop, restart, disable, enable, modify, probe", 
+    name      => "the virtual environment name/ID",
+    ip        => "the IP address[es] (space delimited)",
+
+    template  => "the OS template/tarball to use",
+    config    => "the configuration file",
+    disk_root => "the path to the virtual OS root",
+    disk_size => "the disk size (limit) ",
+    hostname  => "the virtual hostname",
+    password  => "the root password",
+    nameservers  => "the nameservers (for /etc/resolv.conf)",
+    searchdomain  => "the search domain (for /etc/resolv.conf)",
+};
+
+$action ||= $util->ask( question=> $questions->{action}, default=>'create' );
+$action = lc($action);
+
+my %actions = map { $_ => 1 } qw/ create destroy start stop restart disable enable modify probe /;
+pod2usage( { -verbose => 1 } ) if !$actions{$action};
+
+$name ||= $util->ask( question => $questions->{name} );
+
+my %request = ( debug => 0, fatal => 0, name => lc($name) );
+
+  $action eq 'create'   ? create()
+: $action eq 'destroy'  ? destroy()
+: $action eq 'start'    ? start()
+: $action eq 'stop'     ? stop()
+: $action eq 'restart'  ? restart()
+: $action eq 'disable'  ? disable()
+: $action eq 'enable'   ? enable()
+: $action eq 'modify'   ? modify()
+: $action eq 'probe'    ? probe()
+: die "oops, the action ($action) is invalid\n";
+
+sub create {
+
+    $EUID == 0 or die("Create functions require root privileges.");
+
+    $request{ip}       = $ip       || $util->ask( question=> $questions->{ip} );
+    $request{hostname} = $hostname || $util->ask( question=> $questions->{hostname} );
+    $request{template} = $template || $util->ask( 
+            question=> $questions->{template}, default => 'centos-5-i386-default' );
+    $request{config}   = $config   || $util->ask( question=> $questions->{config} );
+    $request{password} = $password || $util->ask( question=> $questions->{password} );
+    $request{nameservers} = $nameservers || $util->ask( 
+            question=> $questions->{nameservers} );
+    $request{searchdomain} = $searchdomain || 
+        $util->ask( question=> $questions->{searchdomain} );
+
+    warn "creating!\n";
+    $prov->audit("dispatching creation request");
+
+    return $vos->create_virtualos( %request );
+}
+
+sub destroy {
+    $EUID == 0 or die("That function require root privileges.");
+    return $vos->destroy_virtualos( %request );
+}
+
+sub start {
+    $EUID == 0 or die("That function require root privileges.");
+    return $vos->start_virtualos( %request );
+}
+sub stop {
+    $EUID == 0 or die("That function require root privileges.");
+    return $vos->stop_virtualos( %request );
+}
+sub restart {
+    $EUID == 0 or die("That function require root privileges.");
+    return $vos->restart_virtualos( %request );
+}
+sub disable {
+    $EUID == 0 or die("That function require root privileges.");
+    return $vos->disable_virtualos( %request );
+}
+sub enable {
+    $EUID == 0 or die("That function require root privileges.");
+    return $vos->enable_virtualos( %request );
+}
+sub modify {
+    $EUID == 0 or die("That function require root privileges.");
+    return $vos->modify_virtualos( %request );
+}
+
+__END__
+
+

@@ -1,6 +1,6 @@
 package Provision::Unix::Utility;
 
-our $VERSION = '5.14';
+our $VERSION = '5.15';
 
 use strict;
 use warnings;
@@ -21,7 +21,7 @@ sub new {
     my $class = shift;
     my %p     = validate(
         @_,
-        {   prov  => { type => HASHREF },
+        {   prov  => { type => OBJECT },
             debug => { type => BOOLEAN, optional => 1, default => 1 },
             fatal => { type => BOOLEAN, optional => 1, default => 1 },
         }
@@ -36,7 +36,6 @@ sub new {
     $prov = $p{prov};
     return $self;
 }
-
 
 =for TODO
 
@@ -97,9 +96,7 @@ PROMPT:
             alarm 0;
         };
         if ($EVAL_ERROR) {
-            ( $EVAL_ERROR eq "alarm\n" )
-                ? print "timed out!\n"
-                : carp;    # propagate unexpected errors
+            $EVAL_ERROR eq "alarm\n" ? print "timed out!\n" : carp;
         }
     }
     else {
@@ -158,7 +155,7 @@ sub archive_expand {
         }
     }
 
-    $prov->audit( "archive_expand: found $archive" );
+    $prov->audit("archive_expand: found $archive");
 
     $ENV{PATH} = '/bin:/usr/bin'; # do this or taint checks will blow up on ``
 
@@ -166,7 +163,7 @@ sub archive_expand {
         return $prov->error(
             message =>
                 "archive_expand: FAILED: I don't know how to expand $archive!",
-            fatal   => $p{fatal},
+            fatal => $p{fatal},
         );
     }
 
@@ -175,27 +172,26 @@ sub archive_expand {
     my $file = $self->find_bin( bin => 'file', debug => $debug );
 
     my %types = (
-        gzip => { 
-            content   => 'gzip',    
-            bin       => 'gunzip',
+        gzip => {
+            content => 'gzip',
+            bin     => 'gunzip',
         },
-        bzip => { 
-            content   => 'b(un)?zip2', # on BSD bunzip2, on Linux bzip2
-            bin       => 'bunzip2',
+        bzip => {
+            content => 'b(un)?zip2',    # on BSD bunzip2, on Linux bzip2
+            bin     => 'bunzip2',
         },
     );
 
-    my $type = $archive =~ /bz2$/ ? 'bzip'
-             : $archive =~ /gz$/ ? 'gzip'
-             : die 'unknown archive type';
+    my $type
+        = $archive =~ /bz2$/ ? 'bzip'
+        : $archive =~ /gz$/  ? 'gzip'
+        :                      die 'unknown archive type';
 
     # Check to make sure the archive contents match the file extension
     # this shouldn't be necessary but the world isn't perfect. Sigh.
-    unless ( grep ( /$types{$type}{content}/, `$file $archive`) )
-    {
+    unless ( grep ( /$types{$type}{content}/, `$file $archive` ) ) {
         return $prov->error(
-            message =>
-                "archive_expand: $archive not a $type compressed file",
+            message => "archive_expand: $archive not a $type compressed file",
             fatal   => $p{fatal},
         );
     }
@@ -203,9 +199,9 @@ sub archive_expand {
     my $bin = $self->find_bin( bin => $types{$type}{bin}, debug => $debug );
 
     if ($self->syscmd(
-                cmd   => "$bin -c $archive | $tar -xf -",
-                debug => 0
-            )
+            cmd   => "$bin -c $archive | $tar -xf -",
+            debug => 0
+        )
         )
     {
         print $self->_formatted( "archive_expand: extracting $archive", "ok" )
@@ -242,8 +238,9 @@ sub chmod {
     $file ||= $p{file_or_dir} ||= $p{dir};
 
     if ( !$file ) {
-        return $prov->error( message=>
-            "chmod: invalid params, see perldoc Provision::Unix::Utility");
+        return $prov->error( message =>
+                "chmod: invalid params, see perldoc Provision::Unix::Utility"
+        );
     }
 
     if ( $p{sudo} ) {
@@ -302,12 +299,12 @@ sub chown {
         return;
     }
 
-    $prov->audit( "chown: preparing to chown $uid $file");
+    $prov->audit("chown: preparing to chown $uid $file");
 
     unless ( -e $file ) {
         return $prov->error(
-            message=> "chown: file $file does not exist!",
-            fatal  => $p{fatal},
+            message => "chown: file $file does not exist!",
+            fatal   => $p{fatal},
         );
     }
 
@@ -327,41 +324,41 @@ sub chown {
 
     if ( $uid =~ /\A[0-9]+\z/ ) {
         $nuid = int($uid);
-        $prov->audit( "using $nuid from int($uid)" );
+        $prov->audit("using $nuid from int($uid)");
     }
     else {
         $nuid = getpwnam($uid);
         if ( !defined $nuid ) {
             return $prov->error(
-                message=>"failed to get uid for $uid. FATAL!",
-                fatal => $p{fatal},
-                debug => $debug,
+                message => "failed to get uid for $uid. FATAL!",
+                fatal   => $p{fatal},
+                debug   => $debug,
             );
         }
-        $prov->audit( "converting $uid to a number: $nuid" );
+        $prov->audit("converting $uid to a number: $nuid");
     }
 
     if ( $p{gid} =~ /\A[0-9\-]+\z/ ) {
         $ngid = int( $p{gid} );
-        $prov->audit( "using $ngid from int($p{gid})" );
+        $prov->audit("using $ngid from int($p{gid})");
     }
     else {
         $ngid = getgrnam( $p{gid} );
         if ( !defined $ngid ) {
             return $prov->error(
-                message=>"failed to get gid for $p{gid}. FATAL!",
-                fatal=> $p{fatal},
-                debug => $p{debug},
+                message => "failed to get gid for $p{gid}. FATAL!",
+                fatal   => $p{fatal},
+                debug   => $p{debug},
             );
         }
-        $prov->audit( "converting $p{gid} to a number: $ngid" );
+        $prov->audit("converting $p{gid} to a number: $ngid");
     }
 
     if ( !chown $nuid, $ngid, $file ) {
         return $prov->error(
-            message=> "couldn't chown $file: $!",
-            fatal => $p{fatal},
-            debug => $p{debug},
+            message => "couldn't chown $file: $!",
+            fatal   => $p{fatal},
+            debug   => $p{debug},
         );
     }
 
@@ -551,9 +548,9 @@ sub file_archive {
 
     if ( !-e $file ) {
         return $prov->error(
-            debug=>$p{debug}, 
-            fatal=>$p{fatal}, 
-            message=> "file_archive: file ($file) is missing!",
+            debug   => $p{debug},
+            fatal   => $p{fatal},
+            message => "file_archive: file ($file) is missing!",
         );
     }
 
@@ -598,7 +595,8 @@ sub file_archive {
             }
             else {
                 $prov->audit(
-                    "file_archive: sudo or cp was missing, could not escalate.");
+                    "file_archive: sudo or cp was missing, could not escalate."
+                );
             }
         }
     }
@@ -608,10 +606,10 @@ sub file_archive {
         return "$file.$date";
     }
 
-    return $prov->error( 
-        message=> "backup of $file to $file.$date failed: $!",
-        fatal => $p{fatal},
-        debug => $p{debug},
+    return $prov->error(
+        message => "backup of $file to $file.$date failed: $!",
+        fatal   => $p{fatal},
+        debug   => $p{debug},
     );
 }
 
@@ -657,7 +655,7 @@ sub file_delete {
     }
 
     if ( !$p{sudo} ) {    # all done
-        -e $file ? return : return 1;
+        return -e $file ? undef : 1;
     }
 
     $err = "file_delete: trying with system rm";
@@ -686,7 +684,7 @@ sub file_delete {
         carp "\t\t $!";
     }
 
-    -e $file ? return : return 1;
+    return -e $file ? undef : 1;
 }
 
 sub file_get {
@@ -1868,7 +1866,7 @@ sub is_process_running {
     my $grep = $self->find_bin( bin => 'grep', debug => 0 );
 
     my $r = `$ps ax | $grep $process | $grep -v grep`;
-    $r ? return 1 : return 0;
+    return $r ? 1 : 0;
 }
 
 sub is_readable {
@@ -2106,7 +2104,7 @@ sub mkdir_system {
             );
         }
 
-        -d $dir ? return 1 : return 0;
+        return -d $dir ? 1 : 0;
     }
 
     print "mkdir_system: trying mkdir -p $dir....." if $debug;
@@ -2477,9 +2475,10 @@ sub syscmd {
     # parameter validation here
     my %p = validate(
         @_,
-        {   'cmd'   => { type => SCALAR,  optional => 0, },
-            'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
-            'debug' => { type => BOOLEAN, optional => 1, default => 1 },
+        {   'cmd'     => { type => SCALAR },
+            'timeout' => { type => SCALAR, optional => 1 },
+            'fatal'   => { type => BOOLEAN, optional => 1, default => 1 },
+            'debug'   => { type => BOOLEAN, optional => 1, default => 1 },
         },
     );
 
@@ -2488,7 +2487,7 @@ sub syscmd {
 
     my $result_code;
 
-    print "syscmd, preparing command: $cmd_to_exec\n" if $debug;
+    $prov->audit("syscmd, preparing command: $cmd_to_exec") if $debug;
 
     # separate the program to run from its arguments, if we can
     my ( $is_safe, $tainted, $bin, $args );
@@ -2507,7 +2506,7 @@ sub syscmd {
         # \z   to the end of string
         $bin  = $1;
         $args = $2;
-        $prov->audit("syscmd: program is: $bin, args are: $args");
+        $prov->audit("\tsyscmd: program is: $bin, args are: $args") if $debug;
     }
     else {
 
@@ -2556,7 +2555,8 @@ sub syscmd {
 
         if ( !-x $bin ) {
             return $prov->error(
-                message => "\t cmd: $cmd_to_exec \t bin: $bin is not found (improper cmd format?)",
+                message =>
+                    "\t cmd: $cmd_to_exec \t bin: $bin is not found (improper cmd format?)",
                 fatal => $p{fatal},
                 debug => $p{debug},
             );
@@ -2584,8 +2584,8 @@ sub syscmd {
 
         return $prov->error(
             message => "$status_message ...TAINTED!",
-            fatal => $p{fatal},
-            debug => $p{debug},
+            fatal   => $p{fatal},
+            debug   => $p{debug},
         );
     }
 
@@ -2601,8 +2601,28 @@ sub syscmd {
         $ENV{PATH} = "/bin:/sbin:/usr/bin:/usr/sbin:$prefix/bin:$prefix/sbin";
     }
 
-    print "syscmd: running $cmd_to_exec\n" if $debug;
-    $result_code = system $cmd_to_exec;
+    $prov->audit("syscmd: running $cmd_to_exec");
+
+    if ( $p{timeout} ) {
+        eval {
+            local $SIG{ALRM} = sub { die "alarm" };
+            alarm $p{timeout};
+            $result_code = system $cmd_to_exec;
+            alarm 0;
+        };
+
+        if ($EVAL_ERROR) {
+            if ( $EVAL_ERROR eq "alarm" ) {
+                $prov->audit("timed out '$cmd_to_exec'");
+            }
+            else {
+                $prov->error( message => "unknown error '$EVAL_ERROR'" );
+            }
+        }
+    }
+    else {
+        $result_code = system $cmd_to_exec;
+    }
 
     if ( $CHILD_ERROR == -1 ) {    # check $? for "normal" errors
         carp "syscmd: $cmd_to_exec" . "\nfailed to execute: $!"
@@ -2628,13 +2648,14 @@ sub syscmd {
     # the result of the command was zero, and warn (or die) otherwise.
     if ( $result_code != 0 ) {
         $prov->error(
-            message => "syscmd: program exited: $result_code",
-            fatal => $p{fatal},
-            debug => $p{debug},
+            message  => "syscmd: program exited: $result_code",
+            location => join( ", ", caller ),
+            fatal    => $p{fatal},
+            debug    => $p{debug},
         );
     }
 
-    $result_code ? return : return 1;
+    return $result_code ? undef : 1;
 }
 
 sub yes_or_no {
@@ -2693,12 +2714,10 @@ sub yes_or_no {
         };
 
         if ($@) {
-            ( $@ eq "alarm\n" )
-                ? print "timed out!\n"
-                : carp;    # propagate unexpected errors
+            $@ eq "alarm\n" ? print "timed out!\n" : carp;
         }
 
-        $response && $response eq "y" ? return 1 : return 0;
+        return ($response && $response eq "y") ? 1 : 0;
     }
 
     do {
@@ -2707,7 +2726,7 @@ sub yes_or_no {
         chomp($response);
     } until ( $response eq "n" || $response eq "y" );
 
-    $response eq "y" ? return 1 : return 0;
+    return ($response eq "y") ? 1 : 0;
 }
 
 sub _formatted {

@@ -2,6 +2,7 @@
 bin/install_deps.pl
 bin/prov_dns.pl
 bin/prov_user.pl
+bin/prov_virtual.pl
 bin/prov_web.pl
 Changes
 lib/Provision/Unix.pm
@@ -22,6 +23,7 @@ lib/Provision/Unix/Utility.pm
 lib/Provision/Unix/VirtualOS.pm
 lib/Provision/Unix/VirtualOS/FreeBSD/Ezjail.pm
 lib/Provision/Unix/VirtualOS/FreeBSD/Jail.pm
+lib/Provision/Unix/VirtualOS/Linux.pm
 lib/Provision/Unix/VirtualOS/Linux/OpenVZ.pm
 lib/Provision/Unix/VirtualOS/Linux/Xen.pm
 lib/Provision/Unix/VirtualOS/Solaris/Container.pm
@@ -36,6 +38,7 @@ README
 t/00-load.t
 t/boilerplate.t
 t/DNS.t
+t/Group.t
 t/perlcritic.t
 t/pod-coverage.t
 t/pod.t

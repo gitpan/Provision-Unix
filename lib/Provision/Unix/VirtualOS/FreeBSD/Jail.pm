@@ -11,11 +11,14 @@ use Params::Validate qw(:all);
 sub new {
     my $class = shift;
 
-    my %p = validate( @_, { 'prov' => { type => HASHREF }, } );
+    my %p = validate( @_, { 'vos' => { type => OBJECT }, } );
 
-    my $self = { prov => $p{prov}, };
+    my $vos  = $p{vos};
+    my $prov = $vos->{prov};
+
+    my $self = { prov => $prov };
     bless( $self, $class );
-    
+
     return $self;
 }
 
@@ -27,9 +30,9 @@ sub create_virtualos {
 # Parameters :
 #   Required : name     - name/ID of the virtual instance
 #            : ip       - IP address(es), space delimited
-#   Optional : fsroot   - the root directory of the virt os
+#   Optional : disk_root   - the root directory of the virt os
 #            : template - a 'template' or tarball to pattern as
-#            : 
+#            :
 
     my $self = shift;
 
@@ -37,13 +40,12 @@ sub create_virtualos {
         @_,
         {   'name'      => { type => SCALAR },
             'ip'        => { type => SCALAR },
-            'fsroot'    => { type => SCALAR },
+            'disk_root' => { type => SCALAR },
             'template'  => { type => SCALAR | UNDEF, optional => 1 },
         }
     );
 
-
-};
+}
 
 1;
 

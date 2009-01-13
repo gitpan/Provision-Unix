@@ -11,7 +11,7 @@ use Params::Validate qw(:all);
 sub new {
     my $class = shift;
 
-    my %p = validate( @_, { 'prov' => { type => HASHREF }, } );
+    my %p = validate( @_, { 'prov' => { type => OBJECT }, } );
 
     my $self = { prov => $p{prov}, };
     bless( $self, $class );
@@ -29,7 +29,7 @@ sub connect {
 
     if ($EVAL_ERROR) {
         $prov->error( message =>
-    "Could not load NicTool.pm. Are the NicTool client libraries installed? They can be found in NicToolServer/sys/client in the NicToolServer distribution. See http://nictool.com/"
+                "Could not load NicTool.pm. Are the NicTool client libraries installed? They can be found in NicToolServer/sys/client in the NicToolServer distribution. See http://nictool.com/"
         );
     }
 
@@ -275,11 +275,10 @@ sub delete_zone_record {
         {   'id'     => { type => SCALAR, optional => 1 },
             'zone'   => { type => SCALAR },
             'record' => { type => SCALAR },
-            'fatal'  => { type => BOOLEAN, optional => 1, default => 1 },
-            'debug'  => { type => BOOLEAN, optional => 1, default => 1 },
+            'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
+            'debug' => { type => BOOLEAN, optional => 1, default => 1 },
         }
     );
-
 
 }
 

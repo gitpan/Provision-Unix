@@ -17,7 +17,7 @@ require_ok('Provision::Unix::Web');
 # let the testing begin
 
 # basic OO mechanism
-my $prov = Provision::Unix->new( debug=> 0 );
+my $prov = Provision::Unix->new( debug => 0 );
 my $web = Provision::Unix::Web->new( prov => $prov );
 ok( defined $web,                      'get Provision::Unix::Web object' );
 ok( $web->isa('Provision::Unix::Web'), 'check object class' );

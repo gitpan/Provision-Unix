@@ -12,7 +12,7 @@ sub new {
     my $class = shift;
     my %p     = validate(
         @_,
-        {   prov  => { type => HASHREF },
+        {   prov  => { type => OBJECT },
             debug => { type => BOOLEAN, optional => 1, default => 1 },
             fatal => { type => BOOLEAN, optional => 1, default => 1 },
         }
@@ -101,8 +101,8 @@ sub delete_zone_record {
 
 sub fully_qualify {
 
-# this is server dependent. BIND and NicTool support shortcuts like @. Others
-# need to be fully qualified (like tinydns).
+ # this is server dependent. BIND and NicTool support shortcuts like @. Others
+ # need to be fully qualified (like tinydns).
 
     my $self = shift;
     return $self->{server}->fully_qualify(@_);
@@ -133,7 +133,6 @@ sub _get_server {
         $prov->error( message => "no support for $chosen_server yet" );
     }
 }
-
 
 1;
 __END__

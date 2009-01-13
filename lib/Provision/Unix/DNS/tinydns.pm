@@ -12,12 +12,12 @@ use Params::Validate qw(:all);
 use lib 'lib';
 use Provision::Unix::Utility;
 
-my ($prov, $util);
+my ( $prov, $util );
 
 sub new {
     my $class = shift;
 
-    my %p = validate( @_, { 'prov' => { type => HASHREF }, } );
+    my %p = validate( @_, { 'prov' => { type => OBJECT }, } );
 
     my $self = { prov => $p{prov}, };
     bless( $self, $class );
@@ -73,7 +73,8 @@ sub create_zone {
 
     my $soa = $self->{special}{SOA};
 
-    $soa .= join( ":",
+    $soa .= join(
+        ":",
         $p{zone},
         $nameserver,    # mname
         $p{contact} || "hostmaster.$p{zone}",    # rname
@@ -320,7 +321,7 @@ sub compile_data_cdb {
     my $self = shift;
 
     my $service_dir = $prov->{config}{tinydns}{service_dir};
-    my $data_dir = "$service_dir/root";
+    my $data_dir    = "$service_dir/root";
 
     my $tdata = $util->find_bin( bin => 'tinydns-data', debug => 0 );
 
@@ -332,7 +333,7 @@ sub compile_data_cdb {
     chdir $original_wd;
 
     return 1;
-};
+}
 
 sub get_zone {
 
@@ -350,7 +351,7 @@ sub get_zone {
     $prov->audit("getting zone $zone");
 
     my $service_dir = $prov->{config}{tinydns}{service_dir};
-    my @lines       = $util->file_read( file => "$service_dir/root/data" );
+    my @lines = $util->file_read( file => "$service_dir/root/data" );
 
     @lines = grep ( /^Z$zone:/, @lines );
 
@@ -416,7 +417,6 @@ sub _special_chars {
     );
     return \%special;
 }
-
 
 =for a while
 
@@ -512,7 +512,6 @@ sub characterCount {
 
     return ( sprintf "\\%.3lo", $count );
 }
-
 
 1;
 

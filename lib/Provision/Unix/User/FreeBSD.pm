@@ -3,7 +3,7 @@ package Provision::Unix::User::FreeBSD;
 use warnings;
 use strict;
 
-our $VERSION = '0.07';
+our $VERSION = '0.08';
 
 use English qw( -no_match_vars );
 use Carp;
@@ -11,7 +11,7 @@ use Params::Validate qw( :all );
 
 use lib 'lib';
 
-my ($prov, $user, $util);
+my ( $prov, $user, $util );
 
 sub new {
 
@@ -19,8 +19,8 @@ sub new {
 
     my %p = validate(
         @_,
-        {   prov  => { type => HASHREF },
-            user  => { type => HASHREF },
+        {   prov  => { type => OBJECT },
+            user  => { type => OBJECT },
             debug => { type => BOOLEAN, optional => 1, default => 1 },
             fatal => { type => BOOLEAN, optional => 1, default => 1 },
         }
@@ -39,7 +39,7 @@ sub new {
     $prov->audit("loaded User/FreeBSD");
 
     require Provision::Unix::Utility;
-    $util = Provision::Unix::Utility->new( prov=> $prov );
+    $util = Provision::Unix::Utility->new( prov => $prov );
     return $self;
 }
 
@@ -60,7 +60,7 @@ sub create {
             'expire'   => { type => SCALAR | UNDEF, optional => 1 },
             'quota'    => { type => SCALAR | UNDEF, optional => 1 },
             'debug'    => { type => SCALAR, optional => 1, default => 1 },
-            'test_mode'=> { type => SCALAR, optional => 1 },
+            'test_mode' => { type => SCALAR, optional => 1 },
         }
     );
 
@@ -87,11 +87,12 @@ sub create {
     my $pw = $util->find_bin( bin => "pw", debug => 0 );
     my $pwcmd = "$pw useradd -n $username ";
 
-    $pwcmd .= "-d $homedir "                    if $homedir;
-    $pwcmd .= "-u $uid "                        if $uid;
-    $pwcmd .= "-g $gid "                        if $gid;
-    $pwcmd .= "-c $p{'gecos'} "                 if $p{'gecos'};
-    $pwcmd .= "-u 89 -g 89 -c Vpopmail-Master " if ( $username eq "vpopmail" );
+    $pwcmd .= "-d $homedir "    if $homedir;
+    $pwcmd .= "-u $uid "        if $uid;
+    $pwcmd .= "-g $gid "        if $gid;
+    $pwcmd .= "-c $p{'gecos'} " if $p{'gecos'};
+    $pwcmd .= "-u 89 -g 89 -c Vpopmail-Master "
+        if ( $username eq "vpopmail" );
     $pwcmd .= "-n $username -d /nonexistent -c Clam-AntiVirus "
         if ( $username eq "clamav" );
     $pwcmd .= "-s $shell ";
@@ -114,7 +115,7 @@ sub create {
         ## use critic
     }
     else {
-        $prov->audit( "pw command is: $pwcmd -h-");
+        $prov->audit("pw command is: $pwcmd -h-");
         $util->syscmd( cmd => "$pwcmd -h-", debug => 0 );
     }
 
@@ -123,8 +124,8 @@ sub create {
     # set up user quotas
 
     return $self->exists($username)
-        ? $prov->progress( num=>10, desc=>'created successfully')
-        : $prov->error( message=>'create user failed' );
+        ? $prov->progress( num => 10, desc => 'created successfully' )
+        : $prov->error( message => 'create user failed' );
 }
 
 sub create_group {
@@ -133,18 +134,18 @@ sub create_group {
 
     my %p = validate(
         @_,
-        {   'group'  => { type => SCALAR },
-            'gid'    => { type => SCALAR,  optional => 1, },
-            'debug'  => { type => SCALAR,  optional => 1, default => 1 },
-            'fatal'  => { type => BOOLEAN, optional => 1, default => 1 },
+        {   'group' => { type => SCALAR },
+            'gid'   => { type => SCALAR, optional => 1, },
+            'debug' => { type => SCALAR, optional => 1, default => 1 },
+            'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
         }
     );
 
     # see if the group exists
-    if ( $self->exists_group($p{group}) ) {
-        $prov->audit( "create_group: $p{group} exists" );
+    if ( $self->exists_group( $p{group} ) ) {
+        $prov->audit("create_group: $p{group} exists");
         return 2;
-    };
+    }
 
     $prov->audit("create_group: installing $p{group} on $OSNAME");
 
@@ -161,15 +162,15 @@ sub destroy {
 
     my $self = shift;
 
-    my %p = validate(   
-        @_, 
+    my %p = validate(
+        @_,
         {   'username'  => { type => SCALAR, },
-            'homedir'   => { type => SCALAR,  optional => 1, },
+            'homedir'   => { type => SCALAR, optional => 1, },
             'archive'   => { type => BOOLEAN, optional => 1, default => 0 },
             'prompt'    => { type => BOOLEAN, optional => 1, default => 0 },
             'test_mode' => { type => BOOLEAN, optional => 1, default => 0 },
-            'fatal'     => { type => SCALAR,  optional => 1, default => 1 },
-            'debug'     => { type => SCALAR,  optional => 1, default => 1 },
+            'fatal'     => { type => SCALAR, optional => 1, default => 1 },
+            'debug'     => { type => SCALAR, optional => 1, default => 1 },
         },
     );
 
@@ -196,12 +197,13 @@ sub destroy {
         fatal => $p{fatal},
         debug => $p{debug},
     );
-    $prov->progress( num => 2, desc => "backed up master.passwd.");
+    $prov->progress( num => 2, desc => "backed up master.passwd." );
 
     my $pw = $util->find_bin( bin => 'pw', debug => 0 );
     my $cmd = "$pw userdel -n $p{username} -r";
 
-    my $r = $util->syscmd( cmd => $cmd, debug => $p{debug}, fatal=>$p{fatal} );
+    my $r = $util->syscmd( cmd => $cmd, debug => $p{debug},
+        fatal => $p{fatal} );
     $prov->progress( num => 3, desc => "deleted user" );
 
 ## TODO
@@ -213,9 +215,9 @@ sub destroy {
     }
 
     return $prov->progress(
-        num    => 10,
-        desc   => 'error',
-        'err'  => $prov->{errors}->[-1]->{errmsg},
+        num   => 10,
+        desc  => 'error',
+        'err' => $prov->{errors}->[-1]->{errmsg},
     );
 }
 
@@ -223,13 +225,13 @@ sub destroy_group {
 
     my $self = shift;
 
-    my %p = validate(   
-        @_, 
+    my %p = validate(
+        @_,
         {   'group'     => { type => SCALAR, },
-            'gid'       => { type => SCALAR,  optional => 1 },
+            'gid'       => { type => SCALAR, optional => 1 },
             'test_mode' => { type => BOOLEAN, optional => 1, default => 0 },
-            'fatal'     => { type => SCALAR,  optional => 1, default => 1 },
-            'debug'     => { type => SCALAR,  optional => 1, default => 1 },
+            'fatal'     => { type => SCALAR, optional => 1, default => 1 },
+            'debug'     => { type => SCALAR, optional => 1, default => 1 },
         },
     );
 
@@ -251,13 +253,13 @@ sub destroy_group {
         fatal => $p{fatal},
         debug => $p{debug},
     );
-    $prov->progress( num => 2, desc => "backed up /etc/group");
+    $prov->progress( num => 2, desc => "backed up /etc/group" );
 
     my $pw = $util->find_bin( bin => 'pw', debug => 0 );
     my $cmd = "$pw groupdel -n $p{group}";
 
     my $r = $util->syscmd( cmd => $cmd, debug => $p{debug} );
-    $prov->progress( num => 3, desc => "deleted group");
+    $prov->progress( num => 3, desc => "deleted group" );
 
     # validate that the group was removed
     if ( !$user->exists_group( $p{group} ) ) {
@@ -265,9 +267,9 @@ sub destroy_group {
     }
 
     return $prov->progress(
-        num    => 10,
-        desc   => 'error',
-        'err'  => $prov->{errors}->[-1]->{errmsg},
+        num   => 10,
+        desc  => 'error',
+        'err' => $prov->{errors}->[-1]->{errmsg},
     );
 }
 
@@ -277,18 +279,18 @@ sub exists {
 
     my $uid = getpwnam($username);
     $self->{uid} = $uid;
-    ( $uid && $uid > 0 ) ? return $uid : return;
+    return ( $uid && $uid > 0 ) ? $uid : undef;
 }
 
 sub exists_group {
 
-    my $self  = shift;
+    my $self = shift;
     my $group = lc(shift) or die "missing user";
-    
+
     my $gid = getgrnam($group);
-    
-    ( $gid && $gid > 0 ) ? return $gid : return;
-};
+
+    return ( $gid && $gid > 0 ) ? $gid : undef;
+}
 
 sub verify_master_passwd {
 
@@ -424,7 +426,6 @@ returns a boolean.
     }
 }
 
-
 1;
 
 =head1 NAME
@@ -433,7 +434,7 @@ Provision::Unix::User::FreeBSD - Provision Unix Accounts on FreeBSD systems
 
 =head1 VERSION
 
-Version 0.07
+Version 0.08
 
 =head1 SYNOPSIS
 

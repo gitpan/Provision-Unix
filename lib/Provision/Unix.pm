@@ -1,5 +1,5 @@
 package Provision::Unix;
-our $VERSION = '0.32';
+our $VERSION = '0.35';
 
 use warnings;
 use strict;
@@ -30,8 +30,8 @@ sub new {
         debug  => $p{debug},
         fatal  => $p{fatal},
         config => undef,
-        errors => [],   # runtime errors will get added to this array
-        audit  => [],   # status messages accumulate here
+        errors => [],          # runtime errors will get added to this array
+        audit  => [],          # status messages accumulate here
     };
 
     bless( $self, $class );
@@ -81,6 +81,11 @@ sub find_config {
         fatal   => $p{fatal},
         debug   => $p{debug},
     );
+}
+
+sub get_errors {
+    my $self = shift;
+    return $self->{errors};
 }
 
 sub progress {
@@ -156,14 +161,14 @@ sub error {
     # append message to $self->error stack
     push @{ $self->{errors} },
         {
-        errmsg => $p{message},
+        errmsg => "ERROR: $p{message}",
         errloc => $p{location} || join( ", ", caller ),
         };
 
     # print audit and error results to stderr
     if ( $p{fatal} ) {
-        warn "$p{message}\n\n";
-        warn Dumper( $self->{audit}, $self->{errors} ) if $p{debug};
+        warn "\n\t\t\tAudit & Error history Report \n\n";
+        warn Dumper( $self->{audit}, $self->{errors}[-1] ) if $p{debug};
         croak "FATAL ERROR";
     }
 
@@ -171,10 +176,10 @@ sub error {
         carp "WARNING: An error occurred";
 
         #warn "$p{message}\n";
-        warn Dumper( $self->{audit}, $self->{errors} );
+        warn Dumper( $self->{audit}, $self->{errors}[-1] );
     }
 
-    $self->audit( $p{message} );
+    $self->audit("Error: $p{message}");
     return;
 }
 
@@ -182,10 +187,12 @@ sub audit {
     my $self = shift;
     my $mess = shift;
 
-    push @{ $self->{audit} }, $mess;
-    warn "$mess\n" if $self->{debug};
+    if ($mess) {
+        push @{ $self->{audit} }, $mess;
+        warn "$mess\n" if $self->{debug};
+    }
 
-    return 1;
+    return $self->{audit};
 }
 
 sub _find_readable {
@@ -194,7 +201,7 @@ sub _find_readable {
     my $dir  = shift or return;    # breaks recursion at end of @_
                                    #warn "dir: $dir \t $dir/$file\n";
 
-    $self->audit( "looking for $file in $dir" );
+    $self->audit("looking for $file in $dir");
 
     if ( -r "$dir/$file" ) {
         no warnings;
@@ -263,7 +270,7 @@ on Unix systems in a reliable and consistent manner.
 The types of accounts that can be provisioned are organized by class with each
 class including a standard set of operations. All classes support at least
 create and destroy operations.  Additional common operations are: modify, 
-suspend, restore.
+enable, and disable.
 
 Each class (DNS, Mail, User, VirtualOS, Web) has a general module that 
 contains the logic for selecting and dispatching requests to sub-classes which
@@ -333,7 +340,7 @@ Examples:
 
  $prov->error( message => 'could not write to file /etc/passwd' );
 
-This error is fatal and will throw an exception, after dumping the contents of $prov->audit and $prov->errors to stderr. 
+This error is fatal and will throw an exception, after dumping the contents of $prov->audit and the last error message from $prov->errors to stderr. 
 
 A very helpful thing to do is call error with a location as well:
 
@@ -346,8 +353,9 @@ Doing so will tell you where the error message was encountered as well as what c
 
 =head2 audit
 
-audit is a method that appends messages to the $prov->audit arrayref. It is primarily a convenience method for the programmer. Rather than spewing messages to stdout or stderr, they all get appended to an arrayref. They can then be inspected whenever desired. I expect to add additional support to that method for logging the messages to a file or SQL table.
+audit is a method that appends messages to an internal audit log. Rather than spewing messages to stdout or stderr, they all get appended to an array. They can then be inspected whenever desired by calling $prov->audit and examining the result. I expect to add additional support to that method for logging the messages to a file or SQL table.
 
+returns an arrayref of audit messages.
 
 =head1 AUTHOR
 

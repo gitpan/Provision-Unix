@@ -10,14 +10,14 @@ our $VERSION = '0.04';
 
 use lib "lib";
 
-my ($prov, $util);
+my ( $prov, $util );
 
 sub new {
     my $class = shift;
 
     my %p = validate(
         @_,
-        {   prov  => { type => HASHREF },
+        {   prov  => { type => OBJECT },
             debug => { type => BOOLEAN, optional => 1, default => 1 },
             fatal => { type => BOOLEAN, optional => 1, default => 1 },
         }
@@ -34,7 +34,7 @@ sub new {
     $self->{server} = $self->_get_server();
 
     require Provision::Unix::Utility;
-    $util = Provision::Unix::Utility->new( prov=> $prov );
+    $util = Provision::Unix::Utility->new( prov => $prov );
     return $self;
 }
 
@@ -42,7 +42,7 @@ sub create {
 
     my $self = shift;
     return $self->{server}->create(@_);
-};
+}
 
 sub _get_server {
 
@@ -54,11 +54,15 @@ sub _get_server {
 
     if ( $chosen_server eq "apache" ) {
         require Provision::Unix::Web::Apache;
-        return Provision::Unix::Web::Apache->new( prov => $prov, web=>$self );
+        return Provision::Unix::Web::Apache->new( prov => $prov,
+            web => $self );
     }
     elsif ( $chosen_server eq "lighttpd" ) {
         require Provision::Unix::Web::Lighttpd;
-        return Provision::Unix::Web::Lighttpd->new( prov => $prov, web=>$self );
+        return Provision::Unix::Web::Lighttpd->new(
+            prov => $prov,
+            web  => $self
+        );
     }
     else {
         print
@@ -79,8 +83,8 @@ sub get_vhost_attributes {
 
     my %p = validate(
         @_,
-        {   'request' => { type => HASHREF,         optional => 1 },
-            'prompt' => { type => BOOLEAN, optional => 1, default => 0 },
+        {   'request' => { type => HASHREF, optional => 1 },
+            'prompt'  => { type => BOOLEAN, optional => 1, default => 0 },
         },
     );
 
@@ -90,7 +94,8 @@ sub get_vhost_attributes {
         $vals->{'vhost'} ||= $util->ask( q => 'vhost name' );
     }
 
-    my $vhost = $vals->{'vhost'} or $prov->error( message=>"vhost is required");
+    my $vhost = $vals->{'vhost'}
+        or $prov->error( message => "vhost is required" );
 
     if ( $p{'prompt'} ) {
         $vals->{'ip'} ||= $util->ask( q => 'ip', default => '*:80' );
@@ -125,10 +130,14 @@ sub get_vhost_attributes {
             || "/usr/local/etc/apache2/certs";
 
         if ( $p{'prompt'} ) {
-            $vals->{'sslcert'} ||= $util->ask( q => 'sslcert',
-                default => "$certs/$vhost.crt" );
-            $vals->{'sslkey'} ||= $util->ask( q => 'sslkey',
-                default => "$certs/$vhost.key" );
+            $vals->{'sslcert'} ||= $util->ask(
+                q       => 'sslcert',
+                default => "$certs/$vhost.crt"
+            );
+            $vals->{'sslkey'} ||= $util->ask(
+                q       => 'sslkey',
+                default => "$certs/$vhost.key"
+            );
         }
     }
 
@@ -142,7 +151,7 @@ sub get_vhost_attributes {
         next if $key eq "redirect";
 
         if ( !defined $val ) {
-            $util->ask(q=>$key);
+            $util->ask( q => $key );
         }
     }
 
@@ -184,7 +193,6 @@ sub check_apache_setup {
         'error_desc' => 'web_check_setup: all tests pass!\n'
     };
 }
-
 
 1;
 

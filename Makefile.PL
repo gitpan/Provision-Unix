@@ -16,7 +16,13 @@ WriteMakefile(
     ABSTRACT_FROM       => 'lib/Provision/Unix.pm',
     PL_FILES            => {},
     LICENSE             => 'perl',
-    PREREQ_PM => {
+    'EXE_FILES'         => [ 
+                             'bin/prov_dns.pl',
+                             'bin/prov_user.pl', 
+                             'bin/prov_virtual.pl',
+                             'bin/prov_web.pl', 
+    ],
+    PREREQ_PM           => {
         'Test::More' => 0,
         'Params::Validate' => .8,
         'Apache::Admin::Config' => .9,
@@ -29,10 +35,11 @@ WriteMakefile(
     clean               => { 
             FILES => [  
                         'Provision-Unix-*',
-                        "pod2htm*",
-                        "t/trash",
-                        "t/tinydns/root/data",
-                        "t/tinydns/root/data.cdb",
+                        'pod2htm*',
+                        't/trash',
+                        't/tinydns/root/data',
+                        't/tinydns/root/data.cdb',
+                        'MANIFEST.bak',
                     ],
     },
 );

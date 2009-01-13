@@ -1,7 +1,27 @@
 Revision history for Provision-Unix
 
+0.35    Dec 29, 2008
+        added more logic to tests to suppress false positive failures
+        fixed a few places where ternary operator was misused
+        specified bin/prov_*.pl in Makefile.PL, EXE_FILES so they get
+         installed with 'make install'
+
+0.34    Dec 16, 2008
+        added is_enabled method to Xen.pm
+        added P:U:V:Linux.pm class
+        added supporting code for Xen provisioning
+        added options to create_virtualos: nameservers, searchdomain, ram
+        added $prov->{etc_dir} setting
+        P:U->audit returns audit arrayref when called
+
+0.33    Dec 10, 2008
+        refinements and a test suite for OpenVZ
+        added disable, enable methods to OpenVZ
+        added modify method to OpenVZ
+
 0.32    Dec 07, 2008
-        added user support for Linux
+        added openvz creation support for linux
+        added user creation support for Linux
 
 0.31    Nov 12, 2008
         fixed Darwin user creation bug: 

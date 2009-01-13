@@ -30,11 +30,11 @@ my $user_that_exists_by_default
 ok( $user->exists($user_that_exists_by_default), 'exists' );
 
 # _is_valid_username
-ok( $user->_is_valid_username( 'provunix' ), '_is_valid_username valid' )
+ok( $user->_is_valid_username('provunix'), '_is_valid_username valid' )
     or diag $prov->{errors}[-1]{errmsg};
-ok( !$user->_is_valid_username( 'unix_geek' ), '_is_valid_username invalid' );
-ok( !$user->_is_valid_username( 'unix,geek' ), '_is_valid_username invalid' );
-ok( $user->_is_valid_username( 'provunix' ), '_is_valid_username valid' );
+ok( !$user->_is_valid_username('unix_geek'), '_is_valid_username invalid' );
+ok( !$user->_is_valid_username('unix,geek'), '_is_valid_username invalid' );
+ok( $user->_is_valid_username('provunix'),   '_is_valid_username valid' );
 
 my $gid      = 65530;
 my $uid      = 65530;
@@ -88,8 +88,8 @@ ok( !$user->create(
 SKIP: {
     skip "you are not root", 7 if $EFFECTIVE_USER_ID != 0;
 
-# destroy user first, as group deletion may fail if a user exists with the
-# group as its primary gid.
+    # destroy user first, as group deletion may fail if a user exists with the
+    # group as its primary gid.
 
     # destroy user if exists
     ok( $user->destroy(
@@ -97,7 +97,7 @@ SKIP: {
             debug    => 0,
         ),
         "destroy $username if exists"
-    ) if $user->exists( $username );
+    ) if $user->exists($username);
 
     # destroy group if exists
     ok( $user->destroy_group(
@@ -108,7 +108,7 @@ SKIP: {
         "destroy_group $group if exists"
     ) if $user->exists_group($group);
 
-# create the group first, for the same reason as above.
+    # create the group first, for the same reason as above.
 
     # create group
     ok( $user->create_group(

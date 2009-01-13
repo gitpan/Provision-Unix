@@ -11,14 +11,14 @@ use Params::Validate qw( :all );
 use lib 'lib';
 use Provision::Unix::Utility;
 
-my ($util, $prov);
+my ( $util, $prov );
 
 sub new {
     my $class = shift;
 
     my %p = validate(
         @_,
-        {   prov  => { type => HASHREF },
+        {   prov  => { type => OBJECT },
             debug => { type => BOOLEAN, optional => 1, default => 1 },
             fatal => { type => BOOLEAN, optional => 1, default => 1 },
         }
@@ -35,7 +35,7 @@ sub new {
     $prov->audit("loaded User");
     $self->{os} = $self->_get_os();
 
-    $util = Provision::Unix::Utility->new( prov=> $prov );
+    $util = Provision::Unix::Utility->new( prov => $prov );
     return $self;
 }
 
@@ -63,7 +63,7 @@ sub create {
 sub modify {
 
     my $self = shift;
-    $self->{os}->modify( @_ );
+    $self->{os}->modify(@_);
 }
 
 sub destroy {
@@ -122,11 +122,11 @@ sub user_quota {
     # parameter validation here
     my %p = validate(
         @_,
-        {   'conf'  => { type => HASHREF, optional => 1, },
-            'username'  => { type => SCALAR,  optional => 0, },
-            'quota' => { type => SCALAR,  optional => 1, default => 100 },
-            'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
-            'debug' => { type => BOOLEAN, optional => 1, default => 1 },
+        {   'conf'     => { type => HASHREF, optional => 1, },
+            'username' => { type => SCALAR,  optional => 0, },
+            'quota'    => { type => SCALAR,  optional => 1, default => 100 },
+            'fatal'    => { type => BOOLEAN, optional => 1, default => 1 },
+            'debug'    => { type => BOOLEAN, optional => 1, default => 1 },
         },
     );
 
@@ -202,13 +202,13 @@ Disable an /etc/passwd user by expiring their account.
     {
         my $cmd = "$pw usermod -n $user -e -1m";
 
-         if ( $util->syscmd( cmd => $cmd ) ) {
-             return {
-                 'error_code' => 200,
-                 'error_desc' => "disable: success. $user has been disabled."
-             };
-         }
-         else {
+        if ( $util->syscmd( cmd => $cmd ) ) {
+            return {
+                'error_code' => 200,
+                'error_desc' => "disable: success. $user has been disabled."
+            };
+        }
+        else {
             return {
                 'error_code' => 500,
                 'error_desc' => "disable: FAILED. $user not disabled."
@@ -358,13 +358,13 @@ $r->{error_desc} will contain a string with a description of which test failed.
 
     if ( -r "/usr/local/etc/passwd.badpass" ) {
 
-        my @lines =
-            $util->file_read( file => "/usr/local/etc/passwd.badpass" );
+        my @lines
+            = $util->file_read( file => "/usr/local/etc/passwd.badpass" );
         foreach my $line (@lines) {
             chomp $line;
             if ( $pass eq $line ) {
-                $r{error_desc} =
-                    "$pass is a weak password. Please select another.";
+                $r{error_desc}
+                    = "$pass is a weak password. Please select another.";
                 return \%r;
             }
         }
@@ -386,18 +386,23 @@ sub archive {
 
 sub get_username {
     my $self = shift;
-    $prov->error( message=> "too many arguments to get_username") if scalar @_ > 0;
-#    $prov->audit( "\tget_username \$user->{username} ($self->{username})" );
+    $prov->error( message => "too many arguments to get_username" )
+        if scalar @_ > 0;
+
+ #    $prov->audit( "\tget_username \$user->{username} ($self->{username})" );
     return $self->{username};
-};
+}
 
 sub set_username {
     my $self = shift;
-    $prov->error( message=> "too many arguments to set_username" ) if scalar @_ > 1;
-    $self->{username} = shift || $prov->error( message=> "missing username");
-#    $prov->audit( "\tset \$user->{username} to $self->{username}" );
+    $prov->error( message => "too many arguments to set_username" )
+        if scalar @_ > 1;
+    $self->{username} = shift
+        || $prov->error( message => "missing username" );
+
+    #    $prov->audit( "\tset \$user->{username} to $self->{username}" );
     return 1;
-};
+}
 
 sub _get_os {
 
@@ -422,9 +427,10 @@ sub _get_os {
     }
     elsif ( lc($OSNAME) eq 'linux' ) {
         require Provision::Unix::User::Linux;
-        return Provision::Unix::User::Linux->new( 
+        return Provision::Unix::User::Linux->new(
             prov => $prov,
-            user => $self );
+            user => $self
+        );
     }
     else {
         return $prov->error( message => "create: "
@@ -476,17 +482,18 @@ sub _is_valid_username {
     # set this to fully define your username restrictions. It will
     # get returned every time an invalid username is submitted.
 
-    my $username = shift 
-        || $self->{username} 
+    my $username 
+        = shift
+        || $self->{username}
         || return $self->{prov}->error(
-            message  => "username missing",
-            location => join( ',', caller ),
-            fatal    => 0,
-            debug    => 0,
+        message  => "username missing",
+        location => join( ',', caller ),
+        fatal    => 0,
+        debug    => 0,
         );
 
     $prov->audit("checking validity of username $username");
-    $self->set_username( $username );
+    $self->set_username($username);
 
     # min 2 characters
     if ( length($username) < 2 ) {

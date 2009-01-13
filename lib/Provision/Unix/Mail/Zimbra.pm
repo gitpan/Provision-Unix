@@ -11,7 +11,6 @@ sub function1 {
 sub function2 {
 }
 
-
 1;
 
 __END__
