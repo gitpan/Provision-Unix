@@ -1,5 +1,5 @@
 package Provision::Unix;
-our $VERSION = '0.35';
+our $VERSION = '0.36';
 
 use warnings;
 use strict;
@@ -246,6 +246,7 @@ sub _end {
     return;
 }
 
+
 1;
 
 __END__
@@ -256,7 +257,7 @@ Provision::Unix - provision accounts on unix systems
 
 =head1 VERSION
 
-Version 0.30
+Version 0.36
 
 =head1 SYNOPSIS
 
@@ -359,7 +360,7 @@ returns an arrayref of audit messages.
 
 =head1 AUTHOR
 
-Matt Simerson, C<< <matt at tnpi.net> >>
+Matt Simerson, <msimerson@cpan.org>
 
 =head1 BUGS
 
@@ -396,8 +397,6 @@ L<http://search.cpan.org/dist/Provision-Unix>
 =back
 
 =head1 COPYRIGHT & LICENSE
-
-Copyright 2008 Matt Simerson, all rights reserved.
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

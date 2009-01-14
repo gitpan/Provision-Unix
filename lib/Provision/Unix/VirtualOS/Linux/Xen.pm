@@ -367,7 +367,7 @@ sub extract_template {
     $self->mount_disk_image();
 
     my $mount_dir    = "$vos->{disk_root}/$vos->{name}.vm/mnt";
-    my $template_dir = $prov->{config}{VirtualOS}{template_dir};
+    my $template_dir = $prov->{config}{VirtualOS}{xen_template_dir};
 
     #tar -zxf $template_dir/$OSTEMPLATE.tar.gz -C /home/xen/${VMNAME}.vm/mnt
 
@@ -628,7 +628,7 @@ sub _is_valid_template {
     my $self = shift;
     my $template = shift or return;
 
-    my $template_dir = $prov->{config}{VirtualOS}{template_dir};
+    my $template_dir = $prov->{config}{VirtualOS}{xen_template_dir};
     if ( -f "$template_dir/$template.tar.gz" ) {
         return $template;
     }

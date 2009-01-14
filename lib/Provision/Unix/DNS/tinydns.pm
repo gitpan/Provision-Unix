@@ -383,22 +383,22 @@ sub delete_zone {
 
 sub _load_DNS_TinyDNS {
 
-    my $self = shift;
+#    my $self = shift;
 
-    eval { require DNS::TinyDNS; };
+#    eval { require DNS::TinyDNS; };
 
-    if ($EVAL_ERROR) {
-        $prov->error(
-            message => "could not load DNS::TinyDNS. Is it installed?" );
-    }
+#    if ($EVAL_ERROR) {
+#        $prov->error(
+#            message => "could not load DNS::TinyDNS. Is it installed?" );
+#    }
 
-    my $service_dir = $prov->{config}{tinydns}{service_dir};
+#    my $service_dir = $prov->{config}{tinydns}{service_dir};
 
-    $prov->audit("loaded DNS::TinyDNS");
-    return DNS::TinyDNS->new(
-        type => 'dnsserver',
-        dir  => $service_dir
-    );
+#    $prov->audit("loaded DNS::TinyDNS");
+#    return DNS::TinyDNS->new(
+#        type => 'dnsserver',
+#        dir  => $service_dir
+#    );
 }
 
 sub _special_chars {

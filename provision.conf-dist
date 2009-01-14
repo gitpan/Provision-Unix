@@ -32,15 +32,11 @@ ttl           =  3600
 weight        =    10
 
 [VirtualOS]
-id_min        = 50000
-id_max        = 
-type          = xen
-template_dir  = /templates
-#type          = openvz
-#template_dir  = /vz/template/cache
-#type         = ezjail
-#template_dir  = /home/jails/flavours
-#type         = jail
+id_min            = 50000
+id_max            = 
+xen_template_dir  = /templates
+ovz_template_dir  = /vz/template/cache
+jail_template_dir = /home/jails/flavours
 
 
 [NicTool]

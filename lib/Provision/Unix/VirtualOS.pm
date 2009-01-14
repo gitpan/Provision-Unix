@@ -3,12 +3,15 @@ package Provision::Unix::VirtualOS;
 use warnings;
 use strict;
 
-our $VERSION = '0.16';
+our $VERSION = '0.20';
 
 use English qw( -no_match_vars );
 use Params::Validate qw(:all);
 
-my ($prov);
+use lib 'lib';
+use Provision::Unix::Utility;
+
+my ($prov, $util);
 
 sub new {
 
@@ -23,7 +26,7 @@ sub new {
     my %p     = validate(
         @_,
         {   prov    => { type => OBJECT },
-            etc_dir => { type => SCALAR, optional => 1 },
+            etc_dir => { type => SCALAR,  optional => 1 },
             debug   => { type => BOOLEAN, optional => 1, default => 1 },
             fatal   => { type => BOOLEAN, optional => 1, default => 1 },
         }
@@ -40,7 +43,10 @@ sub new {
     $prov = $p{prov};
     $prov->audit("loaded Provision::Unix::VirtualOS");
 
-    $self->{vtype} = $self->_get_virt_type();
+    $util = Provision::Unix::Utility->new( prov=> $p{prov} )
+        or die "unable to load P:U:Utility\n";
+    $self->{vtype} = $self->_get_virt_type( fatal => $p{fatal}, debug => $p{debug} )
+        or die "unable to set virtualization type\n";
     return $self;
 }
 
@@ -84,9 +90,7 @@ sub create_virtualos {
         }
     );
 
-    my $type = $prov->{config}{VirtualOS}{type};
-    $prov->audit(
-        "initializing request to create $type virtual os '$p{name}'");
+    $prov->audit( "initializing request to create virtual os '$p{name}'");
 
     $self->{debug}     = $p{debug};
     $self->{fatal}     = $p{fatal};
@@ -129,9 +133,7 @@ sub destroy_virtualos {
         }
     );
 
-    my $type = $prov->{config}{VirtualOS}{type};
-    $prov->audit(
-        "initializing request to destroy $type virtual os '$p{name}'");
+    $prov->audit("initializing request to destroy virtual os '$p{name}'");
 
     $self->{test_mode} = $p{test_mode};
     $self->{debug}     = $p{debug};
@@ -317,8 +319,7 @@ sub modify_virtualos {
         }
     );
 
-    my $type = $prov->{config}{VirtualOS}{type};
-    $prov->audit("initializing request to modify $type container '$p{name}'");
+    $prov->audit("initializing request to modify container '$p{name}'");
 
     $self->{debug}     = $p{debug};
     $self->{fatal}     = $p{fatal};
@@ -541,37 +542,58 @@ sub is_valid_ip {
 sub _get_virt_type {
 
     my $self = shift;
+
+    my %p = validate(
+        @_, { 
+            'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
+            'debug' => { type => BOOLEAN, optional => 1, default => 1 },
+        }
+    );
+
     my $prov = $self->{prov};
 
-    my $type = $prov->{config}{VirtualOS}{type}
-        or $prov->error(
-        message => 'missing [VirtualOS] settings in provision.conf' );
+    if ( lc($OSNAME) eq 'linux' ) {
+        my $xm = $util->find_bin( bin=> 'xm', fatal => 0, debug => 0);
+        my $vzctl = $util->find_bin( bin=> 'vzctl', fatal => 0, debug => 0);
 
-    if ( $type eq 'jail' ) {
+        if ( $xm && ! $vzctl ) {
+            require Provision::Unix::VirtualOS::Linux::Xen;
+            return Provision::Unix::VirtualOS::Linux::Xen->new( vos => $self );
+        }
+        elsif ( $vzctl && ! $xm ) {
+            require Provision::Unix::VirtualOS::Linux::OpenVZ;
+            return Provision::Unix::VirtualOS::Linux::OpenVZ->new( vos => $self );
+        }
+        else {
+            $prov->error( 
+                message => "Unable to determine your virtualization method. You need to have only Xen or OpenVZ installed.",
+                fatal => $p{fatal},
+                debug => $p{debug},
+            );
+        };
+    }
+    elsif ( lc( $OSNAME) eq 'solaris' ) {
+        require Provision::Unix::VirtualOS::Solaris::Container;
+        return Provision::Unix::VirtualOS::Solaris::Container->new( vos => $self );
+    }
+    elsif ( lc( $OSNAME) eq 'freebsd' ) {
+        my $ezjail = $util->find_bin( bin => 'ezjail-admin', fatal => 0, debug => 0 );
+        if ( $ezjail ) {
+            require Provision::Unix::VirtualOS::FreeBSD::Ezjail;
+            return Provision::Unix::VirtualOS::FreeBSD::Ezjail->new( vos => $self );
+        };
+
         require Provision::Unix::VirtualOS::FreeBSD::Jail;
         return Provision::Unix::VirtualOS::FreeBSD::Jail->new( vos => $self );
     }
-    elsif ( $type eq 'ezjail' ) {
-        require Provision::Unix::VirtualOS::FreeBSD::Ezjail;
-        return Provision::Unix::VirtualOS::FreeBSD::Ezjail->new(
-            vos => $self );
-    }
-    elsif ( $type eq 'container' ) {
-        require Provision::Unix::VirtualOS::Solaris::Container;
-        return Provision::Unix::VirtualOS::Solaris::Container->new(
-            vos => $self );
-    }
-    elsif ( $type eq 'xen' ) {
-        require Provision::Unix::VirtualOS::Linux::Xen;
-        return Provision::Unix::VirtualOS::Linux::Xen->new( vos => $self );
-    }
-    elsif ( $type eq 'openvz' ) {
-        require Provision::Unix::VirtualOS::Linux::OpenVZ;
-        return Provision::Unix::VirtualOS::Linux::OpenVZ->new( vos => $self );
-    }
     else {
-        $prov->error( message => "no support for $type yet" );
-    }
+        print "fatal: $p{fatal}\n";
+        $prov->error( 
+            message => "No virtualization methods for $OSNAME are supported yet",
+            fatal   => $p{fatal},
+            debug   => $p{debug},
+        );
+    };
 }
 
 1;
@@ -584,7 +606,7 @@ Provision::Unix::VirtualOS - Provision virtual OS instances (jail|vps|container)
 
 =head1 VERSION
 
-Version 0.16
+Version 0.20
 
 
 =head1 SYNOPSIS

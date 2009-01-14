@@ -3,7 +3,7 @@ package Provision::Unix::User::Darwin;
 use warnings;
 use strict;
 
-our $VERSION = '0.15';
+our $VERSION = '0.16';
 
 use English qw( -no_match_vars );
 use Carp;
@@ -365,7 +365,7 @@ sub exists {
     $user = lc($user);
 
     my $uid = getpwnam($user);
-    return ( $uid && $uid > 0 ) ? 1 : undef;
+    return ( $uid && $uid > 0 ) ? $uid : undef;
 }
 
 sub exists_group {
@@ -388,7 +388,7 @@ Provision::Unix::User::Darwin - Provision Accounts on Darwin systems
 
 =head1 VERSION
 
-Version 0.15
+Version 0.16
 
 =head1 SYNOPSIS
 

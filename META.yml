@@ -1,24 +1,31 @@
---- #YAML:1.0
-name:               Provision-Unix
-version:            0.35
-abstract:           provision accounts on unix systems
+---
+abstract: 'provision accounts on unix systems'
 author:
-    - Matt Simerson <matt@tnpi.net>
-license:            perl
-distribution_type:  module
-configure_requires:
-    ExtUtils::MakeMaker:  0
-requires:
-    Apache::Admin::Config:  0.9
-    Config::Std:          0
-    NicTool:              0
-    Params::Validate:     0.8
-    Test::More:           0
-no_index:
-    directory:
-        - t
-        - inc
-generated_by:       ExtUtils::MakeMaker version 6.48
+  - msimerson@cpan.org
+build_requires:
+  Test::More: 0
+distribution_type: module
+generated_by: 'Module::Install version 0.77'
+license: perl
 meta-spec:
-    url:      http://module-build.sourceforge.net/META-spec-v1.4.html
-    version:  1.4
+  url: http://module-build.sourceforge.net/META-spec-v1.4.html
+  version: 1.4
+name: Provision-Unix
+no_index:
+  directory:
+    - inc
+    - t
+  file:
+    - bin/remoteagent
+recommends:
+  Test::Perl::Critic: 0
+  Test::Pod: 0
+  Test::Pod::Coverage: 0
+requires:
+  Config::Std: 0
+  Getopt::Long: 2.37
+  Params::Validate: 0.8
+  perl: 5.8.0
+resources:
+  license: http://dev.perl.org/licenses/
+version: 0.36

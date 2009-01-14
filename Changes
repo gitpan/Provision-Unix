@@ -1,5 +1,21 @@
 Revision history for Provision-Unix
 
+0.36    Jan 14, 2009
+        Commented out unused DNS::TinyDNS code (I wrote my own)
+        replaced ExtUtils::MakeMaker with Module::Install
+          - more control over META.yml
+          - optional requirements can be specified as such
+          - additional control over indexing functions
+        added bin/remoteagent
+        upgraded bin/install_deps
+        virtualization type is now detected instead of a config file setting
+          - t/VirtualOS.t updated accordingly
+        template_dir settings in provision.conf are now honored
+        Added module::install to bin/install_deps.pl
+        Darwin->exists_group is more reliable
+        added bin/update_prov_unix installer script
+          - shares code from bin/install_deps, moved 2 subs into Utility.pm
+
 0.35    Dec 29, 2008
         added more logic to tests to suppress false positive failures
         fixed a few places where ternary operator was misused

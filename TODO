@@ -15,8 +15,7 @@ Provision/Unix/DNS.pm
     - add delete_zone_record function
 Provision/Unix/DNS/BIND.pm
   - needs to be authored
-Provision/Unix/Mail/Qmail.pm
-  - needs to be authored
+Provision/Unix/Mail/Qmail.pm - needs to be authored
 Provision/Unix/Mail/Sendmail.pm
   - needs to be authored
 Provision/Unix/Mail/Vpopmail.pm
@@ -33,15 +32,7 @@ Provision/Unix/User/Darwin.pm
 Provision/Unix/User/Linux.pm
   - needs to be authored
 Provision/Unix/Utility.pm
-Provision/Unix/VirtualOS/FreeBSD/Jail.pm
-  - needs to be authored
-Provision/Unix/VirtualOS/Linux/OpenVZ.pm
-  - needs to be authored
-Provision/Unix/VirtualOS/Linux/Xen.pm
-  - needs to be authored
 Provision/Unix/VirtualOS/Solaris/Container.pm
-  - needs to be authored
-Provision/Unix/VirtualOS.pm
   - needs to be authored
 Provision/Unix/Web/Apache.pm
   - needs to be authored

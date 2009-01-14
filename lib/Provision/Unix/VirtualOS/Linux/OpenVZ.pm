@@ -516,8 +516,7 @@ sub _is_valid_template {
     my $self     = shift;
     my $template = shift;
 
-    # on openvz, templates live in /vz/template/cache/*
-    my $template_dir = '/vz/template/cache';
+    my $template_dir = $self->{prov}{config}{ovz_template_dir} || '/vz/template/cache';
     if ( -f "$template_dir/$template.tar.gz" ) {
         return $template;
     }

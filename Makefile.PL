@@ -1,53 +1,69 @@
+#!perl
+
 use strict;
 use warnings;
-use ExtUtils::MakeMaker;
+use inc::Module::Install;
 
-BEGIN {
-    if ( ! eval "require Params::Validate" ) {
-        print "\n\tParams::Validate is not installed!\n\n";
-        print "\trun 'make deps' to install dependencies.\n";
-    }
-}
+name            'Provision-Unix';
+abstract_from   'lib/Provision/Unix.pm';
+author          'msimerson@cpan.org';
+license         'perl';
+perl_version    '5.008';
+version_from    'lib/Provision/Unix.pm';
 
-WriteMakefile(
-    NAME                => 'Provision::Unix',
-    AUTHOR              => 'Matt Simerson <matt@tnpi.net>',
-    VERSION_FROM        => 'lib/Provision/Unix.pm',
-    ABSTRACT_FROM       => 'lib/Provision/Unix.pm',
-    PL_FILES            => {},
-    LICENSE             => 'perl',
-    'EXE_FILES'         => [ 
-                             'bin/prov_dns.pl',
-                             'bin/prov_user.pl', 
-                             'bin/prov_virtual.pl',
-                             'bin/prov_web.pl', 
-    ],
-    PREREQ_PM           => {
-        'Test::More' => 0,
-        'Params::Validate' => .8,
-        'Apache::Admin::Config' => .9,
-        'NicTool'       => 0,
-        'Config::Std'   => 0,
-#        'DNS::TinyDNS'    => 1,  # doesn't support SOA or SRV records
+requires        'Params::Validate'  => .8;
+requires        'Config::Std'       => 0;
+requires        'Getopt::Long'      => 2.37;
 
-    },
-    dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
-    clean               => { 
-            FILES => [  
-                        'Provision-Unix-*',
-                        'pod2htm*',
-                        't/trash',
-                        't/tinydns/root/data',
-                        't/tinydns/root/data.cdb',
-                        'MANIFEST.bak',
-                    ],
-    },
-);
+test_requires     'Test::More'      => 0;
 
+# these are for the authors (mostly me), but listed here for Kwalitee
+recommends        'Test::Pod'           => 0;
+recommends        'Test::Pod::Coverage' => 0;
+recommends        'Test::Perl::Critic'  => 0;
 
-sub MY::postamble {
-'
-deps:
-	perl bin/install_deps.pl
-';
-}
+feature             'Email Notices',
+                        -default          => 0,
+                        'Mail::Send'      => 1;
+
+feature             'Apache Configuration',
+                        -default                => 0,
+                        'Apache::Admin::Config' => .9;
+
+feature             'Filesystem Quotas',
+                        -default      => 0,
+                        'Quota'       => 1;
+
+feature             'NicTool API integration',
+                        -default      => 0,
+                       'NicTool'      => 0;
+
+#feature         'tinydns data files'    # not used.
+#                    DNS::TinyDNS'    => 1;
+
+feature               'JSON Provisioning Agent',
+                        -default           => 0,
+                        'JSON::XS'         => 0;
+
+feature               'self-update to latest CPAN version',
+                        -default           => 0,
+                        'LWP::UserAgent'   => 0;
+
+clean_files           'Provision-Unix-*';
+clean_files           'pod2htm*';
+clean_files           't/trash';
+clean_files           't/tinydns/root/data';
+clean_files           't/tinydns/root/data.cdb';
+clean_files           'MANIFEST.bak';
+clean_files           'Makefile.old';
+
+install_script        'bin/prov_dns';
+install_script        'bin/prov_user';
+install_script        'bin/prov_virtual';
+install_script        'bin/prov_web';
+install_script        'bin/remoteagent';
+
+# inc and t are automatically not indexed
+no_index              file      => 'bin/remoteagent';
+
+WriteAll;

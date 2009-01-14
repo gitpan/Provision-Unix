@@ -1,6 +1,6 @@
 package Provision::Unix::Utility;
 
-our $VERSION = '5.15';
+our $VERSION = '5.16';
 
 use strict;
 use warnings;
@@ -1172,6 +1172,54 @@ sub fstab_list {
     return \@fstabs;
 }
 
+sub get_cpan_config {
+
+    my $ftp = `which ftp`; chomp $ftp;
+    my $gzip = `which gzip`; chomp $gzip;
+    my $unzip = `which unzip`; chomp $unzip;
+    my $tar  = `which tar`; chomp $tar;
+    my $make = `which make`; chomp $make;
+    my $wget = `which wget`; chomp $wget;
+
+    return 
+{
+  'build_cache' => q[10],
+  'build_dir' => qq[$ENV{HOME}/.cpan/build],
+  'cache_metadata' => q[1],
+  'cpan_home' => qq[$ENV{HOME}/.cpan],
+  'ftp' => $ftp,
+  'ftp_proxy' => q[],
+  'getcwd' => q[cwd],
+  'gpg' => q[],
+  'gzip' => $gzip,
+  'histfile' => qq[$ENV{HOME}/.cpan/histfile],
+  'histsize' => q[100],
+  'http_proxy' => q[],
+  'inactivity_timeout' => q[5],
+  'index_expire' => q[1],
+  'inhibit_startup_message' => q[1],
+  'keep_source_where' => qq[$ENV{HOME}/.cpan/sources],
+  'lynx' => q[],
+  'make' => $make,
+  'make_arg' => q[],
+  'make_install_arg' => q[],
+  'makepl_arg' => q[],
+  'ncftp' => q[],
+  'ncftpget' => q[],
+  'no_proxy' => q[],
+  'pager' => q[less],
+  'prerequisites_policy' => q[follow],
+  'scan_cache' => q[atstart],
+  'shell' => q[/bin/csh],
+  'tar' => $tar,
+  'term_is_latin' => q[1],
+  'unzip' => $unzip,
+  'urllist' => [ 'http://www.perl.com/CPAN/', 'ftp://cpan.cs.utah.edu/pub/CPAN/', 'ftp://mirrors.kernel.org/pub/CPAN', 'ftp://osl.uoregon.edu/CPAN/', 'http://cpan.yahoo.com/' ],
+  'wget' => $wget, 
+};
+
+}
+
 sub get_dir_files {
 
     my $self = shift;
@@ -1825,6 +1873,67 @@ TARGET:
 
     chdir($original_directory);
     return 1;
+}
+
+sub install_module {
+
+    my ($self, $module, $info) = @_;
+
+    if ( lc($OSNAME) eq 'darwin' ) {
+        my $dport = '/opt/local/bin/port';
+        if ( ! -x $dport ) {
+            print "Darwin ports is not installed!\n";
+        } 
+        else {
+            my $port = "p5-$module";
+            $port =~ s/::/-/g;
+            ( system("sudo $dport install $port") == 0 ) and return 1;
+            print("Installation failed for Darwin port of $module");
+        }
+    }
+
+    if ( lc($OSNAME) eq 'freebsd' ) {
+
+        my $portname = "p5-$module";
+        $portname =~ s/::/-/g;
+
+        if (`/usr/sbin/pkg_info | /usr/bin/grep $portname`) {
+            return print "$module is installed.\n";
+        }
+
+        print "installing $module";
+
+        my $portdir = </usr/ports/*/$portname>;
+
+        if ( $portdir && -d $portdir && chdir $portdir ) {
+            print " from ports ($portdir)\n";
+            ( system("make install clean") == 0 ) and return 1;
+            print "'make install clean' failed for port $module\n";
+        }
+    }
+
+    if ( lc($OSNAME) eq 'linux' ) {
+
+        my $rpm = $info->{rpm};
+        if ( $rpm ) {
+            my $portname = "perl-$rpm";
+            $portname =~ s/::/-/g;
+            my $yum = '/usr/bin/yum';
+            if ( -x $yum ) {
+                system "$yum -y install $portname" and return 1;
+            };
+        }
+    };
+
+    print " from CPAN...";
+
+    require CPAN;
+
+    # some Linux distros break CPAN by auto/preconfiguring it with no URL mirrors.
+    # this works around that annoying little habit
+    $CPAN::Config = $self->get_cpan_config();
+
+    CPAN::Shell->install($module);
 }
 
 sub is_interactive {
