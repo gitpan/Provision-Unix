@@ -41,12 +41,14 @@ warn "virtualos type: $virt_type\n";
 # let the testing begin
 my $template_that_exists
     = $virt_type eq 'openvz' ? 'centos-5-i386-default'
+    : $virt_type eq 'ovz'    ? 'centos-5-i386-default'
     : $virt_type eq 'xen'    ? 'centos-5-i386-default'
     : $virt_type eq 'ezjail' ? 'default'
     :                          undef;
 
 my $container_id_or_name
     = $virt_type eq 'openvz' ? 72000
+    : $virt_type eq 'ovz'    ? 'test1'
     : $virt_type eq 'xen'    ? 'test1'
     : $virt_type eq 'ezjail' ? 'test1'
     : $virt_type eq 'jails'  ? 'test1'
@@ -54,6 +56,7 @@ my $container_id_or_name
 
 my $required_bin
     = $virt_type eq 'openvz' ? 'vzlist'
+    : $virt_type eq 'ovz'    ? 'vzlist'
     : $virt_type eq 'xen'    ? 'xm'
     :                          undef;
 
@@ -71,20 +74,23 @@ if ( defined $required_bin ) {
 
 ok( !$vos->is_valid_ip('1.1.1'),           'is_valid_ip -' );
 ok( !$vos->is_valid_ip('1.1.1.1.1'),       'is_valid_ip -' );
-ok( $vos->is_valid_ip('1.1.1.1'),          'is_valid_ip +' );
+ok(  $vos->is_valid_ip('1.1.1.1'),         'is_valid_ip +' );
 ok( !$vos->is_valid_ip('0.0.0.0'),         'is_valid_ip -' );
 ok( !$vos->is_valid_ip('255.255.255.255'), 'is_valid_ip -' );
 ok( !$vos->is_valid_ip('0.1.1.1'),         'is_valid_ip -' );
-ok( $vos->is_valid_ip('2.1.1.1'),          'is_valid_ip +' );
+ok(  $vos->is_valid_ip('2.1.1.1'),         'is_valid_ip +' );
 
 #ok( $vos->_check_template( 'non-existing' ), '_check_default' );
 #ok( $vos->_check_template( $template_that_exists), '_check_default' );
 
+# this are expensive tests.
 SKIP: {
     skip "you are not root", 12 if $EFFECTIVE_USER_ID != 0;
 
-    my $r;
-    ok( $vos->get_status(), 'get_status' );
+    my $r = $vos->get_status();
+    ok( $r, 'get_status' );
+#warn Dumper ($r);
+
     if ( $virt_type eq 'xen' ) {
 
         #    $r = $vos->install_config_file();
@@ -94,6 +100,17 @@ SKIP: {
 #exit;
 
     if ( $vos->is_present( name => $container_id_or_name ) ) {
+
+	if ( $vos->is_running( name => $container_id_or_name ) ) {
+	    ok( $vos->stop_virtualos(
+		    name  => $container_id_or_name,
+		    debug => 0,
+		    fatal => 0,
+		),
+		'stop_virtualos'
+	    );
+	};
+
         ok( $vos->destroy_virtualos(
                 name      => $container_id_or_name,
                 test_mode => 0,
@@ -217,3 +234,5 @@ SKIP: {
 };
 
 #$prov->error( message => 'dump' );
+
+

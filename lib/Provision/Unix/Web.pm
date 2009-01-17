@@ -6,7 +6,7 @@ use strict;
 use Carp;
 use Params::Validate qw( :all );
 
-our $VERSION = '0.04';
+our $VERSION = '0.06';
 
 use lib "lib";
 
@@ -31,7 +31,8 @@ sub new {
 
     $prov = $p{prov};
     $prov->audit("loaded Web");
-    $self->{server} = $self->_get_server();
+    $self->{server} = $self->_get_server( debug => $p{debug}, fatal => $p{fatal} )
+        or return undef;
 
     require Provision::Unix::Utility;
     $util = Provision::Unix::Utility->new( prov => $prov );
@@ -48,29 +49,41 @@ sub _get_server {
 
     my $self = shift;
 
+    my %p = validate(
+        @_,
+        {   debug => { type => BOOLEAN, optional => 1, default => 1 },
+            fatal => { type => BOOLEAN, optional => 1, default => 1 },
+        }
+    );
+
     my $chosen_server = $prov->{config}{Web}{server}
         or $prov->error(
         message => 'missing [Web] server setting in provision.conf' );
 
     if ( $chosen_server eq "apache" ) {
         require Provision::Unix::Web::Apache;
-        return Provision::Unix::Web::Apache->new( prov => $prov,
-            web => $self );
+        return Provision::Unix::Web::Apache->new( 
+            prov => $prov,
+            web  => $self,
+            debug => $p{debug},
+            fatal => $p{fatal},
+        );
     }
     elsif ( $chosen_server eq "lighttpd" ) {
         require Provision::Unix::Web::Lighttpd;
         return Provision::Unix::Web::Lighttpd->new(
-            prov => $prov,
-            web  => $self
+            prov  => $prov,
+            web   => $self,
+            debug => $p{debug},
+            fatal => $p{fatal},
         );
     }
     else {
-        print
-            "unknown web server. Currently supported values are lighttpd and apache.\n";
-        return;
+        return $prov->error( message => 
+            "unknown web server. Supported values are lighttpd and apache.");
     }
 
-    return 1;
+    return undef;
 
     #    use Data::Dumper;
     #    print "\n\n";
@@ -202,11 +215,6 @@ __END__
 
 Provision::Unix::Web - Provision web hosting accounts
 
-=head1 VERSION
-
-Version 0.04
-
-
 =head1 SYNOPSIS
 
 Provision web hosting accounts.
@@ -269,7 +277,7 @@ L<http://search.cpan.org/dist/Provision-Unix>
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2008 Matt Simerson, all rights reserved.
+Copyright 2008 Matt Simerson
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

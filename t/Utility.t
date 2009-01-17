@@ -284,6 +284,9 @@ print "\t\t  wd: " . Cwd::cwd . "\n" if $debug;
 # chown
 my $uid = getpwuid($UID);
 my $gid = getgrgid($GID);
+my $root = 'root';
+my $grep = $util->find_bin( bin=> 'grep', debug =>  0 );
+my $wheel = `$grep wheel /etc/group` ? 'wheel' : 'root';
 
 SKIP: {
     skip "the temp file for file_ch* is missing!", 4 if ( !-f $rwtest );
@@ -303,8 +306,8 @@ SKIP: {
     if ( $UID == 0 ) {
         ok( $util->chown(
                 file  => $rwtest,
-                uid   => "root",
-                gid   => "wheel",
+                uid   => $root,
+                gid   => $wheel,
                 debug => 0,
                 sudo  => 0,
                 fatal => 0
@@ -329,8 +332,8 @@ SKIP: {
     if ( $UID != 0 ) {
         ok( !$util->chown(
                 file  => $rwtest,
-                uid   => 'root',
-                gid   => 'wheel',
+                uid   => $root,
+                gid   => $wheel,
                 debug => 0,
                 sudo  => 0,
                 fatal => 0
@@ -346,7 +349,7 @@ SKIP: {
 #		ok ( ! $util->chown( file => $rwtest,
 #			uid=>'frobnob6i', gid=>'frobnob6i', debug=>0, sudo=>1, fatal=>0 ), 'chown');
 #		ok ( ! $util->chown( file => $rwtest,
-#			uid=>'root', gid=>'wheel',debug=>0, sudo=>1,fatal=>0), 'chown');
+#			uid=>$root, gid=>$wheel,debug=>0, sudo=>1,fatal=>0), 'chown');
 
 # chmod
 # get the permissions of the file in octal file mode

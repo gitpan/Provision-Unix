@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::Xen;
 
-our $VERSION = '0.11';
+our $VERSION = '0.13';
 
 use warnings;
 use strict;
@@ -442,6 +442,12 @@ sub get_status {
         or return $prov->error(
         message => 'could not get valid output from xm list' );
 
+    my ($xen_conf, $config);
+    eval "require Provision::Unix::VirtualOS::Xen::Config";
+    if ( ! $EVAL_ERROR ) {
+        $xen_conf = Provision::Unix::VirtualOS::Xen::Config->new();
+    };
+
     $self->{status} = {};
     foreach my $line ( split /\n/, $r ) {
 
@@ -452,12 +458,26 @@ sub get_status {
         my ( $ctid, $dom_id, $mem, $cpus, $state, $time ) = split /\s+/,
             $line;
         next unless $ctid;
+        my ($ips, $disks );
+        my $container_config = "/etc/xen/auto/$ctid.cfg";
+        if ( -f $container_config ) {
+            if ( $xen_conf && $xen_conf->read_config($container_config) ) {
+                $ips = $xen_conf->get_ips();
+                $disks = $xen_conf->get('disk');
+            };
+        }
+        else {
+            warn "could not find $container_config\n";
+        };
+
         $self->{status}{$ctid} = {
-            dom_id => $dom_id,
-            mem    => $mem,
-            cpus   => $cpus,
-            status => _full_state($state),
-            'time' => $time,
+            ips      => $ips,
+            disks    => $disks,
+            dom_id   => $dom_id,
+            mem      => $mem,
+            cpus     => $cpus,
+            status   => _run_state($state),
+            'time'   => $time,
         };
     }
 
@@ -468,7 +488,7 @@ sub get_status {
     }
     return $self->{status};
 
-    sub _full_state {
+    sub _run_state {
         my $abbr = shift;
         return
               $abbr =~ /r/ ? 'running'
@@ -663,24 +683,14 @@ __END__
 
 =head1 NAME
 
-Provision::Unix::VirtualOS::Linux::Xen -
-
-=head1 VERSION
-
-Version 0.11
+Provision::Unix::VirtualOS::Linux::Xen - Provision Xen containers
 
 =head1 SYNOPSIS
 
-Quick summary of what the module does.
 
-Perhaps a little code snippet.
-
-    use Provision::Unix::VirtualOS::Linux::Xen;
-
-    my $foo = Provision::Unix::VirtualOS::Linux::Xen->new();
-    ...
 
 =head1 FUNCTIONS
+
 
 =head1 AUTHOR
 
@@ -689,7 +699,6 @@ Matt Simerson, C<< <matt at tnpi.net> >>
 =head1 BUGS
 
 Please report any bugs or feature requests to C<bug-unix-provision-virtualos at rt.cpan.org>, or through the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Provision-Unix>.  I will be notified, and then you'll automatically be notified of progress on your bug as I make changes.
-
 
 
 =head1 SUPPORT
@@ -727,7 +736,7 @@ L<http://search.cpan.org/dist/Provision-Unix>
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2008 Matt Simerson, all rights reserved.
+Copyright 2008 Matt Simerson
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

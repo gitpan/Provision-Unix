@@ -1,5 +1,6 @@
 .cvsignore
 bin/install_deps
+bin/install_prov_unix
 bin/prov_dns
 bin/prov_user
 bin/prov_virtual
@@ -37,6 +38,7 @@ lib/Provision/Unix/VirtualOS/Linux.pm
 lib/Provision/Unix/VirtualOS/Linux/OpenVZ.pm
 lib/Provision/Unix/VirtualOS/Linux/Xen.pm
 lib/Provision/Unix/VirtualOS/Solaris/Container.pm
+lib/Provision/Unix/VirtualOS/Xen/Config.pm
 lib/Provision/Unix/Web.pm
 lib/Provision/Unix/Web/Apache.pm
 lib/Provision/Unix/Web/Lighttpd.pm

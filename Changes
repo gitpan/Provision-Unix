@@ -1,5 +1,13 @@
 Revision history for Provision-Unix
 
+0.37    Jan 16, 2009
+        t/Utility had group hard code as wheel. Failed on some Linux distros
+        imported Max's Xen::Config
+          P:U:V:L:Xen->get_status now returns the containers ips
+            and disk volumes (as element disks)
+        added bin/install_prov_unix
+        added P:U:V:X:Config.pm - read/write Xen config files
+
 0.36    Jan 14, 2009
         Commented out unused DNS::TinyDNS code (I wrote my own)
         replaced ExtUtils::MakeMaker with Module::Install

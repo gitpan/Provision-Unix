@@ -85,7 +85,7 @@ L<http://search.cpan.org/dist/Provision-Unix>
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2008 Matt Simerson, all rights reserved.
+Copyright 2008 Matt Simerson
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

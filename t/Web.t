@@ -3,23 +3,23 @@ use warnings;
 
 use Config::Std { def_sep => '=' };
 use English qw( -no_match_vars );
-use Test::More 'no_plan';
+use Test::More;
+
+my $prov = Provision::Unix->new( debug => 0 );
+my $web = Provision::Unix::Web->new( prov => $prov, fatal => 0, debug => 0 );
+
+if ( ! $web) {
+    plan skip_all => "Could not load Provision::Unix::Web";
+};
+
+plan 'no_plan';
 
 use lib "lib";
-
-BEGIN {
-    use_ok('Provision::Unix');
-    use_ok('Provision::Unix::Web');
-}
-require_ok('Provision::Unix');
-require_ok('Provision::Unix::Web');
+use Provision::Unix;
+use Provision::Unix::Web;
 
 # let the testing begin
-
-# basic OO mechanism
-my $prov = Provision::Unix->new( debug => 0 );
-my $web = Provision::Unix::Web->new( prov => $prov );
-ok( defined $web,                      'get Provision::Unix::Web object' );
+ok( defined $web, 'get Provision::Unix::Web object' );
 ok( $web->isa('Provision::Unix::Web'), 'check object class' );
 
 # get_vhost_attributes
@@ -38,7 +38,7 @@ ok( $web->create(
     'create'
 );
 
-exit;
+__END__
 
 ok( $web->_(), '' );
 ok( $web->_(), '' );

@@ -144,7 +144,7 @@ Matt Simerson, C<< <matt at tnpi.net> >>
  
 =head1 LICENCE AND COPYRIGHT
  
-Copyright (c) 2008 The Network People, Inc. (info@tnpi.net). All rights reserved.
+Copyright (c) 2008 The Network People, Inc. (info@tnpi.net)
 
 This module is free software; you can redistribute it and/or
 modify it under the same terms as Perl itself. See L<perlartistic>.

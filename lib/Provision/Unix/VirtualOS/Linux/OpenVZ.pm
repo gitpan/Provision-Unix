@@ -356,12 +356,13 @@ sub get_status {
     foreach my $line ( split /\n/, $vzs ) {
 
         #print "line: $line\n";
-        my ( undef, $ctid, $proc, $status, $ip, $hostname ) = split /\s+/,
+        my ( undef, $ctid, $proc, $state, $ip, $hostname ) = split /\s+/,
             $line;
         next unless $ctid;
+        next if ($ctid eq 'VEID');  # omit header
         $self->{status}{$ctid} = {
             proc   => $proc,
-            status => $status,
+            state  => $state,
             ip     => $ip,
             host   => $hostname
         };
@@ -507,7 +508,7 @@ sub is_running {
     $p{name}
         || $prov->error( message => 'is_running was called without a CTID' );
     $self->get_status() if $p{refresh};
-    return 1 if $self->{status}{ $p{name} }{status} eq 'running';
+    return 1 if $self->{status}{ $p{name} }{state} eq 'running';
     return;
 }
 
@@ -632,7 +633,7 @@ L<http://search.cpan.org/dist/Provision-Unix>
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2008 Matt Simerson, all rights reserved.
+Copyright 2008 Matt Simerson
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

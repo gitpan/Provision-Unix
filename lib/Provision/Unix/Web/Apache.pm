@@ -3,12 +3,11 @@ package Provision::Unix::Web::Apache;
 use strict;
 use warnings;
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 #use Apache::ConfigFile;
 use Carp;
 use English qw( -no_match_vars );
-use Apache::Admin::Config;
 use Params::Validate qw( :all );
 
 use lib 'lib';
@@ -30,6 +29,14 @@ sub new {
 
     $web  = $p{web};
     $prov = $p{prov};
+    eval "require Apache::Admin::Config";
+    if ( $EVAL_ERROR ) {
+        return $prov->error( 
+            message => 'Apache::Admin::Config not installed', 
+            fatal => $p{fatal}, 
+            debug => $p{debug},
+        );
+    };
     $util = Provision::Unix::Utility->new( prov => $prov );
 
     my $self = {};
@@ -519,7 +526,7 @@ sub exists {
         # the file exists that the virtual host should be in.
         # determine if the vhost is defined in it
 
-        my $apa_conf = new Apache::Admin::Config $vh_file_path
+        my $apa_conf = Apache::Admin::Config->new($vh_file_path)
             or die $Apache::Admin::Config::ERROR;
 
 #        my $ac =
@@ -687,7 +694,7 @@ Provision::Unix::Web::Apache - Provision web hosting accounts on Apache
 
 =head1 VERSION
 
-Version 0.04
+Version 0.05
 
 =head1 SYNOPSIS
 
@@ -815,7 +822,7 @@ L<http://search.cpan.org/dist/Provision-Unix>
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2008 Matt Simerson, all rights reserved.
+Copyright 2008 Matt Simerson
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

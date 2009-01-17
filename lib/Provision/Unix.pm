@@ -1,5 +1,5 @@
 package Provision::Unix;
-our $VERSION = '0.36';
+our $VERSION = '0.37';
 
 use warnings;
 use strict;
@@ -254,10 +254,6 @@ __END__
 =head1 NAME
 
 Provision::Unix - provision accounts on unix systems
-
-=head1 VERSION
-
-Version 0.36
 
 =head1 SYNOPSIS
 
