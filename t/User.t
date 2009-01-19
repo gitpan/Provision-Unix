@@ -3,21 +3,26 @@ use strict;
 use warnings;
 
 use English qw( -no_match_vars );
-use Test::More 'no_plan';
+use Test::More;
 
 use lib "lib";
+use Provision::Unix;
+use Provision::Unix::User;
 
-BEGIN { use_ok('Provision::Unix'); }
-BEGIN { use_ok('Provision::Unix::User'); }
-require_ok('Provision::Unix');
-require_ok('Provision::Unix::User');
-
-# let the testing begin
-
-# basic OO mechanism
 my $prov = Provision::Unix->new( debug => 0 );
-my $user = Provision::Unix::User->new( prov => $prov );    # create object
-ok( defined $user,                       'get Provision::Unix::User object' );
+my $user;
+
+eval { $user = Provision::Unix::User->new( prov => $prov, fatal => 0 ) };
+if ( $EVAL_ERROR ) {
+    my $message = $EVAL_ERROR; chop $message;
+    $message .= " on " . $OSNAME;
+    plan skip_all => $message;
+} 
+else {
+    plan 'no_plan';
+};
+
+ok( defined $user, 'get Provision::Unix::User object' );
 ok( $user->isa('Provision::Unix::User'), 'check object class' );
 
 # exists

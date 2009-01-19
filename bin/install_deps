@@ -19,12 +19,13 @@ my $deps = {
 #        { app => 'perl'              , info => { 'port' => 'perl5.8' } },
     ],
     'modules' => [
-        { module => 'Test::More'     , info=> { } },
-        { module => 'Config::Std'    , info=> { } },
+        { module => 'Test::More'     ,  info=> { } },
+        { module => 'Config::Std'    ,  info=> { } },
         { module => 'Params::Validate', info => { } },
         { module => 'Apache::Admin::Config', info => { } },
-        { module => 'JSON::XS'       , info => { } },
-        { module => 'Module::Install', info => {} },
+        { module => 'JSON::XS'       ,  info => { } },
+        { module => 'Module::Install',  info => {} },
+        { module => 'Proc::ProcessTable', info => {} },
     ],
 };
 
@@ -49,7 +50,7 @@ foreach ( @$modules ) {
     if ($EVAL_ERROR) {
         next if $info->{ships_with} && $info->{ships_with} eq 'perl';
         $util->install_module( $module, $info );
-        eval "require $module or die('Require failed'); ";
+        eval "require $module";
         if ($EVAL_ERROR) {
             push @failed, $module;
         }

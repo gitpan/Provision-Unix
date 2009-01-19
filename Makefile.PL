@@ -17,6 +17,8 @@ requires        'Getopt::Long'      => 2.37;
 
 test_requires     'Test::More'      => 0;
 
+recommends        'Proc::ProcessTable' => 0;
+
 # these are for the authors (mostly me), but listed here for Kwalitee
 recommends        'Test::Pod'           => 0;
 recommends        'Test::Pod::Coverage' => 0;

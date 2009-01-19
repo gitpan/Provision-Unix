@@ -1887,8 +1887,8 @@ sub install_module {
         else {
             my $port = "p5-$module";
             $port =~ s/::/-/g;
-            ( system("sudo $dport install $port") == 0 ) and return 1;
-            print("Installation failed for Darwin port of $module");
+            my $cmd = "sudo $dport install $port";
+            $self->syscmd( cmd => $cmd, debug => 0 );
         }
     }
 
@@ -1907,8 +1907,7 @@ sub install_module {
 
         if ( $portdir && -d $portdir && chdir $portdir ) {
             print " from ports ($portdir)\n";
-            ( system("make install clean") == 0 ) and return 1;
-            print "'make install clean' failed for port $module\n";
+            system "make clean && make install clean";
         }
     }
 
@@ -1926,7 +1925,6 @@ sub install_module {
     };
 
     print " from CPAN...";
-
     require CPAN;
 
     # some Linux distros break CPAN by auto/preconfiguring it with no URL mirrors.
@@ -1971,10 +1969,27 @@ sub is_process_running {
 
     my ( $self, $process ) = @_;
 
+    eval "require Proc::ProcessTable";
+    if ( ! $EVAL_ERROR ) {
+        my $i = 0;
+        my $t = Proc::ProcessTable->new();
+        foreach my $p ( @{ $t->table } ) {
+            $i++ if ( $p->cmndline =~ m/$process/i );
+        };
+        return $i;
+    };
+
     my $ps   = $self->find_bin( bin => 'ps',   debug => 0 );
     my $grep = $self->find_bin( bin => 'grep', debug => 0 );
 
-    my $r = `$ps ax | $grep $process | $grep -v grep`;
+    if ( lc($OSNAME) =~ /bsd|darwin/ ) {
+        $ps .= " ax";
+    }
+    else {
+        $ps .= " ef";
+    };
+
+    my $r = `$ps | $grep $process | $grep -v grep`;
     return $r ? 1 : 0;
 }
 
