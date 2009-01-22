@@ -1,7 +1,22 @@
 Revision history for Provision-Unix
 
+0.39  Jan 21, 2009
+      - More descriptive error messages when tests are skipped
+      - changed #!perl to #!/usr/bin/env perl (hopefully more portable)
+      - prov_virtual prints out the result object from $prov invocations
+      - lowered min perl version to 5.6 to see what tests blow up
+      - print diagnostic info if is_process_running fails
+      - updated version of remoteagent
+      - added version support to install_deps and Getopt::Long dependency
+      - a missing provision.conf is no longer fatal.
+
+
+0.38    Jan 18, 2009
+        more tweaks so that 'make test' completes successfully on more
+        OS platforms
+
 0.37    Jan 16, 2009
-        t/Utility had group hard code as wheel. Failed on some Linux distros
+        t/Utility had group hard coded as wheel. Failed on some Linux distros
         imported Max's Xen::Config
           P:U:V:L:Xen->get_status now returns the containers ips
             and disk volumes (as element disks)

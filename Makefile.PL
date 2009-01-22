@@ -1,4 +1,4 @@
-#!perl
+#!/usr/bin/env perl
 
 use strict;
 use warnings;
@@ -8,7 +8,7 @@ name            'Provision-Unix';
 abstract_from   'lib/Provision/Unix.pm';
 author          'msimerson@cpan.org';
 license         'perl';
-perl_version    '5.008';
+perl_version    '5.006';
 version_from    'lib/Provision/Unix.pm';
 
 requires        'Params::Validate'  => .8;

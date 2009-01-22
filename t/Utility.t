@@ -1,6 +1,5 @@
-#!perl
-use strict;
 
+use strict;
 #use warnings;
 
 use lib "lib";
@@ -47,7 +46,7 @@ ok( $util->syscmd( cmd => "cp TODO $tmp/", debug => 0, fatal => 0 ),
 
 # ask - asks a question and retrieves the answer
 SKIP: {
-    skip "", if 1 == 1;
+    skip "annoying", 4 if 1 == 1;
     skip "ask is an interactive only feature", 4 unless $util->is_interactive;
     ok( $r = $util->ask(
             question => 'test yes ask',
@@ -561,7 +560,12 @@ ok( !$util->install_from_source(
 );
 
 # is_process_running
-ok( $util->is_process_running("syslogd"),      'is_process_running' );
+my $process_that_exists 
+    = lc($OSNAME) eq 'darwin' ? 'launchd'
+    : 'init';
+
+ok( $util->is_process_running($process_that_exists), 'is_process_running' )
+    or diag system "ps -ef && ps ax";
 ok( !$util->is_process_running("nonexistent"), 'is_process_running' );
 
 # is_tainted

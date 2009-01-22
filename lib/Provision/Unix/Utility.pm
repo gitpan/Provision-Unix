@@ -1,6 +1,6 @@
 package Provision::Unix::Utility;
 
-our $VERSION = '5.16';
+our $VERSION = '5.19';
 
 use strict;
 use warnings;
@@ -1875,6 +1875,43 @@ TARGET:
     return 1;
 }
 
+sub install_package {
+    my ($self, $app, $info) = @_;
+
+    if ( lc($OSNAME) eq 'freebsd' ) {
+
+        my $portname = $info->{port}
+            or warn "skipping install of $app b/c port dir not set.";
+
+        if ( $portname ) {
+            if (`/usr/sbin/pkg_info | /usr/bin/grep $app`) {
+                return print "$app is installed.\n";
+            }
+
+            print "installing $app\n";
+            my $portdir = </usr/ports/*/$portname>;
+
+            if ( -d $portdir && chdir $portdir ) {
+                system "make install clean"
+                    or warn "'make install clean' failed for port $app\n";
+            }
+            else {
+                print "oops, couldn't find port $app at ($portname)\n";
+            }
+        };
+    };
+
+    if ( lc($OSNAME) eq 'linux' ) {
+        my $rpm = $info->{rpm} or return;
+        my $yum = '/usr/bin/yum';
+        if ( ! -x $yum ) {
+            print "couldn't find yum, skipping install.\n";
+            return;
+        };
+        system "$yum install $rpm";
+    };
+}
+
 sub install_module {
 
     my ($self, $module, $info) = @_;
@@ -1919,7 +1956,7 @@ sub install_module {
             $portname =~ s/::/-/g;
             my $yum = '/usr/bin/yum';
             if ( -x $yum ) {
-                system "$yum -y install $portname" and return 1;
+                system "$yum -y install $portname";
             };
         }
     };
@@ -1929,7 +1966,9 @@ sub install_module {
 
     # some Linux distros break CPAN by auto/preconfiguring it with no URL mirrors.
     # this works around that annoying little habit
+    no warnings;
     $CPAN::Config = $self->get_cpan_config();
+    use warnings;
 
     CPAN::Shell->install($module);
 }
@@ -1982,15 +2021,14 @@ sub is_process_running {
     my $ps   = $self->find_bin( bin => 'ps',   debug => 0 );
     my $grep = $self->find_bin( bin => 'grep', debug => 0 );
 
-    if ( lc($OSNAME) =~ /bsd|darwin/ ) {
-        $ps .= " ax";
+    if ( lc($OSNAME) =~ /solaris|linux/ ) {
+        $ps .= " -efw";
     }
     else {
-        $ps .= " ef";
+        $ps .= " axw";
     };
 
-    my $r = `$ps | $grep $process | $grep -v grep`;
-    return $r ? 1 : 0;
+    return `$ps | $grep $process | $grep -v grep` ? 1 : 0;
 }
 
 sub is_readable {
@@ -2556,7 +2594,7 @@ sub sudo {
     );
 
     # sudo is installed
-    if ( -x $path_to_sudo ) {
+    if ( $path_to_sudo && -x $path_to_sudo ) {
         print "sudo: sudo is set using $path_to_sudo.\n" if $debug;
         return "$path_to_sudo -p 'Password for %u@%h:'";
     }

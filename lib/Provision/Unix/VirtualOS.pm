@@ -3,7 +3,7 @@ package Provision::Unix::VirtualOS;
 use warnings;
 use strict;
 
-our $VERSION = '0.20';
+our $VERSION = '0.21';
 
 use English qw( -no_match_vars );
 use Params::Validate qw(:all);
@@ -46,7 +46,7 @@ sub new {
     $util = Provision::Unix::Utility->new( prov=> $p{prov} )
         or die "unable to load P:U:Utility\n";
     $self->{vtype} = $self->_get_virt_type( fatal => $p{fatal}, debug => $p{debug} )
-        or die "unable to set virtualization type\n";
+        or die $prov->{errors}[-1]{errmsg};
     return $self;
 }
 
@@ -566,7 +566,7 @@ sub _get_virt_type {
         }
         else {
             $prov->error( 
-                message => "Unable to determine your virtualization method. You need to have only Xen or OpenVZ installed.",
+                message => "Unable to determine your virtualization method. You need one supported hypervisor (xen, openvz) installed.",
                 fatal => $p{fatal},
                 debug => $p{debug},
             );

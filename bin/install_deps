@@ -1,7 +1,7 @@
-#!perl
+#!/usr/bin/env perl
 
 # by Matt Simerson & Phil Nadeau
-# circa 2008, but based in installer in Mail::Toaster dating back centuries
+# circa 2008, but based in installer in Mail::Toaster dating back to the 20th century
 
 use strict;
 use warnings;
@@ -11,21 +11,21 @@ use English qw( -no_match_vars );
 use lib 'lib';
 use Provision::Unix;
 use Provision::Unix::Utility;
-my $prov = Provision::Unix->new( debug => 0);
+my $prov = Provision::Unix->new();
 my $util = Provision::Unix::Utility->new( prov => $prov );
 
 my $deps = {
     'apps' => [
-#        { app => 'perl'              , info => { 'port' => 'perl5.8' } },
+#        { app => 'perl'              , info => {  } },
     ],
     'modules' => [
-        { module => 'Test::More'     ,  info=> { } },
-        { module => 'Config::Std'    ,  info=> { } },
-        { module => 'Params::Validate', info => { } },
+        { module => 'Test::More'        , info => { } },
+        { module => 'Getopt::Long'      , info => { version => 2.37 } },
+        { module => 'Config::Std'       , info => { } },
+        { module => 'Params::Validate'  , info => { } },
         { module => 'Apache::Admin::Config', info => { } },
-        { module => 'JSON::XS'       ,  info => { } },
-        { module => 'Module::Install',  info => {} },
-        { module => 'Proc::ProcessTable', info => {} },
+        { module => 'JSON::XS'          , info => { } },
+        { module => 'Proc::ProcessTable', info => { } },
     ],
 };
 
@@ -34,10 +34,12 @@ $EUID == 0 or die( "You will have better luck if you run me as root.\n");
 # this causes problems when CPAN is not configured.
 #$ENV{PERL_MM_USE_DEFAULT} = 1;       # supress CPAN prompts
 
+$ENV{FTP_PASSIVE} = 1;        # for FTP behind NAT/firewalls
+
 my $apps = $deps->{apps};
 foreach ( @$apps ) {
     print "checking $_->{app}\n";
-    install_application( $_->{app} => $_->{info} );
+    $util->install_package( $_->{app} => $_->{info} );
 }
 
 my $modules = $deps->{modules};
@@ -45,12 +47,13 @@ my @failed  = ();
 foreach ( @$modules ) {
     my $module = $_->{module} or die 'missing module name';
     my $info   = $_->{info};
-    print "checking $module\n";
-    eval "require $module or die('Require failed'); ";
+    my $version = $info->{version} || '';
+    print "checking for $module $version\n";
+    eval "require $module $version";
     if ($EVAL_ERROR) {
         next if $info->{ships_with} && $info->{ships_with} eq 'perl';
         $util->install_module( $module, $info );
-        eval "require $module";
+        eval "require $module $version";
         if ($EVAL_ERROR) {
             push @failed, $module;
         }
@@ -61,42 +64,5 @@ if ( scalar @failed > 0 ) {
     print "The following modules failed installation:\n";
     print join( "\n", @failed );
     print "\n";
-}
-
-sub install_application {
-    my ($app, $info) = @_;
-
-    if ( lc($OSNAME) eq 'freebsd' ) {
-
-        my $portname = $info->{port} 
-            or warn "skipping install of $app b/c port dir not set.";
-
-        if ( $portname ) {
-            if (`/usr/sbin/pkg_info | /usr/bin/grep $app`) {
-                return print "$app is installed.\n";
-            }
-
-            print "installing $app\n";
-            my $portdir = </usr/ports/*/$portname>;
-
-            if ( -d $portdir && chdir $portdir ) {
-                ( system("make install clean") == 0 ) and return 1;
-                print "'make install clean' failed for port $app\n";
-            }
-            else {
-                print "oops, couldn't find port $app at ($portname)\n";
-            }
-        };
-    };
-
-    if ( lc($OSNAME) eq 'linux' ) {
-        my $rpm = $info->{rpm} or return;
-        my $yum = '/usr/bin/yum';
-        if ( ! -x $yum ) {
-            print "couldn't find yum, skipping install.\n";
-            return;
-        };
-        system "$yum install $rpm";
-    };
 }
 

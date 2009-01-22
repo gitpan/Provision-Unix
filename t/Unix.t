@@ -1,3 +1,4 @@
+
 use strict;
 use warnings;
 
@@ -22,9 +23,9 @@ push @{ $prov->{error} }, { errmsg => 'test error' };
 #use Data::Dumper qw( Dumper ); warn Dumper ( $prov );
 
 # find_config
-ok( $prov->find_config( file => 'provision.conf', debug => 0 ),
+ok( $prov->find_config( file => 'provision.conf', debug => 0, fatal => 0 ),
     'find_config valid' );
-ok( !eval { $prov->find_config( fil => 'provision.conf', debug => 0 ) },
+ok( !eval { $prov->find_config( fil => 'provision.conf', debug => 0, fatal => 0 ) },
     'find_config missing param' );
 ok( !$prov->find_config( file => 'provisoin.conf', debug => 0, fatal => 0 ),
     'find_config invalid param' );

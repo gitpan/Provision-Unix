@@ -1,5 +1,5 @@
 package Provision::Unix;
-our $VERSION = '0.38';
+our $VERSION = '0.39';
 
 use warnings;
 use strict;
@@ -36,8 +36,13 @@ sub new {
 
     bless( $self, $class );
     my $config_file
-        = $self->find_config( file => $p{file}, debug => $p{debug} );
-    read_config( $config_file => $self->{config} );
+        = $self->find_config( file => $p{file}, debug => $p{debug}, fatal => 0 );
+    if ( $config_file ) {
+        read_config( $config_file => $self->{config} );
+    }
+    else {
+        warn "could not find provision.conf. Consider installing it in your local etc directory.\n";
+    };
     return $self;
 }
 

@@ -60,7 +60,7 @@ sub check_mutual_exclusion {
         : IO::File->new(">$lockfile");
     $lockhandle or die "Can't open lockfile '$lockfile': $!";
     if ( flock( $lockhandle, ( LOCK_EX | LOCK_NB ) ) ) {
-        return ($lockhandle);
+        return $lockhandle;
     }
     else {
         my $otherpid = int( $lockhandle->getline() );
@@ -86,10 +86,11 @@ sub send {
     my ( $self, $obj ) = @_;
     my $msg = $self->{out_json}->encode($obj);
     local $SIG{PIPE} = sub {
-        die {   status  => 'error',
-                type    => 'protocol',
-                message => 'Remote unexpectedly closed pipe'
-            };
+        die {
+            status  => 'error',
+            type    => 'protocol',
+            message => 'Remote unexpectedly closed pipe'
+        };
     };
     $self->{outs}->print("$msg\n");
 }
@@ -119,15 +120,16 @@ sub receive {
             eval { $i = $ins->getline; };
         }
         if ($@) {
-            ( $@ eq "alarm\n" ) and die
-                {   status  => 'error',
-                    type    => 'timeout',
-                    message => 'Timed out'
-                };
-            die {   status  => 'error',
-                    type    => 'protocol',
-                    message => 'Unknown communication error'
-                };
+            ( $@ eq "alarm\n" ) and die {
+                status  => 'error',
+                type    => 'timeout',
+                message => 'Timed out'
+            };
+            die {
+                status  => 'error',
+                type    => 'protocol',
+                message => 'Unknown communication error'
+            };
         }
         unless ( defined $i ) {
             delete $self->{ins};
@@ -149,17 +151,17 @@ sub receive {
             return shift @{ $self->{buffer} };
         }
     }
-    ( $run < 0 ) and die
-        {   status  => 'error',
-            type    => 'protocol',
-            message => 'Remote terminated'
-        };
+    $run < 0 and die {
+        status  => 'error',
+        type    => 'protocol',
+        message => 'Remote terminated'
+    };
 }
 
 sub run {
     my ($self) = @_;
     $self->{running} = 1;
-    my ( $id, $action, $o );
+    my ( $id, $action, $o, $result );
     $self->{prov} = Provision::Unix->new( debug => 0 );
     while ( $self->{running} ) {
         eval {
@@ -169,11 +171,11 @@ sub run {
                     $id     = $o->{id};
                     $action = $o->{action};
                     length($action)
-                        or die
-                        {   status  => 'error',
-                            type    => 'dispatch',
-                            message => 'Malformed message: no action',
-                            id      => $id
+                        or die {
+                        status  => 'error',
+                        type    => 'dispatch',
+                        message => 'Malformed message: no action',
+                        id      => $id
                         };
                     if ( $action eq 'close' ) {
                         $self->{running} = 0;
@@ -190,19 +192,21 @@ sub run {
                         );
                     }
                     else {
-                        $self->do_prov_call( $o, $action );
+                        $result = $self->do_prov_call( $o, $action );
                         $self->send(
                             {   status => 'ok',
                                 id     => $id,
                                 audit  => $self->{prov}->audit,
+                                result => $result,
                             }
                         );
                     }
                 }
                 else {
-                    die {   status  => 'error',
-                            type    => 'syntax',
-                            message => 'Malformed message: parse error'
+                    die {
+                        status  => 'error',
+                        type    => 'syntax',
+                        message => 'Malformed message: parse error'
                     };
                 }
             }
@@ -237,15 +241,14 @@ sub do_prov_call {
     $pkg = 'Provision::Unix::' . $pkg;
     my $params = $req->{params} || {};
     eval "require $pkg;";
-    ($@)
-        and die(
-        {   status  => 'error',
-            type    => 'dispatch',
-            message => 'Error loading provisioning module',
-            debug   => $@,
-            id      => $req->{id}
-        }
-        );
+    $@
+        and die {
+        status  => 'error',
+        type    => 'dispatch',
+        message => 'Error loading provisioning module',
+        debug   => $@,
+        id      => $req->{id}
+        };
     my $instance = $pkg->new( prov => $self->{prov} );
 
     if ( $pkg->can( $action . $suffix ) ) {
@@ -255,11 +258,12 @@ sub do_prov_call {
         $method = $action;
     }
     else {
-        die{   status  => 'error',
-                type    => 'dispatch',
-                message => "Unknown action '$action$suffix'",
-                id      => $req->{id}
-            };
+        die {
+            status  => 'error',
+            type    => 'dispatch',
+            message => "Unknown action '$action$suffix'",
+            id      => $req->{id}
+        };
     }
     unless ( $action eq 'get_status' ) {
         $self->try_lock;
@@ -275,21 +279,19 @@ sub do_prov_call {
             data    => $params
         }
     );
-    eval {
-        ($rv) = $instance->$method( defined $params ? (%$params) : () );
-    };
-    defined $self->{lockhandle} and delete $self->{lockhandle};
-    ($rv)
-        or die
-        {   status    => 'error',
-            type      => 'operation',
-            id        => $req->{id},
-            message   => "Unable to $action",
-            audit     => $self->{prov}->audit,
-            exception => $@
+    eval { $rv = $instance->$method( defined $params ? %$params : () ); };
+    ( defined $self->{lockhandle} ) and delete $self->{lockhandle};
+    $rv
+        or die {
+        status    => 'error',
+        type      => 'operation',
+        id        => $req->{id},
+        message   => "Unable to $action",
+        audit     => $self->{prov}->audit,
+        exception => $@
         };
+    return $rv;
 }
 
 package main;
 exit( RemoteAgentPacked->new_from_cl( ARGV => \@ARGV )->run() );
-

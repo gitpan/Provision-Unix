@@ -1,4 +1,4 @@
-#!perl
+#!/usr/bin/env perl
 
 use strict;
 use warnings;
@@ -8,15 +8,17 @@ use English qw( -no_match_vars );
 use Getopt::Long;
 use Pod::Usage;
 
+
 use lib "lib";
 use Provision::Unix;
 use Provision::Unix::Utility;
 use Provision::Unix::VirtualOS;
 
+$EUID == 0 or die 'Virtual OS functions require root privileges.';
+
 my $prov = Provision::Unix->new( debug => 0 );
 my $util = Provision::Unix::Utility->new( prov => $prov, debug => 0);
 my $vos  = Provision::Unix::VirtualOS->new( prov => $prov );
-
 
 # process command line options
 Getopt::Long::GetOptions(
@@ -36,7 +38,7 @@ Getopt::Long::GetOptions(
 
     'verbose'     => \my $debug,
 
-) or die "error parsing command line options";
+) or die 'error parsing command line options';
 
 my $questions = {
     action    => "the action to perform: create, destroy, start, stop, restart, disable, enable, modify, probe", 
@@ -74,9 +76,10 @@ my %request = ( debug => 0, fatal => 0, name => lc($name) );
 : $action eq 'probe'    ? probe()
 : die "oops, the action ($action) is invalid\n";
 
-sub create {
+print "done.\n";
+exit;
 
-    $EUID == 0 or die("Create functions require root privileges.");
+sub create {
 
     $request{ip}       = $ip       || $util->ask( question=> $questions->{ip} );
     $request{hostname} = $hostname || $util->ask( question=> $questions->{hostname} );
@@ -92,37 +95,32 @@ sub create {
     warn "creating!\n";
     $prov->audit("dispatching creation request");
 
-    return $vos->create_virtualos( %request );
+    print Dumper( $vos->create_virtualos( %request ) );
 }
 
 sub destroy {
-    $EUID == 0 or die("That function require root privileges.");
-    return $vos->destroy_virtualos( %request );
+    print Dumper( $vos->destroy_virtualos( %request ) );
 }
-
 sub start {
-    $EUID == 0 or die("That function require root privileges.");
-    return $vos->start_virtualos( %request );
+    print Dumper( $vos->start_virtualos( %request ) );
 }
 sub stop {
-    $EUID == 0 or die("That function require root privileges.");
-    return $vos->stop_virtualos( %request );
+    print Dumper( $vos->stop_virtualos( %request ) );
 }
 sub restart {
-    $EUID == 0 or die("That function require root privileges.");
-    return $vos->restart_virtualos( %request );
+    print Dumper( $vos->restart_virtualos( %request ) );
 }
 sub disable {
-    $EUID == 0 or die("That function require root privileges.");
-    return $vos->disable_virtualos( %request );
+    print Dumper( $vos->disable_virtualos( %request ) );
 }
 sub enable {
-    $EUID == 0 or die("That function require root privileges.");
-    return $vos->enable_virtualos( %request );
+    print Dumper( $vos->enable_virtualos( %request ) );
 }
 sub modify {
-    $EUID == 0 or die("That function require root privileges.");
-    return $vos->modify_virtualos( %request );
+    print Dumper( $vos->modify_virtualos( %request ) );
+}
+sub probe {
+    print Dumper( $vos->get_status( %request ) );
 }
 
 __END__
