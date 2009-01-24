@@ -3,7 +3,15 @@ package Provision::Unix::VirtualOS::Solaris::Container;
 use warnings;
 use strict;
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
+
+sub new {
+    my $class = shift;
+    my $self = { };
+    bless( $self, $class );
+    return $self;
+}
+
 
 1;
 
@@ -13,10 +21,6 @@ __END__
 =head1 NAME
 
 Provision::Unix::VirtualOS::Solaris::Container -
-
-=head1 VERSION
-
-Version 0.02
 
 =head1 SYNOPSIS
 
@@ -31,9 +35,9 @@ Perhaps a little code snippet.
 
 =head1 FUNCTIONS
 
-=head2 function1
+=head2 create
 
-=head2 function2
+=head2 destroy
 
 =head1 AUTHOR
 

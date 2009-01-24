@@ -49,11 +49,11 @@ foreach ( @$modules ) {
     my $info   = $_->{info};
     my $version = $info->{version} || '';
     print "checking for $module $version\n";
-    eval "require $module $version";
+    eval "use $module $version";
     if ($EVAL_ERROR) {
         next if $info->{ships_with} && $info->{ships_with} eq 'perl';
         $util->install_module( $module, $info );
-        eval "require $module $version";
+        eval "use $module $version";
         if ($EVAL_ERROR) {
             push @failed, $module;
         }

@@ -7,10 +7,16 @@
 use strict;
 use warnings;
 
+BEGIN {
+   $ENV{PERL_MM_USE_DEFAULT} = 1;
+}
+
 use CPAN;
 use English qw( -no_match_vars );
 
 use lib 'lib';   # use local version if available
+
+install_module('JSON::XS');
 
 my $module = 'Provision::Unix';
 my $version_wanted = latest_on_cpan($module);
@@ -156,4 +162,5 @@ sub get_cpan_config {
   'urllist' => [ 'http://www.perl.com/CPAN/', 'ftp://cpan.cs.utah.edu/pub/CPAN/', 'ftp://mirrors.kernel.org/pub/CPAN', 'ftp://osl.uoregon.edu/CPAN/', 'http://cpan.yahoo.com/' ],
   'wget' => $wget, };
 }
+
 

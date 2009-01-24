@@ -17,12 +17,21 @@ requires        'Getopt::Long'      => 2.37;
 
 test_requires     'Test::More'      => 0;
 
-recommends        'Proc::ProcessTable' => 0;
-
-# these are for the authors (mostly me), but listed here for Kwalitee
+# these are for module authors and tests
 recommends        'Test::Pod'           => 0;
 recommends        'Test::Pod::Coverage' => 0;
 recommends        'Test::Perl::Critic'  => 0;
+
+# these are for optional features
+recommends        'Quota'               => 0;
+recommends        'Mail::Send'          => 1;
+recommends        'Proc::ProcessTable'  => 1;
+recommends        'Apache::Admin::Config' => .9;
+recommends        'JSON::XS'            => 0;
+
+feature             'JSON Provisioning Agent',
+                        -default          => 1,
+                        'JSON::XS'        => 0;
 
 feature             'Email Notices',
                         -default          => 0,
@@ -42,10 +51,6 @@ feature             'NicTool API integration',
 
 #feature         'tinydns data files'    # not used.
 #                    DNS::TinyDNS'    => 1;
-
-feature               'JSON Provisioning Agent',
-                        -default           => 0,
-                        'JSON::XS'         => 0;
 
 feature               'self-update to latest CPAN version',
                         -default           => 0,

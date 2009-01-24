@@ -140,7 +140,7 @@ sub start_virtualos {
         debug   => $vos->{debug},
     ) if !$self->is_present();
 
-    my $config_file = "$vos->{disk_root}/${ctid}.vm/${ctid}.cfg";
+    my $config_file = "$vos->{disk_root}/${ctid}.vm/${ctid}.vm.cfg";
     if ( !-e $config_file ) {
         $prov->error( message =>
                 "config file for $ctid should be at $config_file and is missing."
@@ -458,8 +458,13 @@ sub get_status {
         my ( $ctid, $dom_id, $mem, $cpus, $state, $time ) = split /\s+/,
             $line;
         next unless $ctid;
+        next if $ctid eq 'Name';
+        next if $ctid eq 'Domain-0';
         my ($ips, $disks );
         my $container_config = "/etc/xen/auto/$ctid.cfg";
+        if ( ! -f $container_config ) {
+            $container_config = "/etc/xen/$ctid/$ctid.cfg";
+        };
         if ( -f $container_config ) {
             if ( $xen_conf && $xen_conf->read_config($container_config) ) {
                 $ips = $xen_conf->get_ips();
@@ -483,8 +488,15 @@ sub get_status {
 
     #warn Dumper $self->{status};
 
-    if ( $vos->{name} ) {
-        return $self->{status}{ $vos->{name} };
+    my $name = $vos->{name};
+    if ( $name ) {
+        if ( $self->{status}{ $name } ) {
+            return $self->{status}{ $name };
+        };
+        if ( $self->{status}{ "$name.vm" } ) {
+            return $self->{status}{ "$name.vm" };
+        };
+        warn "unable to find vm $name\n";
     }
     return $self->{status};
 

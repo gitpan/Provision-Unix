@@ -2021,7 +2021,10 @@ sub is_process_running {
     my $ps   = $self->find_bin( bin => 'ps',   debug => 0 );
     my $grep = $self->find_bin( bin => 'grep', debug => 0 );
 
-    if ( lc($OSNAME) =~ /solaris|linux/ ) {
+    if ( lc($OSNAME) =~ /solaris/ ) {
+        $ps .= " -ef";
+    }
+    elsif ( lc($OSNAME) =~ /linux/ ) {
         $ps .= " -efw";
     }
     else {
@@ -2182,27 +2185,7 @@ sub provision_unix {
         );
     }
 
-    my $archive = "Provision-Unix";
-    my $url     = "/computing/";
-
-    print "going for archive $archive.\n";
-
-    my @targets = ( "$perlbin Makefile.PL", "make" );
-
-    push @targets, "make test" if $debug;
-    push @targets, "make install";
-
-    require Provision::Unix::Perl;
-    my $perl = Provision::Unix::Perl->new;
-
-    $perl->module_install(
-        module  => 'Provision-Unix',
-        archive => $archive,
-        site    => 'http://www.tnpi.net',
-        url     => $url,
-        targets => \@targets,
-        debug   => $debug,
-    );
+    $self->install_module( 'Provision::Unix' );
 }
 
 sub mkdir_system {
