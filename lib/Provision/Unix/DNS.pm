@@ -8,6 +8,10 @@ our $VERSION = '0.23';
 use English qw( -no_match_vars );
 use Params::Validate qw(:all);
 
+use lib 'lib';
+use Provision::Unix::Utility;
+my $util;
+
 sub new {
     my $class = shift;
     my %p     = validate(
@@ -25,8 +29,10 @@ sub new {
     };
     bless( $self, $class );
 
+    $util = Provision::Unix::Utility->new( prov => $p{prov}, debug=>$p{debug},fatal=>$p{fatal} );
+    $self->{server} = $self->_get_server() or return undef;
     $self->{prov}->audit("loaded DNS");
-    $self->{server} = $self->_get_server();
+
     return $self;
 }
 
@@ -112,10 +118,33 @@ sub _get_server {
 
     my $self = shift;
     my $prov = $self->{prov};
+    my $debug = $self->{debug};
+    my $fatal = $self->{fatal};
 
     my $chosen_server = $prov->{config}{DNS}{server}
         or $prov->error(
-        message => 'missing [DNS] server setting in provision.conf' );
+            message => 'missing [DNS] server setting in provision.conf',
+            fatal  => $fatal,
+            debug  => $debug,
+        );
+
+    # try to autodetect the server
+    if ( ! $chosen_server ) {
+        if ( $util->find_bin( bin=>'tinydns', debug=>0,fatal => 0 ) ) {
+            $chosen_server = 'tinydns';
+        }
+        elsif ( $util->find_bin( bin=>'named', debug=>0,fatal => 0) ) {
+            $chosen_server = 'bind';
+        };
+    };
+
+    if ( ! $chosen_server ) {
+        return $prov->error( 
+            message => "No DNS server selected and I could not find one installed. Giving up.",
+            fatal  => $fatal,
+            debug  => $debug,
+        );
+    };
 
     if ( $chosen_server eq 'nictool' ) {
         require Provision::Unix::DNS::NicTool;
@@ -130,7 +159,11 @@ sub _get_server {
         return Provision::Unix::DNS::BIND->new( prov => $prov );
     }
     else {
-        $prov->error( message => "no support for $chosen_server yet" );
+        return $prov->error( 
+            message => "no support for $chosen_server yet",
+            fatal  => $fatal,
+            debug  => $debug,
+        );
     }
 }
 

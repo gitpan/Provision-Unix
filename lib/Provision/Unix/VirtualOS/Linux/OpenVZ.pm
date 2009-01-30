@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::OpenVZ;
 
-our $VERSION = '0.12';
+our $VERSION = '0.14';
 
 use warnings;
 use strict;
@@ -9,7 +9,7 @@ use English qw( -no_match_vars );
 use File::Copy;
 use Params::Validate qw(:all);
 
-my ( $prov, $vos, $util );
+our ( $prov, $vos, $util );
 
 sub new {
 
@@ -20,7 +20,10 @@ sub new {
     $vos  = $p{vos};
     $prov = $vos->{prov};
 
-    my $self = { prov => $prov, };
+    my $self = { 
+        vos  => $vos,
+        util => undef,
+    };
     bless( $self, $class );
 
     $prov->audit("loaded VirtualOS::Linux::OpenVZ");
@@ -29,6 +32,7 @@ sub new {
 
     require Provision::Unix::Utility;
     $util = Provision::Unix::Utility->new( prov => $prov );
+    $self->{util} = $util;
 
     return $self;
 }
@@ -54,8 +58,10 @@ sub create_virtualos {
     my $err;
     my $min = $prov->{config}{VirtualOS}{id_min};
     my $max = $prov->{config}{VirtualOS}{id_max};
-    $err = "ctid must be greater than $min" if ( $min && $ctid < $min );
-    $err = "ctid must be less than $max"    if ( $max && $ctid > $max );
+    if ( $ctid =~ /^\d+$/ ) {
+        $err = "ctid must be greater than $min" if ( $min && $ctid < $min );
+        $err = "ctid must be less than $max"    if ( $max && $ctid > $max );
+    };
     if ( $err && $err ne '' ) {
         return $prov->error(
             message => $err,
@@ -87,7 +93,7 @@ sub create_virtualos {
 
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
 
-    if ( $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} ) ) {
+    if ( $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 ) ) {
         $self->set_hostname() if $vos->{hostname};
         $self->set_ips();
         $self->set_password()    if $vos->{password};
@@ -130,7 +136,7 @@ sub destroy_virtualos {
     # see if VE is running, and if so, stop it
     $self->stop_virtualos() if $self->is_running( refresh => 0 );
 
-    if ( $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} ) ) {
+    if ( $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 ) ) {
         return $prov->audit("\tdestroyed container");
     }
 
@@ -155,7 +161,12 @@ sub start_virtualos {
     $prov->audit("\tcmd: $cmd");
 
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
-    return $util->syscmd( cmd => $cmd, debug => 0 );
+    return if $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
+    return $prov->error(
+        message => "unable to start VE",
+        fatal   => $vos->{fatal},
+        debug   => $vos->{debug},
+    );
 }
 
 sub stop_virtualos {
@@ -187,7 +198,12 @@ sub stop_virtualos {
     $prov->audit("\tcmd: $cmd");
 
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
-    return $util->syscmd( cmd => $cmd, debug => 0 );
+    return if $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
+    return $prov->error(
+        message => "unable to stop VE",
+        fatal   => $vos->{fatal},
+        debug   => $vos->{debug},
+    );
 }
 
 sub restart_virtualos {
@@ -196,7 +212,10 @@ sub restart_virtualos {
 
     $self->stop_virtualos()
         or
-        return $prov->error( message => "unable to stop virtual $vos->{name}",
+        return $prov->error( 
+            message => "unable to stop virtual $vos->{name}",
+            fatal   => $vos->{fatal},
+            debug   => $vos->{debug},
         );
 
     return $self->start_virtualos();

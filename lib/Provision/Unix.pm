@@ -1,6 +1,6 @@
 package Provision::Unix;
 
-our $VERSION = '0.40';
+our $VERSION = '0.41';
 
 use warnings;
 use strict;
@@ -92,6 +92,11 @@ sub find_config {
 sub get_errors {
     my $self = shift;
     return $self->{errors};
+}
+
+sub get_last_error_message {
+    my $self = shift;
+    return $self->{errors}[-1]->{errmsg};
 }
 
 sub progress {

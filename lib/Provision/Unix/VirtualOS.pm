@@ -3,7 +3,7 @@ package Provision::Unix::VirtualOS;
 use warnings;
 use strict;
 
-our $VERSION = '0.21';
+our $VERSION = '0.22';
 
 use English qw( -no_match_vars );
 use Params::Validate qw(:all);
@@ -387,7 +387,66 @@ sub get_status {
     $self->{vtype}->get_status();
 }
 
-sub set_password {
+sub get_template_dir {
+
+    my $self = shift;
+
+    my %p = validate(
+        @_,
+        {   'v_type'    => { type => SCALAR  },
+            'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
+            'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
+        }
+    );
+
+    my $v_type = $p{v_type};
+
+    my $dir = $prov->{config}{VirtualOS}{"${v_type}_template_dir"};
+    return $dir if $dir;
+
+    $dir = -d "/templates" ? '/templates'
+         : -d "/vz/template/cache" ? '/vz/template/cache'
+         : -d "/vz/template"       ? '/vz/template'
+         : undef;
+
+    $dir and return $dir;
+    return $prov->error(
+            message => 'unable to determine template directory',
+            fatal  => $p{fatal},
+            debug  => $p{debug},
+        );
+};
+
+sub get_template_list {
+
+    my $self = shift;
+
+    my %p = validate(
+        @_,
+        {   'v_type'    => { type => SCALAR  },
+            'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
+            'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
+        }
+    );
+
+    my $v_type = $p{v_type};
+
+    my $template_dir = $self->get_template_dir( v_type=> $v_type ) 
+        or return $prov->error(
+            message => 'unable to determine template directory',
+            fatal  => $p{fatal},
+            debug  => $p{debug},
+        );
+
+    my @templates = <$template_dir/*.tar.gz>;
+    foreach my $template ( @templates ) {
+        ($template) = $template =~ /\/([\w\.\-]+)\.tar\.gz$/;
+    };
+
+    return \@templates;
+};
+
+sub set_hostname {
 
     my $self = shift;
 
@@ -407,10 +466,9 @@ sub set_password {
     $self->{fatal}     = $p{fatal};
 
     $self->{name}     = $p{name};
-    $self->{user}     = $p{user};
-    $self->{password} = $p{password};
+    $self->{hostname} = $p{hostname};
 
-    $self->{vtype}->set_password();
+    $self->{vtype}->set_hostname();
 }
 
 sub set_nameservers {
@@ -439,7 +497,7 @@ sub set_nameservers {
     $self->{vtype}->set_nameservers();
 }
 
-sub set_hostname {
+sub set_password {
 
     my $self = shift;
 
@@ -459,9 +517,10 @@ sub set_hostname {
     $self->{fatal}     = $p{fatal};
 
     $self->{name}     = $p{name};
-    $self->{hostname} = $p{hostname};
+    $self->{user}     = $p{user};
+    $self->{password} = $p{password};
 
-    $self->{vtype}->set_hostname();
+    $self->{vtype}->set_password();
 }
 
 sub is_present {
@@ -561,8 +620,25 @@ sub _get_virt_type {
             return Provision::Unix::VirtualOS::Linux::Xen->new( vos => $self );
         }
         elsif ( $vzctl && ! $xm ) {
-            require Provision::Unix::VirtualOS::Linux::OpenVZ;
-            return Provision::Unix::VirtualOS::Linux::OpenVZ->new( vos => $self );
+            # this could be Virtuozzo or OpenVZ. The way to tell is by
+            # checking for the presence of /vz/template/cache (OpenVZ only) 
+            # also, a Virtuozzo container will have a cow directory inside the
+            # container home directory.
+            if ( -d "/vz/template" ) {
+                if ( -d "/vz/template/cache" ) {
+                    require Provision::Unix::VirtualOS::Linux::OpenVZ;
+                    return Provision::Unix::VirtualOS::Linux::OpenVZ->new( vos => $self );
+                }
+                else {
+                    require Provision::Unix::VirtualOS::Linux::Virtuozzo;
+                    return Provision::Unix::VirtualOS::Linux::Virtuozzo->new( vos => $self );
+                }
+            }
+            else {
+# has someone moved the template cache directory from the default location?
+                require Provision::Unix::VirtualOS::Linux::OpenVZ;
+                return Provision::Unix::VirtualOS::Linux::OpenVZ->new( vos => $self );
+            };
         }
         else {
             $prov->error( 
@@ -595,6 +671,7 @@ sub _get_virt_type {
         );
     };
 }
+
 
 1;
 

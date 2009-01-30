@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::Xen;
 
-our $VERSION = '0.13';
+our $VERSION = '0.14';
 
 use warnings;
 use strict;
@@ -140,7 +140,7 @@ sub start_virtualos {
         debug   => $vos->{debug},
     ) if !$self->is_present();
 
-    my $config_file = "$vos->{disk_root}/${ctid}.vm/${ctid}.vm.cfg";
+    my $config_file = $self->get_config_file_path();
     if ( !-e $config_file ) {
         $prov->error( message =>
                 "config file for $ctid should be at $config_file and is missing."
@@ -207,7 +207,7 @@ sub disable_virtualos {
     ) if !$self->is_present();
 
     # make sure config file exists
-    my $config = "$vos->{disk_root}/${ctid}.vm/${ctid}.cfg";
+    my $config = $self->get_config_file_path();
     if ( !-e $config ) {
         return $prov->error(
             message =>
@@ -255,7 +255,7 @@ sub enable_virtualos {
     ) if $self->is_enabled();
 
     # make sure config file exists
-    my $config = "$vos->{disk_root}/${ctid}.vm/${ctid}.cfg";
+    my $config = $self->get_config_file_path();
     if ( !-e "$config.suspend" ) {
         return $prov->error(
             message =>
@@ -527,24 +527,25 @@ sub is_present {
         }
     );
 
-    $p{name}
-        || $prov->error( message => 'is_present was called without a CTID' );
-    $prov->audit("checking for presense of virtual container $p{name}");
+    my $name = $p{name};
+
+    $name || $prov->error( message => 'is_present was called without a CTID' );
+    $prov->audit("checking for presense of virtual container $name");
 
     my @possible_paths = (
-        "$vos->{disk_root}/$p{name}.vm",
+        "$vos->{disk_root}/$name.vm",
         "/dev/vol00/test1_rootimg", "/dev/vol00/test1_vmswap"
     );
 
     foreach my $path (@possible_paths) {
         $prov->audit("\tchecking at $path");
         if ( -e $path ) {
-            $prov->audit("\tfound $p{name} at $path");
+            $prov->audit("\tfound $name at $path");
             return $path;
         }
     }
 
-    $prov->audit("\tdid not find $p{name}");
+    $prov->audit("\tdid not find $name");
     return;
 }
 
@@ -618,11 +619,18 @@ sub _get_random_mac {
     return $lladdr;
 }
 
+sub get_config_file_path {
+    my $self = shift;
+    my $ctid = $vos->{name};
+    my $config_file = "$vos->{disk_root}/$ctid.vm/$ctid.vm.cfg";
+    return $config_file;
+};
+
 sub _install_config_file {
     my $self = shift;
 
     my $ctid        = $vos->{name};
-    my $config_file = "$vos->{disk_root}/$ctid.vm/$ctid.cfg";
+    my $config_file = $self->get_config_file_path();
     warn "config file: $config_file\n";
 
     my $ip       = $vos->{ip}->[0];

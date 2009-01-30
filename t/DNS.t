@@ -2,32 +2,29 @@
 use strict;
 use warnings;
 
+use Config::Std { def_sep => '=' };
+use Data::Dumper;
 use English qw( -no_match_vars );
-use Test::More 'no_plan';
+use Test::More;
+
+use lib 'lib';
+use Provision::Unix;
+use Provision::Unix::DNS;
+
+my $prov = Provision::Unix->new( debug => 0 );
+my $dns = Provision::Unix::DNS->new( prov => $prov, debug => 0, fatal => 0 );
+
+if ( ! $dns) {
+    my $error = $prov->get_last_error_message;
+    plan skip_all => "Could not load Provision::Unix::DNS:\n$error";
+};
+
+plan 'no_plan';
 
 use lib "inc";
 use lib "lib";
 
-BEGIN {
-    use_ok('Provision::Unix');
-    use_ok('Provision::Unix::DNS');
-}
-
-require_ok('Provision::Unix');
-require_ok('Provision::Unix::DNS');
-require_ok('Provision::Unix::Utility');
-
-# let the testing begin
-
-my $prov = Provision::Unix->new( debug => 0 );
-
-# basic OO mechanism
-my $dns = Provision::Unix::DNS->new( prov => $prov );
-ok( defined $dns,                      'get Provision::Unix::DNS object' );
-ok( $dns->isa('Provision::Unix::DNS'), 'check object class' );
-
-use Data::Dumper qw( Dumper );
-
+use Data::Dumper;
 #warn Dumper ( $dns );
 
 # fully_qualify

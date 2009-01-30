@@ -2750,18 +2750,22 @@ sub syscmd {
 
     if ( $p{timeout} ) {
         eval {
-            local $SIG{ALRM} = sub { die "alarm" };
+            local $SIG{ALRM} = sub { die "alarm\n" };
             alarm $p{timeout};
             $result_code = system $cmd_to_exec;
             alarm 0;
         };
 
         if ($EVAL_ERROR) {
-            if ( $EVAL_ERROR eq "alarm" ) {
+            if ( $EVAL_ERROR eq "alarm\n" ) {
                 $prov->audit("timed out '$cmd_to_exec'");
             }
             else {
-                $prov->error( message => "unknown error '$EVAL_ERROR'" );
+                return $prov->error( 
+                    message => "unknown error '$EVAL_ERROR'",
+                    fatal => $p{fatal},
+                    debug => $p{fatal},
+                );
             }
         }
     }
@@ -2791,7 +2795,7 @@ sub syscmd {
 
     # in perl < 6, system commands return zero on success. Check to see that
     # the result of the command was zero, and warn (or die) otherwise.
-    if ( $result_code != 0 ) {
+    if ( $result_code && $result_code != 0 ) {
         $prov->error(
             message  => "syscmd: program exited: $result_code",
             location => join( ", ", caller ),

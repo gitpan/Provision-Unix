@@ -6,7 +6,7 @@ use strict;
 use Carp;
 use Params::Validate qw( :all );
 
-our $VERSION = '0.06';
+our $VERSION = '0.08';
 
 use lib "lib";
 
@@ -35,7 +35,7 @@ sub new {
         or return undef;
 
     require Provision::Unix::Utility;
-    $util = Provision::Unix::Utility->new( prov => $prov );
+    $util = Provision::Unix::Utility->new( prov => $prov, debug=>$p{debug},fatal=>$p{fatal} );
     return $self;
 }
 
@@ -58,7 +58,12 @@ sub _get_server {
 
     my $chosen_server = $prov->{config}{Web}{server}
         or $prov->error(
-        message => 'missing [Web] server setting in provision.conf' );
+        message => 'missing [Web] server setting in provision.conf',
+        debug   => $p{debug},
+        fatal   => $p{fatal},
+        );
+
+    return if ! $chosen_server;
 
     if ( $chosen_server eq "apache" ) {
         require Provision::Unix::Web::Apache;
@@ -80,7 +85,10 @@ sub _get_server {
     }
     else {
         return $prov->error( message => 
-            "unknown web server. Supported values are lighttpd and apache.");
+            "unknown web server. Supported values are lighttpd and apache.",
+            debug => $p{debug},
+            fatal => $p{fatal},
+        );
     }
 
     return undef;

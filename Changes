@@ -1,6 +1,17 @@
 Revision history for Provision-Unix
 
 
+0.41  Jan 29, 2009
+      - test suites are the most wonderful things! Mine blew up, and
+        rightfully so. VirtualOS tests now go find a template in the 
+        configured or detected template directory. 
+      - A number of xen config file tests were failing because they weren't
+        all in sync. moved logic into get_config_file_path which is called 
+        from numerous methods.
+      - added P:U:V:L:Virtuozzo (inherits OpenVZ)
+      - added better error handling and reporting for OpenVZ container
+        methods, added DNS server type detection, and better error handling for
+        DNS and Web tests when provision.conf isn't configured.
 
 0.40  Jan 23, 2009
       - added P:U:V:S:C->new()

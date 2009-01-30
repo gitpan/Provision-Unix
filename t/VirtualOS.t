@@ -35,29 +35,42 @@ my $util = Provision::Unix::Utility->new( prov => $prov, debug => 0 );
 my $virt_class = ref $vos->{vtype};
 my @parts = split /::/, $virt_class;
 my $virt_type = lc( $parts[-1] );
-warn "virtualos type: $virt_type\n";
+ok( $virt_type, "virtualization type: $virt_type\n");
+ok( $vos->get_template_dir( v_type => $virt_type ), 'get_template_dir');
 
-# let the testing begin
-my $template_that_exists
-    = $virt_type eq 'openvz' ? 'centos-5-i386-default'
-    : $virt_type eq 'ovz'    ? 'centos-5-i386-default'
-    : $virt_type eq 'xen'    ? 'centos-5-i386-default'
-    : $virt_type eq 'ezjail' ? 'default'
-    :                          undef;
+my $templates = $vos->get_template_list(v_type => $virt_type );
+ok( $templates, 'get_template_list' );
+#warn Dumper($templates);
+
+my $template_that_exists = undef;
+my @preferred;
+@preferred = grep {/debian/} @$templates or
+@preferred = grep {/ubuntu/} @$templates or
+@preferred = grep {/centos/} @$templates or
+    $template_that_exists = @$templates[0];
+
+if ( ! $template_that_exists ) {
+    my @list = grep {/default/} @preferred;
+    $template_that_exists = $preferred[0];
+};
+
+ok( $template_that_exists, "template found: $template_that_exists") or exit;
 
 my $container_id_or_name
-    = $virt_type eq 'openvz' ? 72000
-    : $virt_type eq 'ovz'    ? 'test1'
-    : $virt_type eq 'xen'    ? 'test1'
-    : $virt_type eq 'ezjail' ? 'test1'
-    : $virt_type eq 'jails'  ? 'test1'
-    :                          undef;
+    = $virt_type eq 'openvz'    ? 72000
+    : $virt_type eq 'ovz'       ? 72000
+    : $virt_type eq 'virtuozzo' ? 72000
+    : $virt_type eq 'xen'       ? 'test1'
+    : $virt_type eq 'ezjail'    ? 'test1'
+    : $virt_type eq 'jails'     ? 'test1'
+    :                             undef;
 
 my $required_bin
-    = $virt_type eq 'openvz' ? 'vzlist'
-    : $virt_type eq 'ovz'    ? 'vzlist'
-    : $virt_type eq 'xen'    ? 'xm'
-    :                          undef;
+    = $virt_type eq 'openvz'    ? 'vzlist'
+    : $virt_type eq 'ovz'       ? 'vzlist'
+    : $virt_type eq 'virtuozzo' ? 'vzlist'
+    : $virt_type eq 'xen'       ? 'xm'
+    :                             undef;
 
 my %requires_template = map { $_ => 1 } qw/ xen /;
 
@@ -100,15 +113,15 @@ SKIP: {
 
     if ( $vos->is_present( name => $container_id_or_name ) ) {
 
-	if ( $vos->is_running( name => $container_id_or_name ) ) {
-	    ok( $vos->stop_virtualos(
-		    name  => $container_id_or_name,
-		    debug => 0,
-		    fatal => 0,
-		),
-		'stop_virtualos'
-	    );
-	};
+        if ( $vos->is_running( name => $container_id_or_name ) ) {
+            ok( $vos->stop_virtualos(
+                name  => $container_id_or_name,
+                debug => 0,
+                fatal => 0,
+            ),
+            'stop_virtualos'
+            );
+        };
 
         ok( $vos->destroy_virtualos(
                 name      => $container_id_or_name,
@@ -172,7 +185,7 @@ SKIP: {
             debug     => 0,
             fatal     => 0,
         ),
-        'create_virtualos, valid template'
+        "create_virtualos, valid template ($template_that_exists)"
     );
 
     ok( $vos->create_virtualos(
