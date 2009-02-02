@@ -1,5 +1,17 @@
 Revision history for Provision-Unix
 
+0.42  Jan 30, 2009
+      - vzctl lies. :( In some instances, it will do exactly what you tell it,
+        but fail to return an exit code stating such. Thus, we no longer base
+        our tests on its result codes but on subsequent test we run.
+      - $u->error defaults to print the last error message on the stack when
+        called with no message param
+      - added template selection based on contents of template cache instead of
+        hard coded template names
+      - syscmd now traps STDERR output and only displays it if the command
+        failed
+      - added a custom create_virtualos for V:L:Virtuozzo. It requires a
+        different invocation for container creation than OpenVZ
 
 0.41  Jan 29, 2009
       - test suites are the most wonderful things! Mine blew up, and

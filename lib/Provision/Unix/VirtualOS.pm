@@ -3,7 +3,7 @@ package Provision::Unix::VirtualOS;
 use warnings;
 use strict;
 
-our $VERSION = '0.22';
+our $VERSION = '0.23';
 
 use English qw( -no_match_vars );
 use Params::Validate qw(:all);
@@ -135,13 +135,13 @@ sub destroy_virtualos {
 
     $prov->audit("initializing request to destroy virtual os '$p{name}'");
 
+    $self->{name}      = $p{name};
     $self->{test_mode} = $p{test_mode};
     $self->{debug}     = $p{debug};
     $self->{fatal}     = $p{fatal};
 
-    $self->{name} = $p{name};
 
-    $self->{vtype}->destroy_virtualos(@_);
+    $self->{vtype}->destroy_virtualos();
 }
 
 sub start_virtualos {
@@ -164,11 +164,10 @@ sub start_virtualos {
         }
     );
 
+    $self->{name}      = $p{name};
     $self->{test_mode} = $p{test_mode};
     $self->{debug}     = $p{debug};
     $self->{fatal}     = $p{fatal};
-
-    $self->{name} = $p{name};
 
     $self->{vtype}->start_virtualos();
 }
@@ -193,11 +192,10 @@ sub stop_virtualos {
         }
     );
 
+    $self->{name}      = $p{name};
     $self->{test_mode} = $p{test_mode};
     $self->{debug}     = $p{debug};
     $self->{fatal}     = $p{fatal};
-
-    $self->{name} = $p{name};
 
     $self->{vtype}->stop_virtualos();
 }
@@ -222,11 +220,10 @@ sub restart_virtualos {
         }
     );
 
+    $self->{name}      = $p{name};
     $self->{test_mode} = $p{test_mode};
     $self->{debug}     = $p{debug};
     $self->{fatal}     = $p{fatal};
-
-    $self->{name} = $p{name};
 
     $self->{vtype}->restart_virtualos();
 }
@@ -251,11 +248,10 @@ sub disable_virtualos {
         }
     );
 
+    $self->{name}      = $p{name};
     $self->{test_mode} = $p{test_mode};
     $self->{debug}     = $p{debug};
     $self->{fatal}     = $p{fatal};
-
-    $self->{name} = $p{name};
 
     $self->{vtype}->disable_virtualos();
 }
@@ -280,11 +276,10 @@ sub enable_virtualos {
         }
     );
 
+    $self->{name}      = $p{name};
     $self->{test_mode} = $p{test_mode};
     $self->{debug}     = $p{debug};
     $self->{fatal}     = $p{fatal};
-
-    $self->{name} = $p{name};
 
     $self->{vtype}->enable_virtualos();
 }
@@ -378,11 +373,10 @@ sub get_status {
         }
     );
 
+    $self->{name}      = $p{name};
     $self->{test_mode} = $p{test_mode};
     $self->{debug}     = $p{debug};
     $self->{fatal}     = $p{fatal};
-
-    $self->{name} = $p{name};
 
     $self->{vtype}->get_status();
 }
@@ -453,20 +447,18 @@ sub set_hostname {
     my %p = validate(
         @_,
         {   'name'      => { type => SCALAR },
-            'password'  => { type => SCALAR },
-            'user'      => { type => SCALAR | UNDEF, optional => 1 },
+            'hostname'  => { type => SCALAR },
             'test_mode' => { type => BOOLEAN | UNDEF, optional => 1 },
             'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
             'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
         }
     );
 
+    $self->{name}      = $p{name};
+    $self->{hostname}  = $p{hostname};
     $self->{test_mode} = $p{test_mode};
     $self->{debug}     = $p{debug};
     $self->{fatal}     = $p{fatal};
-
-    $self->{name}     = $p{name};
-    $self->{hostname} = $p{hostname};
 
     $self->{vtype}->set_hostname();
 }
@@ -486,13 +478,12 @@ sub set_nameservers {
         }
     );
 
-    $self->{test_mode} = $p{test_mode};
-    $self->{debug}     = $p{debug};
-    $self->{fatal}     = $p{fatal};
-
     $self->{name}         = $p{name};
     $self->{nameservers}  = $self->get_ips( $p{nameservers} );
     $self->{searchdomain} = $p{searchdomain};
+    $self->{test_mode}    = $p{test_mode};
+    $self->{debug}        = $p{debug};
+    $self->{fatal}        = $p{fatal};
 
     $self->{vtype}->set_nameservers();
 }
@@ -504,21 +495,20 @@ sub set_password {
     my %p = validate(
         @_,
         {   'name'      => { type => SCALAR },
-            'password'  => { type => SCALAR },
             'user'      => { type => SCALAR | UNDEF, optional => 1 },
+            'password'  => { type => SCALAR },
             'test_mode' => { type => BOOLEAN | UNDEF, optional => 1 },
             'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
             'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
         }
     );
 
+    $self->{name}      = $p{name};
+    $self->{user}      = $p{user} || 'root';
+    $self->{password}  = $p{password};
     $self->{test_mode} = $p{test_mode};
     $self->{debug}     = $p{debug};
     $self->{fatal}     = $p{fatal};
-
-    $self->{name}     = $p{name};
-    $self->{user}     = $p{user};
-    $self->{password} = $p{password};
 
     $self->{vtype}->set_password();
 }
@@ -536,13 +526,12 @@ sub is_present {
         }
     );
 
+    $self->{name}      = $p{name};
     $self->{test_mode} = $p{test_mode};
     $self->{debug}     = $p{debug};
     $self->{fatal}     = $p{fatal};
 
-    $self->{name} = $p{name};
-
-    $self->{vtype}->is_present(@_);
+    $self->{vtype}->is_present();
 }
 
 sub is_running {
@@ -558,13 +547,12 @@ sub is_running {
         }
     );
 
+    $self->{name}      = $p{name};
     $self->{test_mode} = $p{test_mode};
     $self->{debug}     = $p{debug};
     $self->{fatal}     = $p{fatal};
 
-    $self->{name} = $p{name};
-
-    $self->{vtype}->is_running(@_);
+    $self->{vtype}->is_running();
 }
 
 sub is_valid_ip {

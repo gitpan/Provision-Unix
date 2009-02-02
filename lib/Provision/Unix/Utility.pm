@@ -1124,6 +1124,7 @@ sub find_bin {
         : -x "/usr/sbin/$bin"         ? "/usr/sbin/$bin"
         : -x "/opt/local/bin/$bin"    ? "/opt/local/bin/$bin"
         : -x "/opt/local/sbin/$bin"   ? "/opt/local/sbin/$bin"
+        : -x cwd . "/$bin"            ? cwd "/$bin"
         :                               undef;
 
     if ($found) {
@@ -2627,38 +2628,25 @@ sub syscmd {
         },
     );
 
-    my $cmd_to_exec = $p{cmd};
+    my $cmd_request = $p{cmd};
     my $debug       = $p{debug};
 
-    my $result_code;
+    $prov->audit("syscmd is preparing: $cmd_request") if $debug;
 
-    $prov->audit("syscmd, preparing command: $cmd_to_exec") if $debug;
+    my ( $is_safe, $tainted, $bin, @args );
 
-    # separate the program to run from its arguments, if we can
-    my ( $is_safe, $tainted, $bin, $args );
-
-    # is it a two part command, space separated
-    if ( $cmd_to_exec =~ m/\s+/xm ) {
+    # separate the program from its arguments
+    if ( $cmd_request =~ m/\s+/xm ) {
+        @args = split /\s+/, $cmd_request;  # split on whitespace
+        $bin = shift @args;
         $is_safe++;
-
-        #        $cmd_to_exec =~ m{\A (.*?) \s+ (.*) \z}xms;
-        $cmd_to_exec =~ m/^ \s* ([^\s]*) (.*) $/xms;
-
-        # \A   start of string
-        # \s*  any leading whitespace
-        # ([^\s]*) capture all non-whitespace chars
-        # (.*) then the rest of characters
-        # \z   to the end of string
-        $bin  = $1;
-        $args = $2;
-        $prov->audit("\tsyscmd: program is: $bin, args are: $args") if $debug;
+        my $arg_string = join ' ', @args;
+        $prov->audit("\tprogram is: $bin, args are: $arg_string") if $debug;
     }
     else {
-
-        # a one part command (ie, no args)
         # make sure it does not not contain a ./ pattern
-        if ( $cmd_to_exec !~ m{\./} ) {
-            $bin = $cmd_to_exec;
+        if ( $cmd_request !~ m{\./} ) {
+            $bin = $cmd_request;
             $is_safe++;
         }
     }
@@ -2674,47 +2662,27 @@ sub syscmd {
         return;
     }
 
-    if ( $bin && -e $bin && !-x $bin ) {
-        return $prov->error(
-            message => "I found $bin but it's not executable!",
-            fatal   => $p{fatal},
-            debug   => $p{debug},
-        );
-    }
+    if ( $bin && !-e $bin ) {  # $bin is set, but we have not found it
 
-    if ( $bin && !-e $bin ) {
-
-        # $bin is set, but we have not found it
-
-        # check all the normal places
-        my $found_bin
-            = $self->find_bin( bin => $bin, fatal => 0, debug => 0 );
+        # check the normal places
+        my $found_bin = $self->find_bin( bin => $bin, fatal => 0, debug => 0 );
         if ( $found_bin && -x $found_bin ) {
             $bin = $found_bin;
-        }
-        else {
-
-            # check our current working directory
-            if ( -e cwd . "/" . $bin ) { $bin = cwd . "/" . $bin; }
         }
 
         if ( !-x $bin ) {
             return $prov->error(
-                message =>
-                    "\t cmd: $cmd_to_exec \t bin: $bin is not found (improper cmd format?)",
+                message => "\t cmd: $cmd_request \t bin: $bin is not found",
                 fatal => $p{fatal},
                 debug => $p{debug},
             );
         }
     }
-
-### TODO
-    # we could also do some argument testing here.
-    #   check for ; to make sure commands are not stacked?
+    unshift @args, $bin;
 
     $status_message = "checking for tainted data in string";
     require Scalar::Util;
-    if ( Scalar::Util::tainted($cmd_to_exec) ) {
+    if ( Scalar::Util::tainted($cmd_request) ) {
         $tainted++;
     }
 
@@ -2735,30 +2703,27 @@ sub syscmd {
     }
 
     if ($is_safe) {
-
-        # reassemble it with the fully qualified path to the program
-        $cmd_to_exec = $bin;
-        $cmd_to_exec .= $args if $args;
-
         # restrict the path
         my $prefix = "/usr/local";
         if ( -d "/opt/local" ) { $prefix = "/opt/local"; }
         $ENV{PATH} = "/bin:/sbin:/usr/bin:/usr/sbin:$prefix/bin:$prefix/sbin";
     }
 
-    $prov->audit("syscmd: running $cmd_to_exec");
+    $prov->audit("syscmd: running $cmd_request");
 
+    my $r;
     if ( $p{timeout} ) {
         eval {
             local $SIG{ALRM} = sub { die "alarm\n" };
             alarm $p{timeout};
-            $result_code = system $cmd_to_exec;
+            #$r = system $cmd_request;
+            $r = `$cmd_request 2>&1`;
             alarm 0;
         };
 
         if ($EVAL_ERROR) {
             if ( $EVAL_ERROR eq "alarm\n" ) {
-                $prov->audit("timed out '$cmd_to_exec'");
+                $prov->audit("timed out '$cmd_request'");
             }
             else {
                 return $prov->error( 
@@ -2770,41 +2735,38 @@ sub syscmd {
         }
     }
     else {
-        $result_code = system $cmd_to_exec;
+        $r = `$cmd_request 2>&1`;
+        #$r = system ( @args );
     }
 
-    if ( $CHILD_ERROR == -1 ) {    # check $? for "normal" errors
-        carp "syscmd: $cmd_to_exec" . "\nfailed to execute: $!"
-            if $debug;
-    }
-    elsif ( $CHILD_ERROR & 127 ) {    # check for core dump
-        if ($debug) {
-            carp "syscmd: $cmd_to_exec";
-            printf "child died with signal %d, %s coredump\n", ( $? & 127 ),
-                ( $? & 128 ) ? 'with' : 'without';
+    my $exit_code = sprintf ("%d", $CHILD_ERROR >> 8);
+
+    $ENV{PATH} = $before_path;   # set PATH back to original value
+
+    if ( $exit_code != 0 ) {     # an error of some kind
+        #print 'error # ' . $ERRNO . "\n";   # $! == $ERRNO
+        carp "error $CHILD_ERROR: $r \n" if $debug;
+
+        if ( $CHILD_ERROR == -1 ) {     # check $? for "normal" errors
+            carp "$cmd_request \nfailed to execute: $ERRNO" if $debug;
         }
-    }
-    else {                            # all is likely well
-        if ($debug) {
-            printf "\tchild exited with value %d\n", $? >> 8;
+        elsif ( $CHILD_ERROR & 127 ) {  # check for core dump
+            if ($debug) {
+                carp "syscmd: $cmd_request";
+                printf "child died with signal %d, %s coredump\n", ( $? & 127 ),
+                    ( $? & 128 ) ? 'with' : 'without';
+            }
         }
-    }
 
-    # set it back to what it was before we started
-    $ENV{PATH} = $before_path;
-
-    # in perl < 6, system commands return zero on success. Check to see that
-    # the result of the command was zero, and warn (or die) otherwise.
-    if ( $result_code && $result_code != 0 ) {
-        $prov->error(
-            message  => "syscmd: program exited: $result_code",
+        return $prov->error(
+            message  => "syscmd tried to run $cmd_request but received the following error ($CHILD_ERROR): $r",
             location => join( ", ", caller ),
             fatal    => $p{fatal},
             debug    => $p{debug},
         );
     }
 
-    return $result_code ? undef : 1;
+    return 1;
 }
 
 sub yes_or_no {

@@ -44,6 +44,7 @@ ok( -d $tmp, "temp dir: $tmp" );
 ok( $util->syscmd( cmd => "cp TODO $tmp/", debug => 0, fatal => 0 ),
     'cp TODO' );
 
+
 # ask - asks a question and retrieves the answer
 SKIP: {
     skip "annoying", 4 if 1 == 1;
@@ -670,12 +671,16 @@ else {
 }
 
 # syscmd
+my $tmpfile = '/tmp/provision-unix-test';
+ok( $util->syscmd( cmd=>"touch $tmpfile", fatal => 0, debug => 0), 'syscmd +');
+ok( ! $util->syscmd( cmd=>"rm $tmpfile.nonexist", fatal => 0, debug => 0), 'syscmd -');
+ok( $util->syscmd( cmd=>"rm $tmpfile", fatal => 0, debug => 0), 'syscmd +');
 ok( $util->syscmd(
         cmd   => "$rm $tmp/maildrop-qmail-domain",
         fatal => 0,
         debug => 0
     ),
-    'syscmd'
+    'syscmd +'
 ) if $network;
 
 # file_delete

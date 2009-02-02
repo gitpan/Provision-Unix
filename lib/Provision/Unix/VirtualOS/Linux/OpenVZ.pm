@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::OpenVZ;
 
-our $VERSION = '0.14';
+our $VERSION = '0.15';
 
 use warnings;
 use strict;
@@ -118,23 +118,32 @@ sub destroy_virtualos {
 
     my $ctid = $vos->{name};
 
-    # make sure CTID exists
+    # make sure container name/ID exists
     return $prov->error(
         message => "container $ctid does not exist",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
     ) if !$self->is_present();
 
-    $prov->audit("\tctid '$ctid' found, destroying...");
+    # see if VE is running, and if so, stop it
+    if ( $self->is_running( refresh => 0 ) ) {
+        $prov->audit("\tcontainer '$ctid' is running, stopping...");
+        $self->stop_virtualos() 
+            or return
+            $prov->error(
+                message => "shut down failed. I cannot continue.",
+                fatal   => $vos->{fatal},
+                debug   => $vos->{debug},
+            );
+    };
+
+    $prov->audit("\tdestroying $ctid...");
 
     my $cmd = $util->find_bin( bin => 'vzctl', debug => 0 );
     $cmd .= " destroy $vos->{name}";
     $prov->audit("\tcmd: $cmd");
 
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
-
-    # see if VE is running, and if so, stop it
-    $self->stop_virtualos() if $self->is_running( refresh => 0 );
 
     if ( $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 ) ) {
         return $prov->audit("\tdestroyed container");
@@ -161,7 +170,18 @@ sub start_virtualos {
     $prov->audit("\tcmd: $cmd");
 
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
-    return if $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
+    $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
+
+# the results of vzctl start are not reliable. Instead, use vzctl to
+# check the VE status and see if it started.
+
+    my $status = $self->get_status();
+    return 1 if ($status->{state} && $status->{state} eq 'running');
+
+    sleep 5;
+    $status = $self->get_status();
+    return 1 if ($status->{state} && $status->{state} eq 'running');
+
     return $prov->error(
         message => "unable to start VE",
         fatal   => $vos->{fatal},
@@ -198,7 +218,16 @@ sub stop_virtualos {
     $prov->audit("\tcmd: $cmd");
 
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
-    return if $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
+    $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
+
+    sleep 1;
+    my $status = $self->get_status();
+    return 1 if $status->{state} eq 'stopped';
+
+    sleep 5;
+    $status = $self->get_status();
+    return 1 if $status->{state} eq 'stopped';
+
     return $prov->error(
         message => "unable to stop VE",
         fatal   => $vos->{fatal},
@@ -587,10 +616,6 @@ __END__
 =head1 NAME
 
 Provision::Unix::VirtualOS::Linux::OpenVZ - 
-
-=head1 VERSION
-
-Version 0.12
 
 =head1 SYNOPSIS
 

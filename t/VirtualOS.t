@@ -35,13 +35,17 @@ my $util = Provision::Unix::Utility->new( prov => $prov, debug => 0 );
 my $virt_class = ref $vos->{vtype};
 my @parts = split /::/, $virt_class;
 my $virt_type = lc( $parts[-1] );
-ok( $virt_type, "virtualization type: $virt_type\n");
+ok( $virt_type, "virtualization type: $virt_type");
+
+# get_template_dir
 ok( $vos->get_template_dir( v_type => $virt_type ), 'get_template_dir');
 
+# get_template_list
 my $templates = $vos->get_template_list(v_type => $virt_type );
 ok( $templates, 'get_template_list' );
 #warn Dumper($templates);
 
+# select a template for testing
 my $template_that_exists = undef;
 my @preferred;
 @preferred = grep {/debian/} @$templates or
@@ -50,8 +54,14 @@ my @preferred;
     $template_that_exists = @$templates[0];
 
 if ( ! $template_that_exists ) {
-    my @list = grep {/default/} @preferred;
-    $template_that_exists = $preferred[0];
+    my @list = grep {/default/} sort { $b cmp $a } @preferred;
+    if ( scalar @list > 0 ) {
+        no warnings;
+        my @sorted = sort { ( $b =~ /(\d\.\d)/)[0] <=> ($a =~ /(\d\.\d)/)[0] } @list;
+        use warnings;
+        $template_that_exists = $sorted[0] if scalar @sorted > 0;
+    };
+    $template_that_exists ||= $preferred[0];
 };
 
 ok( $template_that_exists, "template found: $template_that_exists") or exit;
@@ -95,21 +105,21 @@ ok(  $vos->is_valid_ip('2.1.1.1'),         'is_valid_ip +' );
 #ok( $vos->_check_template( 'non-existing' ), '_check_default' );
 #ok( $vos->_check_template( $template_that_exists), '_check_default' );
 
-# this are expensive tests.
+
+# these are expensive tests.
 SKIP: {
     skip "you are not root", 12 if $EFFECTIVE_USER_ID != 0;
 
-    my $r = $vos->get_status();
-    ok( $r, 'get_status' );
-#warn Dumper ($r);
+my $r;
+    if ( $vos->is_present( name => $container_id_or_name ) ) {
+        $r = $vos->get_status( name => $container_id_or_name );
+        ok( $r, 'get_status' );
+    };
 
     if ( $virt_type eq 'xen' ) {
-
-        #    $r = $vos->install_config_file();
-        #    ok( $vos->is_running( name => $container_id_or_name ), 'is_running');
+        # $r = $vos->install_config_file();
+        # ok( $vos->is_running( name => $container_id_or_name ), 'is_running');
     }
-
-#exit;
 
     if ( $vos->is_present( name => $container_id_or_name ) ) {
 
@@ -199,6 +209,12 @@ SKIP: {
             fatal       => 0,
         ),
         'create_virtualos, valid request'
+    )
+    or diag $vos->create_virtualos(
+        name      => $container_id_or_name,
+        ip        => '10.0.1.76',
+        debug     => 1,
+        fatal     => 0,
     );
 
     ok( $vos->start_virtualos(

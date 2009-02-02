@@ -1,6 +1,6 @@
 package Provision::Unix;
 
-our $VERSION = '0.41';
+our $VERSION = '0.42';
 
 use warnings;
 use strict;
@@ -162,19 +162,26 @@ sub error {
     my %p = validate(
         @_,
         {    # parameter validation here
-            'message'  => { type => SCALAR },
+            'message'  => { type => SCALAR, optional => 1 },
             'location' => { type => SCALAR, optional => 1, },
             'fatal'    => { type => BOOLEAN, optional => 1, default => 1 },
             'debug'    => { type => BOOLEAN, optional => 1, default => 1 },
         },
     );
 
-    # append message to $self->error stack
-    push @{ $self->{errors} },
-        {
-        errmsg => "ERROR: $p{message}",
-        errloc => $p{location} || join( ", ", caller ),
-        };
+    my $message = $p{message};
+
+    if ( $message ) {
+        # append message to $self->error stack
+        push @{ $self->{errors} },
+            {
+            errmsg => "ERROR: $p{message}",
+            errloc => $p{location} || join( ", ", caller ),
+            };
+    }
+    else {
+        $message = $self->get_last_error_message();
+    }
 
     # print audit and error results to stderr
     if ( $p{fatal} ) {
@@ -186,11 +193,11 @@ sub error {
     if ( $p{debug} ) {
         carp "WARNING: An error occurred";
 
-        #warn "$p{message}\n";
+        #warn "$message\n";
         warn Dumper( $self->{audit}, $self->{errors}[-1] );
     }
 
-    $self->audit("Error: $p{message}");
+    $self->audit("Error: $message");
     return;
 }
 
