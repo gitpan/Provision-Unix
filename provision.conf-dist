@@ -37,7 +37,7 @@ id_max                 =
 xen_template_dir       = /templates
 virtuozzo_template_dir = /vz/template
 ovz_template_dir       = /vz/template/cache
-jail_template_dir      = /home/jails/flavours
+ezjail_template_dir    = /usr/jails/flavours
 
 [NicTool]
 server_host = 10.0.1.65

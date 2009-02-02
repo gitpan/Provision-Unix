@@ -37,34 +37,37 @@ my @parts = split /::/, $virt_class;
 my $virt_type = lc( $parts[-1] );
 ok( $virt_type, "virtualization type: $virt_type");
 
+my $template_that_exists = undef;
+if ( $virt_type =~ /virtuozzo|ovz|openvz|xen|ezjail/ ) {
+
 # get_template_dir
-ok( $vos->get_template_dir( v_type => $virt_type ), 'get_template_dir');
+    ok( $vos->get_template_dir( v_type => $virt_type ), 'get_template_dir');
 
 # get_template_list
-my $templates = $vos->get_template_list(v_type => $virt_type );
-ok( $templates, 'get_template_list' );
+    my $templates = $vos->get_template_list(v_type => $virt_type );
+    ok( $templates, 'get_template_list' );
 #warn Dumper($templates);
 
 # select a template for testing
-my $template_that_exists = undef;
-my @preferred;
-@preferred = grep {/debian/} @$templates or
-@preferred = grep {/ubuntu/} @$templates or
-@preferred = grep {/centos/} @$templates or
-    $template_that_exists = @$templates[0];
+    my @preferred;
+    @preferred = grep {/debian/} @$templates or
+    @preferred = grep {/ubuntu/} @$templates or
+    @preferred = grep {/centos/} @$templates or
+        $template_that_exists = @$templates[0];
 
-if ( ! $template_that_exists ) {
-    my @list = grep {/default/} sort { $b cmp $a } @preferred;
-    if ( scalar @list > 0 ) {
-        no warnings;
-        my @sorted = sort { ( $b =~ /(\d\.\d)/)[0] <=> ($a =~ /(\d\.\d)/)[0] } @list;
-        use warnings;
-        $template_that_exists = $sorted[0] if scalar @sorted > 0;
+    if ( ! $template_that_exists ) {
+        my @list = grep {/default/} sort { $b cmp $a } @preferred;
+        if ( scalar @list > 0 ) {
+            no warnings;
+            my @sorted = sort { ( $b =~ /(\d\.\d)/)[0] <=> ($a =~ /(\d\.\d)/)[0] } @list;
+            use warnings;
+            $template_that_exists = $sorted[0] if scalar @sorted > 0;
+        };
+        $template_that_exists ||= $preferred[0];
     };
-    $template_that_exists ||= $preferred[0];
-};
 
-ok( $template_that_exists, "template found: $template_that_exists") or exit;
+    ok( $template_that_exists, "template found: $template_that_exists") or exit;
+};
 
 my $container_id_or_name
     = $virt_type eq 'openvz'    ? 72000
@@ -141,7 +144,7 @@ my $r;
             ),
             'destroy_virtualos'
         );
-        sleep 3;
+        sleep 1;
     }
 
 #$prov->error( message => 'dump' );
@@ -259,8 +262,18 @@ my $r;
         ),
         'stop_virtualos'
     );
+
+#exit;
+
+    ok( $vos->destroy_virtualos(
+            name      => $container_id_or_name,
+            test_mode => 0,
+            debug     => 0,
+            fatal     => 0,
+        ),
+        'destroy_virtualos'
+    );
 };
 
 #$prov->error( message => 'dump' );
-
 

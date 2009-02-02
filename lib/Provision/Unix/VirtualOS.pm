@@ -3,7 +3,7 @@ package Provision::Unix::VirtualOS;
 use warnings;
 use strict;
 
-our $VERSION = '0.23';
+our $VERSION = '0.24';
 
 use English qw( -no_match_vars );
 use Params::Validate qw(:all);
@@ -396,14 +396,16 @@ sub get_template_dir {
     my $v_type = $p{v_type};
 
     my $dir = $prov->{config}{VirtualOS}{"${v_type}_template_dir"};
-    return $dir if $dir;
+    return $dir if $dir;  # they defined it in provision.conf, use it
 
-    $dir = -d "/templates" ? '/templates'
+    # try to autodetect
+    $dir = -d "/templates"         ? '/templates'
          : -d "/vz/template/cache" ? '/vz/template/cache'
          : -d "/vz/template"       ? '/vz/template'
          : undef;
 
     $dir and return $dir;
+
     return $prov->error(
             message => 'unable to determine template directory',
             fatal  => $p{fatal},

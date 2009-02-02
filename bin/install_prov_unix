@@ -1,7 +1,8 @@
 #!/usr/bin/env perl
 
 # by Matt Simerson
-# v1.1  Jan 21, 2009
+# v1.2  Feb 02, 2009 - install if version_wanted test fails
+# v1.1  Jan 21, 2009 - install JSON::XS
 # v1.0  Jan 14, 2009
 
 use strict;
@@ -25,14 +26,19 @@ my ($version_installed);
 eval "require $module" and $version_installed = $module->VERSION;
 print "installed version is: $version_installed\n" if $version_installed;
 
+if ( ! $version_wanted ) {
+    print  "installing Provision::Unix from CPAN\n";
+    install_module($module);
+    exit;
+};
+
 eval "use $module $version_wanted";
 if ( ! $EVAL_ERROR ) {
     print "$module is up-to-date.\n";
     exit;
 };
 
-print  "installing newer version from CPAN\n";
-
+print  "upgrading Provision::Unix from CPAN\n";
 install_module($module);
 exit;
 
@@ -41,7 +47,7 @@ sub latest_on_cpan {
     my $cpan     = 'http://search.cpan.org/~msimerson/Provision-Unix/';
 
     eval "require LWP::UserAgent";
-    return 0 if $EVAL_ERROR;
+    return if $EVAL_ERROR;
 
     my $ua = LWP::UserAgent->new( timeout => 10);
     my $response = $ua->get($cpan);

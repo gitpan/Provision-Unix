@@ -1,5 +1,18 @@
 Revision history for Provision-Unix
 
+
+0.43  Feb 02, 2009
+      - updated install_prov_unix, run CPAN install if new version detection
+        fails.
+      - Xen, updated get_status to use get_ve_config_path sub. More reliable
+        detection of VE config file.
+      - VOS tests clean up test VE at the end of the tests
+      - xen 'blocked' state reports as running
+      - get_template_dir returns a (true) message if the template dir setting
+        isn't defined in provision.conf
+      - added ezjail_template_dir = /usr/jails/flavours in provision.conf
+      - only test for templates on virt platforms that have them
+
 0.42  Jan 30, 2009
       - vzctl lies. :( In some instances, it will do exactly what you tell it,
         but fail to return an exit code stating such. Thus, we no longer base
