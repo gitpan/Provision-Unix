@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::OpenVZ;
 
-our $VERSION = '0.15';
+our $VERSION = '0.20';
 
 use warnings;
 use strict;
@@ -79,9 +79,9 @@ sub create_virtualos {
     my $cmd = $util->find_bin( bin => 'vzctl', debug => 0 );
 
     $cmd .= " create $ctid";
-    $cmd .= " --root $vos->{disk_root}" if $vos->{disk_root};
+    $cmd .= " --root $vos->{disk_root}"    if $vos->{disk_root};
     $cmd .= " --hostname $vos->{hostname}" if $vos->{hostname};
-    $cmd .= " --config $vos->{config}" if $vos->{config};
+    $cmd .= " --config $vos->{config}"     if $vos->{config};
 
     if ( $vos->{template} ) {
         my $template = $self->_is_valid_template( $vos->{template} )
@@ -98,7 +98,8 @@ sub create_virtualos {
         $self->set_ips();
         $self->set_password()    if $vos->{password};
         $self->set_nameservers() if $vos->{nameservers};
-        return $prov->audit("\tvirtual os created");
+        $self->start_virtualos();
+        return $prov->audit("\tvirtual os created and launched");
     }
 
     return $prov->error(
@@ -116,18 +117,20 @@ sub destroy_virtualos {
         or $prov->error(
         message => "Destroy function requires root privileges." );
 
-    my $ctid = $vos->{name};
+    my $name = $vos->{name};
 
     # make sure container name/ID exists
     return $prov->error(
-        message => "container $ctid does not exist",
+        message => "container $name does not exist",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
     ) if !$self->is_present();
 
-    # see if VE is running, and if so, stop it
+# TODO: if disabled, enable it
+
+    # if VE is running, shut it down
     if ( $self->is_running( refresh => 0 ) ) {
-        $prov->audit("\tcontainer '$ctid' is running, stopping...");
+        $prov->audit("\tcontainer '$name' is running, stopping...");
         $self->stop_virtualos() 
             or return
             $prov->error(
@@ -137,17 +140,27 @@ sub destroy_virtualos {
             );
     };
 
-    $prov->audit("\tdestroying $ctid...");
+# TODO: make sure none of the mounts are active
+
+# TODO: optionally back it up
+    if ( $vos->{safe_delete} ) {
+        my $timestamp = localtime( time );
+    };
+
+    $prov->audit("\tdestroying $name...");
 
     my $cmd = $util->find_bin( bin => 'vzctl', debug => 0 );
-    $cmd .= " destroy $vos->{name}";
+    $cmd .= " destroy $name";
     $prov->audit("\tcmd: $cmd");
 
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
 
-    if ( $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 ) ) {
+    $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
+
+    # we have learned better than to trust the return codes of vzctl
+    if ( ! $self->is_present() ) {
         return $prov->audit("\tdestroyed container");
-    }
+    };
 
     return $prov->error(
         message => "destroy failed, unknown error",
@@ -222,11 +235,11 @@ sub stop_virtualos {
 
     sleep 1;
     my $status = $self->get_status();
-    return 1 if $status->{state} eq 'stopped';
+    return 1 if $status->{state} eq 'shutdown';
 
     sleep 5;
     $status = $self->get_status();
-    return 1 if $status->{state} eq 'stopped';
+    return 1 if $status->{state} eq 'shutdown';
 
     return $prov->error(
         message => "unable to stop VE",
@@ -265,7 +278,7 @@ sub disable_virtualos {
     ) if !$self->is_present();
 
     # make sure config file exists
-    my $config = "$prov->{etc_dir}/$ctid.conf";
+    my $config = $self->get_config();
     if ( !-e $config ) {
         return $prov->error(
             message =>
@@ -282,7 +295,7 @@ sub disable_virtualos {
 
     move( $config, "$config.suspend" )
         or return $prov->error(
-        message => "\tunable to move file '$config': $!",
+        message => "\tunable to move file '$config' to '$config.suspend': $!",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
         );
@@ -297,15 +310,15 @@ sub enable_virtualos {
     my $ctid = $vos->{name};
     $prov->audit("enabling virtual $ctid");
 
-    # make sure CTID does not exist (if it does, account is not disabled)
+    # make sure CTID exists 
     return $prov->error(
-        message => "\tcontainer $ctid exists and should not (when disabled)",
+        message => "\tcontainer $ctid does not exist",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
-    ) if $self->is_present();
+    ) if ! $self->is_present();
 
     # make sure config file exists
-    my $config = "$prov->{etc_dir}/$ctid.conf";
+    my $config = $self->get_config();
     if ( !-e "$config.suspend" ) {
         return $prov->error(
             message =>
@@ -316,7 +329,7 @@ sub enable_virtualos {
     }
 
     # make sure container directory exists
-    my $ct_dir = "/vz/private/$ctid";
+    my $ct_dir = $self->get_ve_home();  # "/vz/private/$ctid";
     if ( !-e $ct_dir ) {
         return $prov->error(
             message =>
@@ -375,9 +388,89 @@ sub modify_virtualos {
     );
 }
 
+sub reinstall_virtualos {
+
+    my $self = shift;
+
+    $self->destroy_virtualos()
+        or
+        return $prov->error( 
+            message => "unable to destroy virtual $vos->{name}",
+            fatal   => $vos->{fatal},
+            debug   => $vos->{debug},
+        );
+
+    return $self->create_virtualos();
+}
+
+sub get_config {
+    my $ctid   = $vos->{name};
+    my $etc_dir = $prov->{etc_dir} || '/etc/vz/conf';
+    my $config = "$etc_dir/$ctid.conf";
+    return $config;
+};
+
+sub get_disk_usage {
+    
+    my $self = shift;
+
+    $EUID == 0
+        or return $prov->error(
+        message => "Sorry, that requires root.",
+        fatal   => 0,
+        );
+
+
+    my $name = $vos->{name};
+    my $vzquota = $util->find_bin( bin => 'vzquota', debug => 0, fatal => 0 );
+    $vzquota or return $prov->error( message => "Cannot find vzquota.", fatal => 0 );
+
+    $vzquota .= " show $name";
+    my $r = `$vzquota 2>/dev/null`;
+# VEID 1002362 exist mounted running
+# VEID 1002362 exist unmounted down
+    if ( $r =~ /usage/ ) {
+        my ($usage) = $r =~ /1k-blocks\s+(\d+)\s+/;
+        if ( $usage ) {
+            return $usage / 1024;   # results in MB
+        };
+    };
+    return;
+
+#    my $homedir = $self->get_ve_home();
+#    $cmd .= " -s $homedir";
+#    my $r = `$cmd`;
+#    my ($usage) = split /\s+/, $r;
+#    if ( $usage =~ /^\d+$/ ) {
+#        return $usage;
+#    };
+#    return $prov->error( message => "du returned unknown result: $r", fatal => 0 );
+}
+
+sub get_os_template {
+    
+    my $self = shift;
+
+    $EUID == 0 or return $prov->error(
+        message => "Sorry, that requires root.",
+        fatal   => 0,
+    );
+
+    my $config = $self->get_config();
+    my $grep = $util->find_bin(bin=>'grep', debug => 0);
+    my $r = `$grep OSTEMPLATE $config*`;
+    my ($template) = $r =~ /OSTEMPLATE="(.+)"/i;
+    return $template;
+}
+
 sub get_status {
 
     my $self = shift;
+    my $name = $vos->{name};
+    my %ve_info = ( name => $name );
+    my $exists;
+
+    $self->{status}{$name} = undef;  # reset this
 
     $EUID == 0
         or return $prov->error(
@@ -385,42 +478,87 @@ sub get_status {
         fatal   => 0
         );
 
-    my $cmd = $util->find_bin( bin => 'vzlist', debug => 0, fatal => 0 );
-    ($cmd)
-        or
-        return $prov->error( message => "Cannot find vzlist.", fatal => 0 );
+    my $vzctl = $util->find_bin( bin => 'vzctl', debug => 0, fatal => 0 );
+    $vzctl or 
+        return $prov->error( message => "Cannot find vzctl.", fatal => 0 );
 
-    my $vzs = `$cmd --all`;
-    $vzs =~ /NPROC/
-        or return $prov->error(
-        message => "vzlist did not return valid output.",
-        fatal   => 0
-        );
+# VEID 1002362 exist mounted running
+# VEID 1002362 exist unmounted down
+# VEID 100236X deleted unmounted down
 
-    #       VEID      NPROC STATUS  IP_ADDR         HOSTNAME
-    #       10          - stopped 64.79.207.11    lbox-bll
+    $vzctl .= " status $name";
+    my $r = `$vzctl`;
+    if ( $r =~ /deleted/i ) {
+        my $config = $self->get_config();
+        if ( -e "$config.suspend" ) {
+            $exists++;
+            $ve_info{state} = 'suspended';
+        }
+        else {
+            $ve_info{state} = 'non-existent';
+        };
+    }
+    elsif ( $r =~ /exist/i ) {
+        $exists++;
+        if ( $r =~ /running/i ) {
+            $ve_info{state} = 'running';
+        }
+        elsif ( $r =~ /down/i ) {
+            $ve_info{state} = 'shutdown';
+        }
+    }
+    else {
+        return $prov->error( message => "unknown output from vzctl status.", fatal => 0 );
+    };
 
-    $self->{status} = {};
-    foreach my $line ( split /\n/, $vzs ) {
+    return \%ve_info if ! $exists;
 
-        #print "line: $line\n";
-        my ( undef, $ctid, $proc, $state, $ip, $hostname ) = split /\s+/,
-            $line;
-        next unless $ctid;
-        next if ($ctid eq 'VEID');  # omit header
-        $self->{status}{$ctid} = {
-            proc   => $proc,
-            state  => $state,
-            ip     => $ip,
-            host   => $hostname
+    if ( $ve_info{state} =~ /running|shutdown/ ) {
+        my $vzlist = $util->find_bin( bin => 'vzlist', debug => 0, fatal => 0 );
+        if ( $vzlist ) {
+            my $vzs = `$vzlist --all`;
+
+            if ( $vzs =~ /NPROC/ ) {
+
+            #       VEID      NPROC STATUS  IP_ADDR         HOSTNAME
+            #       10          - stopped 64.79.207.11    lbox-bll
+
+                $self->{status} = {};
+                foreach my $line ( split /\n/, $vzs ) {
+                    my ( undef, $ctid, $proc, $state, $ip, $hostname ) = 
+                        split /\s+/, $line;
+                    next if $ctid eq 'VEID';  # omit header
+                    next unless ($ctid && $ctid eq $name);
+                    $ve_info{proc}  = $proc;
+                    $ve_info{ip}    = $ip;
+                    $ve_info{host}  = $hostname;
+                    $ve_info{state} ||= _run_state($state);
+                }
+            };
         };
     }
 
-    if ( $vos->{name} ) {
-        return $self->{status}{ $vos->{name} };
+    $ve_info{disk_use} = $self->get_disk_usage();
+    $ve_info{os_template} = $self->get_os_template();
+
+    $self->{status}{$name} = \%ve_info;
+    return \%ve_info;
+
+    sub _run_state {
+        my $raw = shift;
+        return $raw =~ /running/ ? 'running'
+             : $raw =~ /stopped/ ? 'shutdown'
+             :                     $raw;
     }
-    return $self->{status};
 }
+
+sub get_ve_home {
+    my $self = shift;
+    my $name = $vos->{name};
+    my $disk_root = $vos->{disk_root} || '/vz/private';
+    my $homedir = "$disk_root/$name";
+    return $homedir;
+};
 
 sub set_ips {
     my $self = shift;
@@ -478,9 +616,7 @@ sub set_nameservers {
         debug => $vos->{debug},
         );
 
-    foreach my $ns (@$nameservers) {
-        $cmd .= " --nameserver $ns";
-    }
+    foreach my $ns (@$nameservers) { $cmd .= " --nameserver $ns"; }
 
     $cmd .= " --searchdomain $search" if $search;
     $cmd .= " --save";
@@ -523,8 +659,7 @@ sub is_present {
 
     my %p = validate(
         @_,
-        {   'name' =>
-                { type => SCALAR, optional => 1, default => $vos->{name} },
+        {   'name'    => { type => SCALAR, optional => 1 },
             'refresh' => { type => SCALAR, optional => 1, default => 1 },
             'test_mode' => { type => SCALAR | UNDEF, optional => 1 },
             'debug' => { type => BOOLEAN, optional => 1, default => 1 },
@@ -532,10 +667,11 @@ sub is_present {
         }
     );
 
-    $p{name}
-        || $prov->error( message => 'is_present was called without a CTID' );
+    my $name = $p{name} || $vos->{name} or
+        $prov->error( message => 'is_present was called without a CTID' );
+
     $self->get_status() if $p{refresh};
-    return 1 if $self->{status}{ $p{name} };
+    return 1 if $self->{status}{ $name };
     return;
 }
 
@@ -544,8 +680,7 @@ sub is_running {
 
     my %p = validate(
         @_,
-        {   'name' =>
-                { type => SCALAR, optional => 1, default => $vos->{name} },
+        {   'name'    => { type => SCALAR, optional => 1 },
             'refresh' => { type => SCALAR, optional => 1, default => 1 },
             'test_mode' => { type => SCALAR | UNDEF, optional => 1 },
             'debug' => { type => BOOLEAN, optional => 1, default => 1 },
@@ -553,10 +688,11 @@ sub is_running {
         }
     );
 
-    $p{name}
-        || $prov->error( message => 'is_running was called without a CTID' );
+    my $name = $p{name} || $vos->{name} or
+         $prov->error( message => 'is_running was called without a CTID' );
+
     $self->get_status() if $p{refresh};
-    return 1 if $self->{status}{ $p{name} }{state} eq 'running';
+    return 1 if $self->{status}{$name}{state} eq 'running';
     return;
 }
 

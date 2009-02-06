@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::Xen;
 
-our $VERSION = '0.16';
+our $VERSION = '0.18';
 
 use warnings;
 use strict;
@@ -164,9 +164,11 @@ sub stop_virtualos {
     $prov->audit("\tctid '$vos->{name}' is running, stopping...");
     my $xm = $util->find_bin( bin => 'xm', debug => 0 );
 
+    my $ve_name = $self->get_ve_name();
+
     # try a 'friendly' shutdown first for 25 seconds
     $util->syscmd(
-        cmd     => "$xm shutdown -w $vos->{name}.vm",
+        cmd     => "$xm shutdown -w $ve_name",
         debug   => 0,
         timeout => 25,
         fatal   => $vos->{fatal}
@@ -174,7 +176,7 @@ sub stop_virtualos {
 
         # if that didn't work, whack it with a bigger hammer
         or $util->syscmd(
-        cmd   => "$xm destroy $vos->{name}.vm",
+        cmd   => "$xm destroy $ve_name",
         debug => 0,
         fatal => $vos->{fatal}
         );
@@ -186,9 +188,11 @@ sub stop_virtualos {
 sub restart_virtualos {
     my $self = shift;
 
+    my $ve_name = $self->get_ve_name();
+
     $self->stop_virtualos()
         or
-        return $prov->error( message => "unable to stop virtual $vos->{name}",
+        return $prov->error( message => "unable to stop virtual $ve_name",
         );
 
     return $self->start_virtualos();
@@ -370,10 +374,11 @@ sub extract_template {
 
     $self->mount_disk_image();
 
-    my $mount_dir    = "$vos->{disk_root}/$vos->{name}.vm/mnt";
+    my $ve_name      = $self->get_ve_name();
+    my $mount_dir    = "$vos->{disk_root}/$ve_name/mnt";
     my $template_dir = $self->get_template_dir();
 
-    #tar -zxf $template_dir/$OSTEMPLATE.tar.gz -C /home/xen/${VMNAME}.vm/mnt
+    #tar -zxf $template_dir/$OSTEMPLATE.tar.gz -C /home/xen/$ve_name/mnt
 
     # untar the template
     my $cmd = $util->find_bin( bin => 'tar', debug => $vos->{debug} );
@@ -407,14 +412,18 @@ sub get_random_mac {
 sub get_status {
     my $self = shift;
 
-    my $name = $vos->{name};   # the vm/container we're interested in
+    my $ve_name = $self->get_ve_name();
+
+    if ( ! $self->is_present() ) {
+        my $error = "The xen VE $ve_name does not exist here!";
+        return $prov->error( message => $error );
+    };
 
     my $cmd = $util->find_bin( bin => 'xm', debug => 0 );
-    $cmd .= ' list';
+    $cmd .= ' list $ve_name';
     my $r = `$cmd`;
-    $r =~ /VCPUs/
-        or return $prov->error(
-        message => 'could not get valid output from xm list' );
+    my $error = 'could not get valid output from xm list';
+    $r =~ /VCPUs/ or return $prov->error( message => $error );
 
     my ($xen_conf, $config);
     eval "require Provision::Unix::VirtualOS::Xen::Config";
@@ -422,33 +431,30 @@ sub get_status {
         $xen_conf = Provision::Unix::VirtualOS::Xen::Config->new();
     };
 
+    # get IPs and disks from the containers config file
+    my ($ips, $disks );
+    my $config_file = $self->get_ve_config_path();
+    if ( -e $config_file ) {
+        if ( $xen_conf && $xen_conf->read_config($config_file) ) {
+            $ips   = $xen_conf->get_ips();
+            $disks = $xen_conf->get('disk');
+        };
+    }
+    else {
+        warn "could not find $config_file\n";
+    };
+
     $self->{status} = {};
     foreach my $line ( split /\n/, $r ) {
 
- # Name                                      ID Mem(MiB) VCPUs State   Time(s)
- #Domain-0                                   0     1024     4 r-----  62976.7
- #test                                      20       63     1 -b----     34.1
+ # Name                               ID Mem(MiB) VCPUs State   Time(s)
+ #test1.vm                            20       63     1 -b----     34.1
 
         my ( $ctid, $dom_id, $mem, $cpus, $state, $time ) = split /\s+/, $line;
         next unless $ctid;
         next if $ctid eq 'Name';
         next if $ctid eq 'Domain-0';
-        next if ( $ctid ne $name && $ctid ne "$name.vm" );
-
-        my ($ips, $disks );
-
-        # find the containers config file
-        my $config_file = $self->get_ve_config_path();
-
-        if ( -e $config_file ) {
-            if ( $xen_conf && $xen_conf->read_config($config_file) ) {
-                $ips   = $xen_conf->get_ips();
-                $disks = $xen_conf->get('disk');
-            };
-        }
-        else {
-            warn "could not find $config_file\n";
-        };
+        next if $ctid ne $ve_name;
 
         $self->{status}{$ctid} = {
             ips      => $ips,
@@ -462,7 +468,12 @@ sub get_status {
         return $self->{status}{$ctid};
     }
 
-    #warn Dumper $self->{status};
+    # a Xen VE that is shut down won't show up in the output of 'xm list'
+    return {
+        ips      => $ips,
+        disks    => $disks,
+        state    => 'shutdown',
+    };
 
     sub _run_state {
         my $abbr = shift;
@@ -486,16 +497,23 @@ sub get_template_dir {
 
 sub get_ve_config_path {
     my $self = shift;
-    my $ctid = $vos->{name};
-    my $config_file = "$vos->{disk_root}/$ctid.vm/$ctid.vm.cfg";
+    my $ve_name     = $self->get_ve_name();
+    my $config_file = "$vos->{disk_root}/$ve_name/$ve_name.cfg";
     return $config_file;
 };
 
 sub get_ve_home {
     my $self = shift;
-    my $ctid = $vos->{name};
-    my $homedir = "$vos->{disk_root}/$ctid.vm";
+    my $ve_name = $self->get_ve_name();
+    my $homedir = "$vos->{disk_root}/$ve_name";
     return $homedir;
+};
+
+sub get_ve_name {
+    my $self = shift;
+    my $ctid = $vos->{name};
+    my $suffix = '.vm';  # TODO: make this a config file option
+    return $ctid . $suffix;
 };
 
 sub is_present {
@@ -511,11 +529,12 @@ sub is_present {
     my $name = $p{name} || $vos->{name} or
         $prov->error( message => 'is_present was called without a CTID' );
 
+    my $ve_home = $self->get_ve_home();
+
     $prov->audit("checking for presense of virtual container $name");
 
     my @possible_paths = (
-        "$vos->{disk_root}/$name.vm",
-        "/dev/vol00/test1_rootimg", "/dev/vol00/test1_vmswap"
+        $ve_home, "/dev/vol00/${name}_rootimg", "/dev/vol00/${name}_vmswap"
     );
 
     foreach my $path (@possible_paths) {
@@ -535,22 +554,15 @@ sub is_running {
     my $self = shift;
 
     my %p = validate(
-        @_,
-        {   'name'    => { type => SCALAR, optional => 1 },
-            'refresh' => { type => SCALAR, optional => 1, default => 1 },
-            'test_mode' => { type => SCALAR | UNDEF, optional => 1 },
-            'debug' => { type => BOOLEAN, optional => 1, default => 1 },
-            'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
-        }
+        @_, { 'refresh' => { type => SCALAR, optional => 1, default => 1 }, }
     );
 
-    my $name = $p{name} || $vos->{name}
-        or $prov->error( message => 'is_running was called without a CTID' );
+    my $ve_name = $self->get_ve_name();
 
     $self->get_status() if $p{refresh};
 
-    if ( $self->{status}{"$name.vm"} ) {
-        my $state = $self->{status}{"$name.vm"}{state};
+    if ( $self->{status}{$ve_name} ) {
+        my $state = $self->{status}{$ve_name}{state};
         return 1 if ( $state && $state eq 'running' );
     }
     return;
@@ -572,14 +584,15 @@ sub is_enabled {
         || $prov->error( message => 'is_enabled was called without a CTID' );
     $prov->audit("testing if virtual container $name is enabled");
 
-    my $config = "$vos->{disk_root}/$name.vm/$name.cfg";
+    my $ve_name     = $self->get_ve_name();
+    my $config_file = $self->get_ve_config_path();
 
-    if ( -e $config ) {
-        $prov->audit("\tfound $name at $config");
+    if ( -e $config_file ) {
+        $prov->audit("\tfound $name at $config_file");
         return 1;
     }
 
-    $prov->audit("\tdid not find $config");
+    $prov->audit("\tdid not find $config_file");
     return;
 }
 
@@ -589,7 +602,8 @@ sub mount_disk_image {
     my $disk_root = $vos->{disk_root} or die "disk_root not set!\n";
     my $name      = $vos->{name}      or die "name not set!\n";
     my $img_name  = "${name}_rootimg";
-    my $mount_dir = "$disk_root/${name}.vm/mnt";
+    my $ve_name   = $self->get_ve_name();
+    my $mount_dir = "$disk_root/$ve_name/mnt";
 
     if ( !-d $mount_dir ) {
         my $path;
@@ -612,9 +626,9 @@ sub mount_disk_image {
         );
     }
 
-    #$mount /dev/vol00/${VMNAME}_rootimg /home/xen/${VMNAME}.vm/mnt
+    #$mount /dev/vol00/${VMNAME}_rootimg /home/xen/$ve_name/mnt
     my $cmd = $util->find_bin( bin => 'mount', debug => $vos->{debug} );
-    $cmd .= " /dev/vol00/$img_name $disk_root/$vos->{name}.vm/mnt";
+    $cmd .= " /dev/vol00/$img_name $disk_root/$ve_name/mnt";
     $prov->audit("\tcmd: $cmd");
     $util->syscmd( cmd => $cmd, debug => 0 )
         or $prov->error( message => "unable to mount $img_name" );
@@ -637,6 +651,7 @@ sub install_config_file {
     my $self = shift;
 
     my $ctid        = $vos->{name};
+    my $ve_name     = $self->get_ve_name();
     my $config_file = $self->get_ve_config_path();
     warn "config file: $config_file\n";
 
@@ -649,7 +664,7 @@ sub install_config_file {
 kernel     = '/boot/hypervm-xen-vmlinuz'
 ramdisk    = '/boot/hypervm-xen-initrd.img'
 memory     = $ram
-name       = '$ctid.vm'
+name       = '$ve_name'
 hostname   = '$hostname'
 vif        = ['ip=$ip, vifname=vif${ctid},  mac=$mac ']
 vnc        = 0

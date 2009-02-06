@@ -76,6 +76,7 @@ my %request = ( debug => 0, fatal => 0, name => lc($name) );
 : $action eq 'probe'    ? probe()
 : die "oops, the action ($action) is invalid\n";
 
+$prov->error() if $debug;
 print "done.\n";
 exit;
 

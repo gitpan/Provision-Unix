@@ -1,6 +1,18 @@
 Revision history for Provision-Unix
 
 
+0.44  Feb 05, 2009
+      - Xen.pm, changed a bunch of $name.vm instances to get_ve_name()
+      - OpenVZ, added get_disk_usage
+      - Xen, a shutdown VE doesn't show up in 'xm list'. Adjust get_status
+        to return a status of 'shutdown' if the VE exists but isn't running
+      - OpenVZ, formatted state result value to be consistent with other
+        virtualization methods
+      - get_status also returns disk usage in results
+      - state now reports non-existent and suspended ve's
+      - status now reports OS template for openvz nodes
+      - added OS reinstall option in OpenVZ.pm
+
 0.43  Feb 02, 2009
       - updated install_prov_unix, run CPAN install if new version detection
         fails.

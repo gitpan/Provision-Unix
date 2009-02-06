@@ -3,7 +3,7 @@ package Provision::Unix::VirtualOS;
 use warnings;
 use strict;
 
-our $VERSION = '0.24';
+our $VERSION = '0.25';
 
 use English qw( -no_match_vars );
 use Params::Validate qw(:all);
@@ -332,6 +332,68 @@ sub modify_virtualos {
     $prov->audit("\tdelegating request to $self->{vtype}");
 
     $self->{vtype}->modify_virtualos();
+}
+
+sub reinstall_virtualos {
+
+# Usage      : $virtual->reinstall_virtualos( name => 'mysql', ip=>'127.0.0.2' );
+# Purpose    : reinstall the OS in virtual machine
+# Returns    : true or undef on failure
+# Parameters :
+#   Required : name      - name/ID of the virtual OS
+#            : template  - a 'template' or tarball the OS is patterned after
+#            : ip        - IP address(es), space delimited
+#   Optional : hostname  - the FQDN of the virtual OS
+#            : disk_root - the root directory of the virt os
+#            : disk_size - disk space allotment
+#            : ram
+#            : config    - a config file with virtual specific settings
+#            : password  - the root/admin password for the virtual
+#            : nameservers -
+#            : searchdomain -
+
+    my $self = shift;
+
+    my %p = validate(
+        @_,
+        {   'name'         => { type => SCALAR },
+            'template'     => { type => SCALAR },
+            'ip'           => { type => SCALAR },
+            'hostname'     => { type => SCALAR | UNDEF, optional => 1 },
+            'disk_root'    => { type => SCALAR | UNDEF, optional => 1 },
+            'disk_size'    => { type => SCALAR | UNDEF, optional => 1 },
+            'ram'          => { type => SCALAR | UNDEF, optional => 1 },
+            'config'       => { type => SCALAR | UNDEF, optional => 1 },
+            'password'     => { type => SCALAR | UNDEF, optional => 1 },
+            'nameservers'  => { type => SCALAR | UNDEF, optional => 1 },
+            'searchdomain' => { type => SCALAR | UNDEF, optional => 1 },
+
+            'test_mode' => { type => BOOLEAN | UNDEF, optional => 1 },
+            'debug' => { type => BOOLEAN, optional => 1, default => 1 },
+            'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
+        }
+    );
+
+    $prov->audit( "initializing request to reinstall ve '$p{name}'");
+
+    $self->{debug}     = $p{debug};
+    $self->{fatal}     = $p{fatal};
+    $self->{test_mode} = $p{test_mode};
+
+    $self->{name}        = $p{name};
+    $self->{template}    = $p{template};
+    $self->{ip}          = $self->get_ips( $p{ip} ) or return;
+    $self->{hostname}    = $p{hostname}    if $p{hostname};
+    $self->{disk_root}   = $p{disk_root}   if $p{disk_root};
+    $self->{disk_size}   = $p{disk_size}   if $p{disk_size};
+    $self->{ram}         = $p{ram}         if $p{ram};
+    $self->{config}      = $p{config}      if $p{config};
+    $self->{password}    = $p{password}    if $p{password};
+    $self->{nameservers} = $self->get_ips( $p{nameservers} ) if $p{nameservers};
+    $self->{searchdomain} = $p{searchdomain} if $p{searchdomain};
+
+    $prov->audit("\tdelegating request to $self->{vtype}");
+    $self->{vtype}->reinstall_virtualos();
 }
 
 sub get_ips {
