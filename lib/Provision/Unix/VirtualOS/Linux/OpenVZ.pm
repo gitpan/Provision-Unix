@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::OpenVZ;
 
-our $VERSION = '0.20';
+our $VERSION = '0.21';
 
 use warnings;
 use strict;
@@ -431,9 +431,7 @@ sub get_disk_usage {
 # VEID 1002362 exist unmounted down
     if ( $r =~ /usage/ ) {
         my ($usage) = $r =~ /1k-blocks\s+(\d+)\s+/;
-        if ( $usage ) {
-            return $usage / 1024;   # results in MB
-        };
+        return $usage if $usage;
     };
     return;
 
@@ -579,7 +577,7 @@ sub set_ips {
     $cmd .= " --save";
 
     $prov->audit("\tcmd: $cmd");
-    return $util->syscmd( cmd => $cmd, debug => 0 );
+    return $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} );
 }
 
 sub set_password {
@@ -598,7 +596,7 @@ sub set_password {
     $cmd .= " --userpasswd $user:$pass";
 
     $prov->audit("\tcmd: $cmd");
-    return $util->syscmd( cmd => $cmd, debug => 0 );
+    return $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} );
 }
 
 sub set_nameservers {
@@ -622,7 +620,7 @@ sub set_nameservers {
     $cmd .= " --save";
 
     $prov->audit("cmd: $cmd");
-    return $util->syscmd( cmd => $cmd, debug => 0 );
+    return $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} );
 }
 
 sub set_hostname {
@@ -638,11 +636,15 @@ sub set_hostname {
         debug   => $vos->{debug},
         );
 
-    $cmd .= " --hostname $hostname  --save" if $hostname;
+    $cmd .= " --hostname $hostname --save" if $hostname;
 
     $prov->audit("\tcmd: $cmd");
 
-    return $util->syscmd( cmd => $cmd, debug => $vos->{debug} );
+    return $util->syscmd( 
+        cmd => $cmd, 
+        debug => $vos->{debug}, 
+        fatal => $vos->{fatal}
+    );
 }
 
 sub pre_configure {

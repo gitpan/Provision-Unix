@@ -41,7 +41,7 @@ Getopt::Long::GetOptions(
 ) or die 'error parsing command line options';
 
 my $questions = {
-    action    => "the action to perform: create, destroy, start, stop, restart, disable, enable, modify, probe", 
+    action    => "the action to perform: \n\tcreate, destroy, start, stop, restart, disable, enable, modify, probe", 
     name      => "the virtual environment name/ID",
     ip        => "the IP address[es] (space delimited)",
 
@@ -118,6 +118,9 @@ sub enable {
     print Dumper( $vos->enable_virtualos( %request ) );
 }
 sub modify {
+    $request{hostname} = $hostname || $util->ask( question=> $questions->{hostname} );
+    $request{password} = $password || $util->ask( question=> $questions->{password} );
+    $request{ip}       = $ip       || $util->ask( question=> $questions->{ip} );
     print Dumper( $vos->modify_virtualos( %request ) );
 }
 sub probe {

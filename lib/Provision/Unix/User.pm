@@ -33,7 +33,7 @@ sub new {
 
     $prov = $p{prov};
     $prov->audit("loaded User");
-    $self->{os} = $self->_get_os();
+    $self->{os} = $self->_get_os() or return;
 
     $util = Provision::Unix::Utility->new( prov => $prov );
     return $self;
@@ -435,7 +435,8 @@ sub _get_os {
     else {
         return $prov->error( message => "create: "
                 . $self->{username}
-                . " FAILED! There is no support for $OSNAME yet. Consider submitting a patch."
+                . " FAILED! There is no support for $OSNAME yet. Consider submitting a patch.",
+                fatal => 0,
         );
     }
 }

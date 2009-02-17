@@ -1,147 +1,151 @@
 Revision history for Provision-Unix
 
+0.45  Feb 17, 2009
+  - added fatal => 0 to syscmd calls b/c vzctl operations don't always
+    return valid exit codes.
+  - return disk results in K and not MB (leave the display units and
+    conversions to higher level apps)
 
 0.44  Feb 05, 2009
-      - Xen.pm, changed a bunch of $name.vm instances to get_ve_name()
-      - OpenVZ, added get_disk_usage
-      - Xen, a shutdown VE doesn't show up in 'xm list'. Adjust get_status
-        to return a status of 'shutdown' if the VE exists but isn't running
-      - OpenVZ, formatted state result value to be consistent with other
-        virtualization methods
-      - get_status also returns disk usage in results
-      - state now reports non-existent and suspended ve's
-      - status now reports OS template for openvz nodes
-      - added OS reinstall option in OpenVZ.pm
+  - Xen.pm, changed a bunch of $name.vm instances to get_ve_name()
+  - OpenVZ, added get_disk_usage
+  - Xen, a shutdown VE doesn't show up in 'xm list'. Adjust get_status
+    to return a status of 'shutdown' if the VE exists but isn't running
+  - OpenVZ, formatted state result value to be consistent with other
+    virtualization methods
+  - get_status also returns disk usage in results
+  - state now reports non-existent and suspended ve's
+  - status now reports OS template for openvz nodes
+  - added OS reinstall option in OpenVZ.pm
 
 0.43  Feb 02, 2009
-      - updated install_prov_unix, run CPAN install if new version detection
-        fails.
-      - Xen, updated get_status to use get_ve_config_path sub. More reliable
-        detection of VE config file.
-      - VOS tests clean up test VE at the end of the tests
-      - xen 'blocked' state reports as running
-      - get_template_dir returns a (true) message if the template dir setting
-        isn't defined in provision.conf
-      - added ezjail_template_dir = /usr/jails/flavours in provision.conf
-      - only test for templates on virt platforms that have them
+  - updated install_prov_unix, run CPAN install if new version detection
+    fails.
+  - Xen, updated get_status to use get_ve_config_path sub. More reliable
+    detection of VE config file.
+  - VOS tests clean up test VE at the end of the tests
+  - xen 'blocked' state reports as running
+  - get_template_dir returns a (true) message if the template dir setting
+    isn't defined in provision.conf
+  - added ezjail_template_dir = /usr/jails/flavours in provision.conf
+  - only test for templates on virt platforms that have them
 
 0.42  Jan 30, 2009
-      - vzctl lies. :( In some instances, it will do exactly what you tell it,
-        but fail to return an exit code stating such. Thus, we no longer base
-        our tests on its result codes but on subsequent test we run.
-      - $u->error defaults to print the last error message on the stack when
-        called with no message param
-      - added template selection based on contents of template cache instead of
-        hard coded template names
-      - syscmd now traps STDERR output and only displays it if the command
-        failed
-      - added a custom create_virtualos for V:L:Virtuozzo. It requires a
-        different invocation for container creation than OpenVZ
+  - vzctl lies. :( In some instances, it will do exactly what you tell it,
+    but fail to return an exit code stating such. Thus, we no longer base
+    our tests on its result codes but on subsequent test we run.
+  - $u->error defaults to print the last error message on the stack when
+    called with no message param
+  - added template selection based on contents of template cache instead of
+    hard coded template names
+  - syscmd now traps STDERR output and only displays it if the command failed
+  - added a custom create_virtualos for V:L:Virtuozzo. It requires a
+    different invocation for container creation than OpenVZ
 
 0.41  Jan 29, 2009
-      - test suites are the most wonderful things! Mine blew up, and
-        rightfully so. VirtualOS tests now go find a template in the 
-        configured or detected template directory. 
-      - A number of xen config file tests were failing because they weren't
-        all in sync. moved logic into get_config_file_path which is called 
-        from numerous methods.
-      - added P:U:V:L:Virtuozzo (inherits OpenVZ)
-      - added better error handling and reporting for OpenVZ container
-        methods, added DNS server type detection, and better error handling for
-        DNS and Web tests when provision.conf isn't configured.
+  - test suites are the most wonderful things! Mine blew up, and
+    rightfully so. VirtualOS tests now go find a template in the 
+    configured or detected template directory. 
+  - A number of xen config file tests were failing because they weren't
+    all in sync. moved logic into get_config_file_path which is called 
+    from numerous methods.
+  - added P:U:V:L:Virtuozzo (inherits OpenVZ)
+  - added better error handling and reporting for OpenVZ container
+    methods, added DNS server type detection, and better error handling for
+    DNS and Web tests when provision.conf isn't configured.
 
 0.40  Jan 23, 2009
-      - added P:U:V:S:C->new()
-      - updated dependency lists to match what's being used
-      - Changed LWP call from decoded_content to content (more compatible with
-        older versions of LWP::UserAgent).
-      - a few tweaks for Xen container control
-      - is_process_running doesn't use a -w on Solaris (unsupported)
+  - added P:U:V:S:C->new()
+  - updated dependency lists to match what's being used
+  - Changed LWP call from decoded_content to content (more compatible with
+    older versions of LWP::UserAgent).
+  - a few tweaks for Xen container control
+  - is_process_running doesn't use a -w on Solaris (unsupported)
 
 
 0.39  Jan 21, 2009
-      - More descriptive error messages when tests are skipped
-      - changed #!perl to #!/usr/bin/env perl (hopefully more portable)
-      - prov_virtual prints out the result object from $prov invocations
-      - lowered min perl version to 5.6 to see what tests blow up
-      - print diagnostic info if is_process_running fails
-      - updated version of remoteagent
-      - added version support to install_deps and Getopt::Long dependency
-      - a missing provision.conf is no longer fatal.
+  - More descriptive error messages when tests are skipped
+  - changed #!perl to #!/usr/bin/env perl (hopefully more portable)
+  - prov_virtual prints out the result object from $prov invocations
+  - lowered min perl version to 5.6 to see what tests blow up
+  - print diagnostic info if is_process_running fails
+  - updated version of remoteagent
+  - added version support to install_deps and Getopt::Long dependency
+  - a missing provision.conf is no longer fatal.
 
 
 0.38    Jan 18, 2009
-        more tweaks so that 'make test' completes successfully on more
-        OS platforms
+  more tweaks so that 'make test' completes successfully on more
+  OS platforms
 
 0.37    Jan 16, 2009
-        t/Utility had group hard coded as wheel. Failed on some Linux distros
-        imported Max's Xen::Config
-          P:U:V:L:Xen->get_status now returns the containers ips
-            and disk volumes (as element disks)
-        added bin/install_prov_unix
-        added P:U:V:X:Config.pm - read/write Xen config files
+  t/Utility had group hard coded as wheel. Failed on some Linux distros
+  imported Max's Xen::Config
+    P:U:V:L:Xen->get_status now returns the containers ips
+      and disk volumes (as element disks)
+  added bin/install_prov_unix
+  added P:U:V:X:Config.pm - read/write Xen config files
 
 0.36    Jan 14, 2009
-        Commented out unused DNS::TinyDNS code (I wrote my own)
-        replaced ExtUtils::MakeMaker with Module::Install
-          - more control over META.yml
-          - optional requirements can be specified as such
-          - additional control over indexing functions
-        added bin/remoteagent
-        upgraded bin/install_deps
-        virtualization type is now detected instead of a config file setting
-          - t/VirtualOS.t updated accordingly
-        template_dir settings in provision.conf are now honored
-        Added module::install to bin/install_deps.pl
-        Darwin->exists_group is more reliable
-        added bin/update_prov_unix installer script
-          - shares code from bin/install_deps, moved 2 subs into Utility.pm
+  Commented out unused DNS::TinyDNS code (I wrote my own)
+  replaced ExtUtils::MakeMaker with Module::Install
+    - more control over META.yml
+    - optional requirements can be specified as such
+    - additional control over indexing functions
+  added bin/remoteagent
+  upgraded bin/install_deps
+  virtualization type is now detected instead of a config file setting
+    - t/VirtualOS.t updated accordingly
+  template_dir settings in provision.conf are now honored
+  Added module::install to bin/install_deps.pl
+  Darwin->exists_group is more reliable
+  added bin/update_prov_unix installer script
+    - shares code from bin/install_deps, moved 2 subs into Utility.pm
 
 0.35    Dec 29, 2008
-        added more logic to tests to suppress false positive failures
-        fixed a few places where ternary operator was misused
-        specified bin/prov_*.pl in Makefile.PL, EXE_FILES so they get
-         installed with 'make install'
+  added more logic to tests to suppress false positive failures
+  fixed a few places where ternary operator was misused
+  specified bin/prov_*.pl in Makefile.PL, EXE_FILES so they get
+   installed with 'make install'
 
 0.34    Dec 16, 2008
-        added is_enabled method to Xen.pm
-        added P:U:V:Linux.pm class
-        added supporting code for Xen provisioning
-        added options to create_virtualos: nameservers, searchdomain, ram
-        added $prov->{etc_dir} setting
-        P:U->audit returns audit arrayref when called
+  added is_enabled method to Xen.pm
+  added P:U:V:Linux.pm class
+  added supporting code for Xen provisioning
+  added options to create_virtualos: nameservers, searchdomain, ram
+  added $prov->{etc_dir} setting
+  P:U->audit returns audit arrayref when called
 
 0.33    Dec 10, 2008
-        refinements and a test suite for OpenVZ
-        added disable, enable methods to OpenVZ
-        added modify method to OpenVZ
+  refinements and a test suite for OpenVZ
+  added disable, enable methods to OpenVZ
+  added modify method to OpenVZ
 
 0.32    Dec 07, 2008
-        added openvz creation support for linux
-        added user creation support for Linux
+  added openvz creation support for linux
+  added user creation support for Linux
 
 0.31    Nov 12, 2008
-        fixed Darwin user creation bug: 
-          http://rt.cpan.org/Ticket/Display.html?id=40189
+  fixed Darwin user creation bug: 
+  http://rt.cpan.org/Ticket/Display.html?id=40189
 
 0.30    Nov 10, 2008
-        added license=>'perl' to Makefile.PL
-        initial coding of VirtualOS module begun
-	added Virtual::OS::FreeBSD::Ezjail
-	created Ezjail->create_virtualos
+  added license=>'perl' to Makefile.PL
+  initial coding of VirtualOS module begun
+  added Virtual::OS::FreeBSD::Ezjail
+  created Ezjail->create_virtualos
 
 0.29    Oct 19, 2008
-        added bin/prov_dns.pl, add zones & records, delete zones
+  added bin/prov_dns.pl, add zones & records, delete zones
 
 0.28    Oct 09, 2008
-        reworked guts of user creation modules
-        altered t/utility.t so tests will pass on systems w/o sudo installed
-        tests pass for user/group. create/destroy works on Darwin & FreeBSD
+  reworked guts of user creation modules
+  altered t/utility.t so tests will pass on systems w/o sudo installed
+  tests pass for user/group. create/destroy works on Darwin & FreeBSD
 
 0.27    Sep 28, 2008
-        Initial release on CPAN
+  Initial release on CPAN
 
-0.01    Jun 28, 2008
-        Imported provision related functions
-        wrote a new terminal based status bar for providing interactive feedback
+0.01   Jun 28, 2008
+  Imported provision related functions
+  wrote a new terminal based status bar for providing interactive feedback

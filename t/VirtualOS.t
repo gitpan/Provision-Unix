@@ -112,6 +112,7 @@ ok(  $vos->is_valid_ip('2.1.1.1'),         'is_valid_ip +' );
 # these are expensive tests.
 SKIP: {
     skip "you are not root", 12 if $EFFECTIVE_USER_ID != 0;
+    skip "could not determine a valid name", 12 if ! $container_id_or_name;
 
 my $r;
     if ( $vos->is_present( name => $container_id_or_name ) ) {
