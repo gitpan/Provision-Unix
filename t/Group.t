@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 
+use Data::Dumper;
 use English qw( -no_match_vars );
 use Test::More;
 
@@ -15,7 +16,7 @@ use Provision::Unix::User;
 my $prov = Provision::Unix->new( debug => 0 );
 
 eval { $user = Provision::Unix::User->new( prov => $prov, fatal => 0 ) };
-if ( $EVAL_ERROR ) {
+if ( ! $user ) {
     my $message = $EVAL_ERROR; chop $message;
     $message .= " on " . $OSNAME;
     plan skip_all => $message;
@@ -23,7 +24,6 @@ if ( $EVAL_ERROR ) {
 else {
     plan 'no_plan';
 };
-
 
 # basic OO mechanism
 ok( defined $user, 'get Provision::Unix::User object' );
@@ -34,9 +34,7 @@ my $uid      = 65530;
 my $group    = 'provunix';
 my $username = 'provuser';
 
-my $group_that_exists
-    = $OSNAME eq 'linux'  ? 'daemon'
-    : 'daemon';
+my $group_that_exists = $OSNAME eq 'linux' ? 'daemon' : 'daemon';
 
 # exists_group
 ok( $user->exists_group($group_that_exists), 'exists_group +' );
@@ -45,7 +43,9 @@ if (`grep '^$group:' /etc/group`) {
     ok( $user->exists_group($group), 'exists_group +' );
 }
 else {
-    ok( !$user->exists_group($group), 'exists_group -' );
+    if ( $OSNAME ne 'darwin' ) {
+        ok( !$user->exists_group($group), 'exists_group -' );
+    };
 }
 
 SKIP: {

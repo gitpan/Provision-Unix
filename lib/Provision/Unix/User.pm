@@ -1,6 +1,6 @@
 package Provision::Unix::User;
 
-our $VERSION = '0.13';
+our $VERSION = '0.15';
 
 use strict;
 use warnings;
@@ -433,12 +433,12 @@ sub _get_os {
         );
     }
     else {
-        return $prov->error( message => "create: "
-                . $self->{username}
+        $prov->error( message => "_get_os: "
                 . " FAILED! There is no support for $OSNAME yet. Consider submitting a patch.",
                 fatal => 0,
         );
     }
+    return;
 }
 
 sub _is_valid_request {

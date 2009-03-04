@@ -38,8 +38,10 @@ my ($cwd) = cwd =~ /^([\/\w\-\s\.]+)$/;         # get our current directory
 print "\t\twd: $cwd\n" if $debug;
 
 my $tmp = "$cwd/t/trash";
-ok( $util->mkdir_system( dir => $tmp, debug => 0, fatal => 0 ),
-    'mkdir_system' );
+if ( $OSNAME =~ /win/i ) {
+    ok( $util->mkdir_system( dir => $tmp, debug => 0, fatal => 0 ),
+        'mkdir_system' );
+};
 ok( -d $tmp, "temp dir: $tmp" );
 ok( $util->syscmd( cmd => "cp TODO $tmp/", debug => 0, fatal => 0 ),
     'cp TODO' );

@@ -2709,7 +2709,7 @@ sub syscmd {
         $ENV{PATH} = "/bin:/sbin:/usr/bin:/usr/sbin:$prefix/bin:$prefix/sbin";
     }
 
-    $prov->audit("syscmd: running $cmd_request");
+    $prov->audit("syscmd: $cmd_request");
 
     my $r;
     if ( $p{timeout} ) {

@@ -1,5 +1,14 @@
 Revision history for Provision-Unix
 
+0.46  Mar 03, 2009
+  - added fatal => 0 to syscmd calls b/c xm operations don't always
+    return valid exit codes. In fact, sometimes they don't ever return.
+  - added a timeout. Xm shutdown likes to hang forever. Timeout and try
+    an XM destroy. Don't trust the exit status, run a test afterwards
+    and see if it succeeded. *sigh*
+  - skip system mkdir test on windows
+  - check for $user to be set instead of EVAL_ERROR for loading P:U:User
+
 0.45  Feb 17, 2009
   - added fatal => 0 to syscmd calls b/c vzctl operations don't always
     return valid exit codes.

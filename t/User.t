@@ -12,8 +12,8 @@ use Provision::Unix::User;
 my $prov = Provision::Unix->new( debug => 0 );
 my $user;
 
-eval { $user = Provision::Unix::User->new( prov => $prov, fatal => 0 ) };
-if ( $EVAL_ERROR ) {
+eval { $user = Provision::Unix::User->new( prov => $prov, fatal => 0 ); };
+if ( ! $user ) {
     my $message = $EVAL_ERROR; chop $message;
     $message .= " on " . $OSNAME;
     plan skip_all => $message;

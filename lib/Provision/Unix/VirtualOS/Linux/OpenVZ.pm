@@ -80,7 +80,6 @@ sub create_virtualos {
 
     $cmd .= " create $ctid";
     $cmd .= " --root $vos->{disk_root}"    if $vos->{disk_root};
-    $cmd .= " --hostname $vos->{hostname}" if $vos->{hostname};
     $cmd .= " --config $vos->{config}"     if $vos->{config};
 
     if ( $vos->{template} ) {
@@ -89,15 +88,17 @@ sub create_virtualos {
         $cmd .= " --ostemplate $template";
     }
 
-    $prov->audit("\tcmd: $cmd");
-
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
 
     if ( $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 ) ) {
-        $self->set_hostname() if $vos->{hostname};
+        $self->set_hostname()    if $vos->{hostname};
+        sleep 1;
         $self->set_ips();
-        $self->set_password()    if $vos->{password};
+        sleep 1;
         $self->set_nameservers() if $vos->{nameservers};
+        sleep 1;
+        $self->set_password()    if $vos->{password};
+        sleep 1;
         $self->start_virtualos();
         return $prov->audit("\tvirtual os created and launched");
     }
@@ -151,7 +152,6 @@ sub destroy_virtualos {
 
     my $cmd = $util->find_bin( bin => 'vzctl', debug => 0 );
     $cmd .= " destroy $name";
-    $prov->audit("\tcmd: $cmd");
 
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
 
@@ -179,8 +179,6 @@ sub start_virtualos {
     $cmd .= " $vos->{name}";
     $cmd .= " --force" if $vos->{force};
     $cmd .= " --wait" if $vos->{'wait'};
-
-    $prov->audit("\tcmd: $cmd");
 
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
     $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
@@ -227,8 +225,6 @@ sub stop_virtualos {
 
     my $cmd = $util->find_bin( bin => 'vzctl', debug => 0 );
     $cmd .= " stop $vos->{name}";
-
-    $prov->audit("\tcmd: $cmd");
 
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
     $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
@@ -576,7 +572,6 @@ sub set_ips {
     }
     $cmd .= " --save";
 
-    $prov->audit("\tcmd: $cmd");
     return $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} );
 }
 
@@ -595,8 +590,8 @@ sub set_password {
 
     $cmd .= " --userpasswd $user:$pass";
 
-    $prov->audit("\tcmd: $cmd");
-    return $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} );
+    # not sure why but this likes to return a failure
+    return $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
 }
 
 sub set_nameservers {
@@ -619,7 +614,6 @@ sub set_nameservers {
     $cmd .= " --searchdomain $search" if $search;
     $cmd .= " --save";
 
-    $prov->audit("cmd: $cmd");
     return $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} );
 }
 
@@ -637,8 +631,6 @@ sub set_hostname {
         );
 
     $cmd .= " --hostname $hostname --save" if $hostname;
-
-    $prov->audit("\tcmd: $cmd");
 
     return $util->syscmd( 
         cmd => $cmd, 

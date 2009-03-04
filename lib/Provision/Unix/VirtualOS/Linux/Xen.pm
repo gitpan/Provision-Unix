@@ -1,13 +1,12 @@
 package Provision::Unix::VirtualOS::Linux::Xen;
 
-our $VERSION = '0.18';
+our $VERSION = '0.20';
 
 use warnings;
 use strict;
 
-use English qw( -no_match_vars );
-
 #use Data::Dumper;
+use English qw( -no_match_vars );
 use File::Copy;
 use Params::Validate qw(:all);
 
@@ -169,17 +168,21 @@ sub stop_virtualos {
     # try a 'friendly' shutdown first for 25 seconds
     $util->syscmd(
         cmd     => "$xm shutdown -w $ve_name",
-        debug   => 0,
         timeout => 25,
-        fatal   => $vos->{fatal}
-        )
+        debug   => 0,
+        fatal   => 0,
+    );
 
-        # if that didn't work, whack it with a bigger hammer
-        or $util->syscmd(
+    return 1 if !$self->is_running();
+
+    # whack it with the bigger hammer
+    $util->syscmd(
         cmd   => "$xm destroy $ve_name",
+        timeout => 120,
+        fatal => 0,
         debug => 0,
-        fatal => $vos->{fatal}
-        );
+    );
+    sleep 3;
 
     return 1 if !$self->is_running();
     return;
@@ -416,7 +419,7 @@ sub get_status {
 
     if ( ! $self->is_present() ) {
         my $error = "The xen VE $ve_name does not exist here!";
-        return $prov->error( message => $error );
+        $prov->error( message => $error );
     };
 
     my $cmd = $util->find_bin( bin => 'xm', debug => 0 );
