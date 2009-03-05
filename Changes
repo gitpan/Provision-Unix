@@ -1,5 +1,8 @@
 Revision history for Provision-Unix
 
+0.46  Mar 04, 2009
+  - corrected the regexp from =~ to !~ in Win32 platform check
+
 0.46  Mar 03, 2009
   - added fatal => 0 to syscmd calls b/c xm operations don't always
     return valid exit codes. In fact, sometimes they don't ever return.

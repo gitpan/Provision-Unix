@@ -38,10 +38,11 @@ my ($cwd) = cwd =~ /^([\/\w\-\s\.]+)$/;         # get our current directory
 print "\t\twd: $cwd\n" if $debug;
 
 my $tmp = "$cwd/t/trash";
-if ( $OSNAME =~ /win/i ) {
-    ok( $util->mkdir_system( dir => $tmp, debug => 0, fatal => 0 ),
-        'mkdir_system' );
+mkdir $tmp, 0755;
+if ( ! -d $tmp ) {
+    $util->mkdir_system( dir => $tmp, debug => 0, fatal => 0 );
 };
+skip "$tmp dir creation failed!\n", 2 if ( ! -d $tmp );
 ok( -d $tmp, "temp dir: $tmp" );
 ok( $util->syscmd( cmd => "cp TODO $tmp/", debug => 0, fatal => 0 ),
     'cp TODO' );
@@ -85,7 +86,7 @@ my $gzip = $util->find_bin( bin => "gzip", fatal => 0, debug => 0 );
 my $tar  = $util->find_bin( bin => "tar",  fatal => 0, debug => 0 );
 
 SKIP: {
-    skip "gzip or tar is missing!\n", 6 unless ( -x $gzip and -x $tar );
+    skip "gzip or tar is missing!\n", 6 unless ( -x $gzip and -x $tar and -d $tmp );
     ok( $util->syscmd(
             cmd   => "$tar -cf $tmp/test.tar TODO",
             debug => 0,

@@ -733,6 +733,11 @@ __END__
 
 Provision::Unix::VirtualOS - Provision virtual OS instances (jail|vps|container)
 
+=head1 VERSION
+
+Version 0.20
+
+
 =head1 SYNOPSIS
 
 
