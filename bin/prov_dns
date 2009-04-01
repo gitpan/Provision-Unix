@@ -35,6 +35,7 @@ Getopt::Long::GetOptions(
     'address=s'  => \my $address,
     'weight=s'   => \my $weight,
     'priority=s' => \my $priority,
+    'template=s' => \my $template,
     'port=s'     => \my $port,
 
     'verbose'    => \my $debug,
@@ -95,27 +96,34 @@ sub dns_create {
         
         my @d = $util->get_the_date(debug=>0);
 
-        $request{serial} =  $serial || $util->ask( 
+        if ( $prov->{config}{DNS}{server} ne 'nictool' ) {
+            $request{serial} =  $serial || $util->ask( 
                 question => $questions->{serial},  
                 default  => "$d[2]$d[1]$d[0]01" );
-        $request{ttl}    =  $ttl || $util->ask( 
+            $request{ttl}    =  $ttl || $util->ask( 
                 question => $questions->{ttl},  
                 default  => $prov->{config}{DNS}{zone_ttl} );
-        $request{refresh} = $refresh || $util->ask( 
+            $request{refresh} = $refresh || $util->ask( 
                 question => $questions->{refresh}, 
                 default  => $prov->{config}{DNS}{zone_refresh} );
-        $request{retry}  =  $retry  || $util->ask( 
+            $request{retry}  =  $retry  || $util->ask( 
                 question => $questions->{retry},   
                 default  => $prov->{config}{DNS}{zone_retry}  );
-        $request{expire} =  $expire || $util->ask( 
+            $request{expire} =  $expire || $util->ask( 
                 question => $questions->{expire},  
                 default  => $prov->{config}{DNS}{zone_expire} );
-        $request{minimum} = $minimum || $util->ask( 
+            $request{minimum} = $minimum || $util->ask( 
                 question => $questions->{minimum}, 
                 default  => $prov->{config}{DNS}{zone_minimum} );
-        $request{nameserver} =$nameserver || $util->ask( 
+            $request{nameserver} = $util->ask( 
                 question => $questions->{nameserver}, 
-                default  => "a.ns.$zone" );
+                default  => "a.ns.$zone");
+        }
+        else {
+            $request{template} = $template || $util->ask( 
+                question => $questions->{template}, 
+                default  => $prov->{config}{NicTool}{template} );
+        }
 
         return $dns->create_zone( %request );
     }

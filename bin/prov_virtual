@@ -23,20 +23,19 @@ my $vos  = Provision::Unix::VirtualOS->new( prov => $prov );
 # process command line options
 Getopt::Long::GetOptions(
 
-    'action=s'    => \my $action,
-    'name=s'      => \my $name,
-    'ip=s'        => \my $ip,
+    'action=s'       => \my $action,
+    'name=s'         => \my $name,
+    'ip=s'           => \my $ip,
 
-    'template=s'  => \my $template,
-    'config=s'    => \my $config,
-    'disk_root=s' => \my $disk_root,
-    'disk_size=s' => \my $disk_size,
-    'hostname=s'  => \my $hostname,
-    'password=s'  => \my $password,
-    'nameservers=s' => \my $nameservers,
+    'template=s'     => \my $template,
+    'config=s'       => \my $config,
+    'disk_root=s'    => \my $disk_root,
+    'disk_size=s'    => \my $disk_size,
+    'hostname=s'     => \my $hostname,
+    'password=s'     => \my $password,
+    'nameservers=s'  => \my $nameservers,
     'searchdomain=s' => \my $searchdomain,
-
-    'verbose'     => \my $debug,
+    'verbose'        => \my $debug,
 
 ) or die 'error parsing command line options';
 
@@ -96,34 +95,43 @@ sub create {
     warn "creating!\n";
     $prov->audit("dispatching creation request");
 
+    foreach ( keys %request ) { delete $request{$_} if ! defined $request{$_}; };
     print Dumper( $vos->create_virtualos( %request ) );
 }
 
 sub destroy {
+    foreach ( keys %request ) { delete $request{$_} if ! defined $request{$_}; };
     print Dumper( $vos->destroy_virtualos( %request ) );
 }
 sub start {
+    foreach ( keys %request ) { delete $request{$_} if ! defined $request{$_}; };
     print Dumper( $vos->start_virtualos( %request ) );
 }
 sub stop {
+    foreach ( keys %request ) { delete $request{$_} if ! defined $request{$_}; };
     print Dumper( $vos->stop_virtualos( %request ) );
 }
 sub restart {
+    foreach ( keys %request ) { delete $request{$_} if ! defined $request{$_}; };
     print Dumper( $vos->restart_virtualos( %request ) );
 }
 sub disable {
+    foreach ( keys %request ) { delete $request{$_} if ! defined $request{$_}; };
     print Dumper( $vos->disable_virtualos( %request ) );
 }
 sub enable {
+    foreach ( keys %request ) { delete $request{$_} if ! defined $request{$_}; };
     print Dumper( $vos->enable_virtualos( %request ) );
 }
 sub modify {
     $request{hostname} = $hostname || $util->ask( question=> $questions->{hostname} );
     $request{password} = $password || $util->ask( question=> $questions->{password} );
     $request{ip}       = $ip       || $util->ask( question=> $questions->{ip} );
+    foreach ( keys %request ) { delete $request{$_} if ! defined $request{$_}; };
     print Dumper( $vos->modify_virtualos( %request ) );
 }
 sub probe {
+    foreach ( keys %request ) { delete $request{$_} if ! defined $request{$_}; };
     print Dumper( $vos->get_status( %request ) );
 }
 

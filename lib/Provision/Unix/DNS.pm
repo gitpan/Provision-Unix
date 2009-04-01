@@ -53,7 +53,12 @@ sub create_zone {
     # Throws     : no exceptions
 
     my $self = shift;
-    $self->{server}->create_zone(@_);
+    my %args = @_;
+    my %defined;
+    foreach ( keys %args ) {
+        $defined{$_} = $args{$_} if defined $args{$_};
+    };
+    $self->{server}->create_zone(%defined);
 }
 
 sub create_zone_record {

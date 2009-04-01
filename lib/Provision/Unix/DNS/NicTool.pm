@@ -3,7 +3,7 @@ package Provision::Unix::DNS::NicTool;
 use warnings;
 use strict;
 
-our $VERSION = '0.22';
+our $VERSION = '0.23';
 
 use English qw( -no_match_vars );
 use Params::Validate qw(:all);
@@ -63,16 +63,17 @@ sub create_zone {
     my %p = validate(
         @_,
         {   'zone'        => { type => SCALAR },
-            'contact'     => { type => SCALAR | UNDEF, optional => 1 },
-            'ttl'         => { type => SCALAR | UNDEF, optional => 1 },
-            'refresh'     => { type => SCALAR | UNDEF, optional => 1 },
-            'retry'       => { type => SCALAR | UNDEF, optional => 1 },
-            'expire'      => { type => SCALAR | UNDEF, optional => 1 },
-            'minimum'     => { type => SCALAR | UNDEF, optional => 1 },
-            'nameservers' => { type => SCALAR | UNDEF, optional => 1, },
-            'template'    => { type => SCALAR | UNDEF, optional => 1, },
-            'ip'          => { type => SCALAR | UNDEF, optional => 1, },
-            'mailip'      => { type => SCALAR | UNDEF, optional => 1, },
+            'contact'     => { type => SCALAR, optional => 1 },
+            'ttl'         => { type => SCALAR, optional => 1 },
+            'refresh'     => { type => SCALAR, optional => 1 },
+            'retry'       => { type => SCALAR, optional => 1 },
+            'expire'      => { type => SCALAR, optional => 1 },
+            'minimum'     => { type => SCALAR, optional => 1 },
+            'nameservers' => { type => SCALAR, optional => 1, },
+            'serial'      => { type => SCALAR, optional => 1, },
+            'template'    => { type => SCALAR, optional => 1, },
+            'ip'          => { type => SCALAR, optional => 1, },
+            'mailip'      => { type => SCALAR, optional => 1, },
             'fatal'       => { type => BOOLEAN, optional => 1, default => 1 },
             'debug'       => { type => BOOLEAN, optional => 1, default => 1 },
         }
@@ -136,10 +137,15 @@ sub create_zone_record {
             'ttl'      => { type => SCALAR, optional => 1 },
             'priority' => { type => SCALAR, optional => 1 },
             'port'     => { type => SCALAR, optional => 1 },
+            'fatal'    => { type => BOOLEAN, optional => 1, default => 1 },
+            'debug'    => { type => BOOLEAN, optional => 1, default => 1 },
         }
     );
 
-    my %valid_types = map { $_ => 1 } qw/ A MX CNAME NS SRV TXT/;
+    my %valid_types;
+    foreach ( qw/ A MX CNAME NS SRV TXT/ ) {
+        $valid_types{$_} = 1;
+    };
 
     my $prov = $self->{prov};
     my $type = $p{type};
@@ -288,10 +294,6 @@ sub delete_zone_record {
 
 Provision::Unix::DNS::NicTool - Provision NicTool DNS entries
 
-=head1 VERSION
-
-Version 0.22
-
 =head1 SYNOPSIS
 
 Provision DNS entries into a NicTool DNS management system using the NicTool native API.
@@ -301,8 +303,6 @@ Provision DNS entries into a NicTool DNS management system using the NicTool nat
     my $dns = Provision::Unix::DNS::NicTool->new();
     ...
 
-
-=head1 FUNCTIONS
 
 
 =head1 AUTHOR

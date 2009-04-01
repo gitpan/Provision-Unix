@@ -74,17 +74,17 @@ sub create_virtualos {
         @_,
         {   'name'         => { type => SCALAR },
             'ip'           => { type => SCALAR },
-            'hostname'     => { type => SCALAR | UNDEF, optional => 1 },
-            'disk_root'    => { type => SCALAR | UNDEF, optional => 1 },
-            'disk_size'    => { type => SCALAR | UNDEF, optional => 1 },
-            'ram'          => { type => SCALAR | UNDEF, optional => 1 },
-            'config'       => { type => SCALAR | UNDEF, optional => 1 },
-            'template'     => { type => SCALAR | UNDEF, optional => 1 },
-            'password'     => { type => SCALAR | UNDEF, optional => 1 },
-            'nameservers'  => { type => SCALAR | UNDEF, optional => 1 },
-            'searchdomain' => { type => SCALAR | UNDEF, optional => 1 },
-
-            'test_mode' => { type => BOOLEAN | UNDEF, optional => 1 },
+            'hostname'     => { type => SCALAR, optional => 1 },
+            'disk_root'    => { type => SCALAR, optional => 1 },
+            'disk_size'    => { type => SCALAR, optional => 1 },
+            'ram'          => { type => SCALAR, optional => 1 },
+            'config'       => { type => SCALAR, optional => 1 },
+            'template'     => { type => SCALAR, optional => 1 },
+            'password'     => { type => SCALAR, optional => 1 },
+            'ssh_key'      => { type => SCALAR, optional => 1 },
+            'nameservers'  => { type => SCALAR, optional => 1 },
+            'searchdomain' => { type => SCALAR, optional => 1 },
+            'test_mode'    => { type => BOOLEAN, optional => 1 },
             'debug' => { type => BOOLEAN, optional => 1, default => 1 },
             'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
         }
@@ -92,22 +92,16 @@ sub create_virtualos {
 
     $prov->audit( "initializing request to create virtual os '$p{name}'");
 
-    $self->{debug}     = $p{debug};
-    $self->{fatal}     = $p{fatal};
-    $self->{test_mode} = $p{test_mode};
-
     $self->{name}        = $p{name};
     $self->{ip}          = $self->get_ips( $p{ip} ) or return;
-    $self->{hostname}    = $p{hostname} if $p{hostname};
-    $self->{disk_root}   = $p{disk_root} if $p{disk_root};
-    $self->{disk_size}   = $p{disk_size} if $p{disk_size};
-    $self->{ram}         = $p{ram} if $p{ram};
-    $self->{config}      = $p{config} if $p{config};
-    $self->{template}    = $p{template} if $p{template};
-    $self->{password}    = $p{password} if $p{password};
     $self->{nameservers} = $self->get_ips( $p{nameservers} )
         if $p{nameservers};
-    $self->{searchdomain} = $p{searchdomain} if $p{searchdomain};
+
+    foreach ( qw/ hostname disk_root disk_size ram config
+                  template password ssh_key searchdomain
+                  fatal debug test_mode / ) {
+        $self->{$_} = $p{$_} if defined $p{$_};
+    };
 
     $prov->audit("\tdelegating request to $self->{vtype}");
     $self->{vtype}->create_virtualos();
@@ -127,7 +121,7 @@ sub destroy_virtualos {
     my %p = validate(
         @_,
         {   'name'      => { type => SCALAR },
-            'test_mode' => { type => BOOLEAN | UNDEF, optional => 1 },
+            'test_mode' => { type => BOOLEAN, optional => 1 },
             'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
             'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
         }
@@ -135,11 +129,9 @@ sub destroy_virtualos {
 
     $prov->audit("initializing request to destroy virtual os '$p{name}'");
 
-    $self->{name}      = $p{name};
-    $self->{test_mode} = $p{test_mode};
-    $self->{debug}     = $p{debug};
-    $self->{fatal}     = $p{fatal};
-
+    foreach ( qw/ name test_mode debug fatal / ) {
+        $self->{$_} = $p{$_} if defined $p{$_};
+    };
 
     $self->{vtype}->destroy_virtualos();
 }
@@ -158,16 +150,15 @@ sub start_virtualos {
     my %p = validate(
         @_,
         {   'name'      => { type => SCALAR },
-            'test_mode' => { type => BOOLEAN | UNDEF, optional => 1 },
+            'test_mode' => { type => BOOLEAN, optional => 1 },
             'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
             'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
         }
     );
 
-    $self->{name}      = $p{name};
-    $self->{test_mode} = $p{test_mode};
-    $self->{debug}     = $p{debug};
-    $self->{fatal}     = $p{fatal};
+    foreach ( qw/ name test_mode debug fatal / ) {
+        $self->{$_} = $p{$_} if defined $p{$_};
+    };
 
     $self->{vtype}->start_virtualos();
 }
@@ -186,7 +177,7 @@ sub stop_virtualos {
     my %p = validate(
         @_,
         {   'name'      => { type => SCALAR },
-            'test_mode' => { type => BOOLEAN | UNDEF, optional => 1 },
+            'test_mode' => { type => BOOLEAN, optional => 1 },
             'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
             'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
         }
@@ -214,7 +205,7 @@ sub restart_virtualos {
     my %p = validate(
         @_,
         {   'name'      => { type => SCALAR },
-            'test_mode' => { type => BOOLEAN | UNDEF, optional => 1 },
+            'test_mode' => { type => BOOLEAN, optional => 1 },
             'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
             'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
         }
@@ -242,7 +233,7 @@ sub disable_virtualos {
     my %p = validate(
         @_,
         {   'name'      => { type => SCALAR },
-            'test_mode' => { type => BOOLEAN | UNDEF, optional => 1 },
+            'test_mode' => { type => BOOLEAN, optional => 1 },
             'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
             'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
         }
@@ -270,7 +261,7 @@ sub enable_virtualos {
     my %p = validate(
         @_,
         {   'name'      => { type => SCALAR },
-            'test_mode' => { type => BOOLEAN | UNDEF, optional => 1 },
+            'test_mode' => { type => BOOLEAN, optional => 1 },
             'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
             'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
         }
@@ -298,17 +289,16 @@ sub modify_virtualos {
     my %p = validate(
         @_,
         {   'name'         => { type => SCALAR },
-            'ip'           => { type => SCALAR | UNDEF, optional => 1 },
-            'hostname'     => { type => SCALAR | UNDEF, optional => 1 },
-            'disk_root'    => { type => SCALAR | UNDEF, optional => 1 },
-            'disk_size'    => { type => SCALAR | UNDEF, optional => 1 },
-            'config'       => { type => SCALAR | UNDEF, optional => 1 },
-            'template'     => { type => SCALAR | UNDEF, optional => 1 },
-            'password'     => { type => SCALAR | UNDEF, optional => 1 },
-            'nameservers'  => { type => SCALAR | UNDEF, optional => 1 },
-            'searchdomain' => { type => SCALAR | UNDEF, optional => 1 },
-
-            'test_mode' => { type => BOOLEAN | UNDEF, optional => 1 },
+            'ip'           => { type => SCALAR, optional => 1 },
+            'hostname'     => { type => SCALAR, optional => 1 },
+            'disk_root'    => { type => SCALAR, optional => 1 },
+            'disk_size'    => { type => SCALAR, optional => 1 },
+            'config'       => { type => SCALAR, optional => 1 },
+            'template'     => { type => SCALAR, optional => 1 },
+            'password'     => { type => SCALAR, optional => 1 },
+            'nameservers'  => { type => SCALAR, optional => 1 },
+            'searchdomain' => { type => SCALAR, optional => 1 },
+            'test_mode'    => { type => BOOLEAN, optional => 1 },
             'debug' => { type => BOOLEAN, optional => 1, default => 1 },
             'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
         }
@@ -316,18 +306,13 @@ sub modify_virtualos {
 
     $prov->audit("initializing request to modify container '$p{name}'");
 
-    $self->{debug}     = $p{debug};
-    $self->{fatal}     = $p{fatal};
-    $self->{test_mode} = $p{test_mode};
+    foreach ( qw/ name hostname disk_root disk_size config
+                  template password ssh_key searchdomain
+                  fatal debug test_mode / ) {
+        $self->{$_} = $p{$_} if defined $p{$_};
+    };
 
-    $self->{name}      = $p{name};
-    $self->{ip}        = $self->get_ips( $p{ip} );
-    $self->{hostname}  = $p{hostname};
-    $self->{disk_root} = $p{disk_root};
-    $self->{disk_size} = $p{disk_size};
-    $self->{config}    = $p{config};
-    $self->{template}  = $p{template};
-    $self->{password}  = $p{password};
+    $self->{ip} = $self->get_ips( $p{ip} );
 
     $prov->audit("\tdelegating request to $self->{vtype}");
 
@@ -368,7 +353,7 @@ sub reinstall_virtualos {
             'nameservers'  => { type => SCALAR | UNDEF, optional => 1 },
             'searchdomain' => { type => SCALAR | UNDEF, optional => 1 },
 
-            'test_mode' => { type => BOOLEAN | UNDEF, optional => 1 },
+            'test_mode' => { type => BOOLEAN, optional => 1 },
             'debug' => { type => BOOLEAN, optional => 1, default => 1 },
             'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
         }
@@ -429,7 +414,7 @@ sub get_status {
     my %p = validate(
         @_,
         {   'name'      => { type => SCALAR | UNDEF,  optional => 1 },
-            'test_mode' => { type => BOOLEAN | UNDEF, optional => 1 },
+            'test_mode' => { type => BOOLEAN, optional => 1 },
             'debug' => { type => BOOLEAN, optional => 1, default => 1 },
             'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
         }
@@ -512,7 +497,7 @@ sub set_hostname {
         @_,
         {   'name'      => { type => SCALAR },
             'hostname'  => { type => SCALAR },
-            'test_mode' => { type => BOOLEAN | UNDEF, optional => 1 },
+            'test_mode' => { type => BOOLEAN, optional => 1 },
             'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
             'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
         }
@@ -561,7 +546,8 @@ sub set_password {
         {   'name'      => { type => SCALAR },
             'user'      => { type => SCALAR | UNDEF, optional => 1 },
             'password'  => { type => SCALAR },
-            'test_mode' => { type => BOOLEAN | UNDEF, optional => 1 },
+            'ssh_key'   => { type => SCALAR,  optional => 1 },
+            'test_mode' => { type => BOOLEAN, optional => 1 },
             'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
             'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
         }
@@ -570,6 +556,7 @@ sub set_password {
     $self->{name}      = $p{name};
     $self->{user}      = $p{user} || 'root';
     $self->{password}  = $p{password};
+    $self->{ssh_key}   = $p{ssh_key};
     $self->{test_mode} = $p{test_mode};
     $self->{debug}     = $p{debug};
     $self->{fatal}     = $p{fatal};
@@ -584,7 +571,7 @@ sub is_present {
     my %p = validate(
         @_,
         {   'name'      => { type => SCALAR },
-            'test_mode' => { type => BOOLEAN | UNDEF, optional => 1 },
+            'test_mode' => { type => BOOLEAN, optional => 1 },
             'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
             'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
         }
@@ -605,7 +592,7 @@ sub is_running {
     my %p = validate(
         @_,
         {   'name'      => { type => SCALAR },
-            'test_mode' => { type => BOOLEAN | UNDEF, optional => 1 },
+            'test_mode' => { type => BOOLEAN, optional => 1 },
             'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
             'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
         }
@@ -732,11 +719,6 @@ __END__
 =head1 NAME
 
 Provision::Unix::VirtualOS - Provision virtual OS instances (jail|vps|container)
-
-=head1 VERSION
-
-Version 0.20
-
 
 =head1 SYNOPSIS
 

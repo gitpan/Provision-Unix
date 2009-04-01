@@ -112,16 +112,16 @@ sub get_vhost_attributes {
     my $vals = $p{'request'};
 
     if ( $p{'prompt'} ) {
-        $vals->{'vhost'} ||= $util->ask( q => 'vhost name' );
+        $vals->{'vhost'} ||= $util->ask( question => 'vhost name' );
     }
 
     my $vhost = $vals->{'vhost'}
         or $prov->error( message => "vhost is required" );
 
     if ( $p{'prompt'} ) {
-        $vals->{'ip'} ||= $util->ask( q => 'ip', default => '*:80' );
+        $vals->{'ip'} ||= $util->ask( question => 'ip', default => '*:80' );
         $vals->{'serveralias'}
-            ||= $util->ask( q => 'serveralias', default => "www.$vhost" );
+            ||= $util->ask( question => 'serveralias', default => "www.$vhost" );
     }
 
     if ( !$vals->{'documentroot'} ) {
@@ -135,7 +135,7 @@ sub get_vhost_attributes {
 
             # prompt with a sensible default
             $vals->{'documentroot'}
-                = $util->ask( q => 'documentroot', default => $docroot );
+                = $util->ask( question => 'documentroot', default => $docroot );
         }
         else {
             $vals->{'documentroot'} = $docroot;
@@ -143,7 +143,7 @@ sub get_vhost_attributes {
     }
 
     if ( $p{'prompt'} ) {
-        $vals->{'ssl'} ||= $util->ask( q => 'ssl' );
+        $vals->{'ssl'} ||= $util->ask( question => 'ssl' );
     }
 
     if ( $vals->{'ssl'} ) {
@@ -152,11 +152,11 @@ sub get_vhost_attributes {
 
         if ( $p{'prompt'} ) {
             $vals->{'sslcert'} ||= $util->ask(
-                q       => 'sslcert',
+                question => 'sslcert',
                 default => "$certs/$vhost.crt"
             );
             $vals->{'sslkey'} ||= $util->ask(
-                q       => 'sslkey',
+                question => 'sslkey',
                 default => "$certs/$vhost.key"
             );
         }
@@ -172,7 +172,7 @@ sub get_vhost_attributes {
         next if $key eq "redirect";
 
         if ( !defined $val ) {
-            $util->ask( q => $key );
+            $util->ask( question => $key );
         }
     }
 

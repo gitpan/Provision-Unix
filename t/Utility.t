@@ -565,11 +565,12 @@ ok( !$util->install_from_source(
 
 # is_process_running
 my $process_that_exists 
-    = lc($OSNAME) eq 'darwin' ? 'launchd'
-    : 'init';
+    = lc($OSNAME) eq 'darwin' ? 'launchd' 
+    : lc($OSNAME) eq 'freebsd' ? 'cron'  
+    : 'init';      # init does not run in a freebsd jail
 
 ok( $util->is_process_running($process_that_exists), 'is_process_running' )
-    or diag system "ps -ef && ps ax";
+    or diag system "/bin/ps -ef && /bin/ps ax";
 ok( !$util->is_process_running("nonexistent"), 'is_process_running' );
 
 # is_tainted

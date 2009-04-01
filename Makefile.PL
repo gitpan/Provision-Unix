@@ -4,18 +4,19 @@ use strict;
 use warnings;
 use inc::Module::Install;
 
-name            'Provision-Unix';
-abstract_from   'lib/Provision/Unix.pm';
-author          'msimerson@cpan.org';
-license         'perl';
-perl_version    '5.006';
-version_from    'lib/Provision/Unix.pm';
+name             'Provision-Unix';
+abstract_from    'lib/Provision/Unix.pm';
+author           'msimerson@cpan.org';
+license          'perl';
+perl_version     '5.006';
+version_from     'lib/Provision/Unix.pm';
 
-requires        'Params::Validate'  => .8;
-requires        'Config::Std'       => 0;
-requires        'Getopt::Long'      => 2.37;
+requires         'Config::Std'       => 0;
+requires         'Digest::MD5'         => 1;
+requires         'Getopt::Long'      => 2.37;
+requires         'Params::Validate'  => .8;
 
-test_requires     'Test::More'      => 0;
+test_requires    'Test::More'      => 0;
 
 # these are for module authors and tests
 recommends        'Test::Pod'           => 0;

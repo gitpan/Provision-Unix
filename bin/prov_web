@@ -19,10 +19,6 @@ use Provision::Unix::Web;
 my $web = Provision::Unix::Web->new( prov=> $prov, debug=>0);
 
 ###########    SITE CONFIGURATION    ###########
-# Load named config file into specified hash...
-my $config_file = $prov->find_config( file => 'provision.conf', debug => 0 );
-read_config $config_file => my %config;
-
 my ( $action, $vals );
 
 # process command line options
@@ -58,10 +54,8 @@ GetOptions(
 
 ) or die "erorr parsing command line options";
 
-$action->{'create'}
-    ? $web->create( request => $vals, config => \%config, prompt => 1 )
-    : $action->{'destroy'}
-    ? $web->destroy( request => $vals, config => \%config, prompt => 1 )
+  $action->{'create'}  ? $web->create( request => $vals, prompt => 1 )
+: $action->{'destroy'} ? $web->destroy( request => $vals, prompt => 1 )
 
     # future functions....
     #: $action->{'modify'}  ? $web->modify ( request=>$vals, prompt=>1 )
@@ -123,11 +117,6 @@ prov_web.pl is a command line interface to the Provision::Web provisioning modul
 
  
 =head1 CONFIGURATION AND ENVIRONMENT
- 
-A full explanation of any configuration system(s) used by the application,
-including the names and locations of any configuration files, and the
-meaning of any environment variables or properties that can be set. These
-descriptions must also include details of any configuration language used
 
 =head1 DEPENDENCIES
  

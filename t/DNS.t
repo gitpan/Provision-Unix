@@ -107,6 +107,7 @@ foreach my $name (@a_records) {
             address => "2.2.2.$i",
             type    => 'A',
             debug   => 0,
+            fatal   => 0,
         ),
         'create_zone_record A'
     );
@@ -122,6 +123,7 @@ foreach my $mail (qw/ mail mail1.example.com mail2.example.com. mail3 /) {
             type    => 'MX',
             weight  => 10 + $i,
             debug   => 0,
+            fatal   => 0,
         ),
         'create_zone_record MX'
     );
@@ -138,6 +140,7 @@ if ( lc( $prov->{config}{DNS}{server} ) ne 'nictool' ) {
                 address => $ns,
                 type    => 'NS',
                 debug   => 0,
+                fatal   => 0,
             ),
             'create_zone_record NS'
         );
@@ -152,6 +155,7 @@ if ( lc( $prov->{config}{DNS}{server} ) ne 'nictool' ) {
             address => "www",
             type    => 'CNAME',
             debug   => 0,
+            fatal   => 0,
         ),
         'create_zone_record CNAME'
     );
@@ -163,6 +167,7 @@ if ( lc( $prov->{config}{DNS}{server} ) ne 'nictool' ) {
             address => '2001:0db8:0000:0000:0000:0000:1428:57ab',
             type    => 'AAAA',
             debug   => 0,
+            fatal   => 0,
         ),
         'create_zone_record AAAA'
     );
@@ -176,6 +181,7 @@ ok( $dns->create_zone_record(
         address => "v=spf1 a mx ~all",
         type    => 'TXT',
         debug   => 0,
+        fatal   => 0,
     ),
     'create_zone_record TXT'
 );
@@ -187,6 +193,7 @@ ok( $dns->create_zone_record(
         address => "v=spf1 a mx ~all",
         type    => 'TXT',
         debug   => 0,
+        fatal   => 0,
     ),
     'create_zone_record TXT'
 );
@@ -198,6 +205,7 @@ ok( $dns->create_zone_record(
         address => "$i.example.com.",
         type    => 'PTR',
         debug   => 0,
+        fatal   => 0,
     ),
     'create_zone_record PTR'
 );
@@ -212,6 +220,7 @@ ok( $dns->create_zone_record(
         priority => 5,
         weight   => 100,
         debug    => 0,
+        fatal   => 0,
     ),
     'create_zone_record SRV'
 );

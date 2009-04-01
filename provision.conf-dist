@@ -21,7 +21,7 @@ server       = apache
 
 [DNS]
 server           = tinydns
-# server         = nictool
+#server           = nictool
 zone_ttl         = 86400
 zone_refresh     = 16384
 zone_retry       =  2048
@@ -46,6 +46,7 @@ protocol    = soap
 username    = provunix
 password    = ntAPIisC00L
 nameservers = 1,2
+template    = artfarm
 
 [tinydns]
 #service_dir = /var/supervise/tinydns

@@ -43,7 +43,9 @@ if (`grep '^$group:' /etc/group`) {
     ok( $user->exists_group($group), 'exists_group +' );
 }
 else {
-    ok( !$user->exists_group($group), 'exists_group -' );
+    if ( $OSNAME ne 'darwin' ) {
+        ok( !$user->exists_group($group), 'exists_group -' );
+    };
 }
 
 SKIP: {

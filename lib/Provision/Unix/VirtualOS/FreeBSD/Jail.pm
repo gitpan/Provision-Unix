@@ -55,10 +55,6 @@ __END__
 
 Provision::Unix::VirtualOS::FreeBSD::Jail - 
 
-=head1 VERSION
-
-Version 0.03
-
 =head1 SYNOPSIS
 
 Quick summary of what the module does.

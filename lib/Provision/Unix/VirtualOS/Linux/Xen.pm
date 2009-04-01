@@ -1,13 +1,15 @@
 package Provision::Unix::VirtualOS::Linux::Xen;
 
-our $VERSION = '0.20';
+our $VERSION = '0.21';
 
 use warnings;
 use strict;
 
 #use Data::Dumper;
+use Digest::MD5;
 use English qw( -no_match_vars );
 use File::Copy;
+use File::Path;
 use Params::Validate qw(:all);
 
 my ( $prov, $vos, $util );
@@ -57,26 +59,32 @@ sub create_virtualos {
         debug   => $vos->{debug},
         );
 
-    my $xm = $util->find_bin( bin => 'xm', debug => $vos->{debug} );
+    my $xm = $util->find_bin( bin => 'xm', debug => $vos->{debug}, fatal => $vos->{fatal} );
 
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
 
     $self->create_swap_image()
         or $prov->error( message => "unable to create swap" );
+
     $self->create_disk_image()
         or $prov->error( message => "unable to create disk image" );
+
+    $self->mount_disk_image();
     $self->extract_template()
         or $prov->error(
         message => "unable to extract template onto disk image" );
+    $self->set_password() if $vos->{password};
+    $self->set_fstab();
+    $self->unmount_disk_image();
+
     $self->install_config_file()
         or $prov->error( message => "unable to install config file" );
 
     # TODO:
     # set_hostname
     # set_ips
-    # set_password
     # set_nameservers
-
+   
     return 1;
 }
 
@@ -103,8 +111,7 @@ sub destroy_virtualos {
 
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
 
-    # shut it down if running
-    $self->stop_virtualos() if $self->is_running();
+    $self->stop_virtualos() if $self->is_running();   # shut down
 
     $prov->audit("\tctid '$ctid' is stopped. Nuking it...");
     $self->destroy_disk_image();
@@ -150,9 +157,10 @@ sub start_virtualos {
     my $cmd = $util->find_bin( bin => 'xm', debug => 0 );
     $cmd .= " create $config_file";
     $prov->audit("\tcmd: $cmd");
-    $util->syscmd( cmd => $cmd, debug => 0 )
+    $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} )
         or $prov->error( message => "unable to start $ctid" );
 
+    sleep 2;  # this may help cases where the VE does start but reports that it did not
     return 1 if $self->is_running();
     return;
 }
@@ -299,7 +307,7 @@ sub create_disk_image {
     $cmd .= " -L$size -n${img_name} vol00";
     $prov->audit("\tcmd: $cmd");
     $util->syscmd( cmd => $cmd, debug => 0 )
-        or $prov->error( message => "unable to create $img_name" );
+        or return $prov->error( message => "unable to create $img_name" );
 
     # format it as ext3 file system
     $cmd = $util->find_bin( bin => 'mkfs.ext3', debug => $vos->{debug} );
@@ -319,15 +327,17 @@ sub create_swap_image {
     my $cmd = $util->find_bin( bin => 'lvcreate', debug => $vos->{debug} );
     $cmd .= " -L$size -n${img_name} vol00";
     $prov->audit("\tcmd: $cmd");
-    $util->syscmd( cmd => $cmd, debug => 0 )
-        or $prov->error( message => "unable to create $img_name" );
+    $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} )
+        or return $prov->error( message => "unable to create $img_name" );
 
     # format the swap file system
     $cmd = $util->find_bin( bin => 'mkswap', debug => $vos->{debug} );
     $cmd .= " /dev/vol00/${img_name}";
     $prov->audit("\tcmd: $cmd");
-    $util->syscmd( cmd => $cmd, debug => 0 )
+    $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} )
         or $prov->error( message => "unable to create $img_name" );
+
+    return 1;
 }
 
 sub destroy_disk_image {
@@ -375,8 +385,6 @@ sub extract_template {
         debug   => $vos->{debug},
         );
 
-    $self->mount_disk_image();
-
     my $ve_name      = $self->get_ve_name();
     my $mount_dir    = "$vos->{disk_root}/$ve_name/mnt";
     my $template_dir = $self->get_template_dir();
@@ -390,9 +398,27 @@ sub extract_template {
     $util->syscmd( cmd => $cmd, debug => 0 )
         or $prov->error(
         message => "unable to extract tarball $vos->{template}" );
-
-    $self->unmount_disk_image();
 }
+
+sub get_disk_usage {
+    my $self = shift;
+    my $image = shift or return;
+
+    my $cmd = $util->find_bin( bin => 'dumpe2fs', fatal => 0, debug => 0 );
+    return if ! -x $cmd;
+
+    $cmd .= " -h $image";
+    my $r = `$cmd 2>&1`;
+    my ($block_size) = $r =~ /Block size:\s+(\d+)/;
+    my ($blocks_tot) = $r =~ /Block count:\s+(\d+)/;
+    my ($blocks_free) = $r =~ /Free blocks:\s+(\d+)/; 
+
+    my $disk_total = ( $blocks_tot * $block_size ) / 1024;
+    my $disk_free = ( $blocks_free * $block_size ) / 1024;
+    my $disk_used = $disk_total - $disk_free;
+
+    return $disk_used;
+};
 
 sub get_random_mac {
 
@@ -435,16 +461,22 @@ sub get_status {
     };
 
     # get IPs and disks from the containers config file
-    my ($ips, $disks );
+    my ($ips, $disks, $disk_usage );
     my $config_file = $self->get_ve_config_path();
     if ( -e $config_file ) {
         if ( $xen_conf && $xen_conf->read_config($config_file) ) {
             $ips   = $xen_conf->get_ips();
             $disks = $xen_conf->get('disk');
         };
+        foreach ( @$disks ) {
+            my ($image) = $_ =~ /phy:(.*?),/;
+            next if ! -e $image;
+            next if $image =~ /swap/i;
+            $disk_usage = $self->get_disk_usage($image);
+        };
     }
     else {
-        warn "could not find $config_file\n";
+        warn "could not find $config_file\n" if $vos->{debug};
     };
 
     $self->{status} = {};
@@ -462,6 +494,7 @@ sub get_status {
         $self->{status}{$ctid} = {
             ips      => $ips,
             disks    => $disks,
+            disk_use => $disk_usage,
             dom_id   => $dom_id,
             mem      => $mem + 1,
             cpus     => $cpus,
@@ -629,13 +662,105 @@ sub mount_disk_image {
         );
     }
 
+
+    return if ( -d "$mount_dir/etc" );   # already mounted
+
     #$mount /dev/vol00/${VMNAME}_rootimg /home/xen/$ve_name/mnt
     my $cmd = $util->find_bin( bin => 'mount', debug => $vos->{debug} );
     $cmd .= " /dev/vol00/$img_name $disk_root/$ve_name/mnt";
     $prov->audit("\tcmd: $cmd");
-    $util->syscmd( cmd => $cmd, debug => 0 )
+    $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} )
         or $prov->error( message => "unable to mount $img_name" );
+    return 1;
 }
+
+sub set_password {
+    my $self = shift;
+
+    my $ve_name = $self->get_ve_name();
+    my $ve_home = $self->get_ve_home();
+    my $user    = $vos->{user} || 'root';
+    my $pass    = $vos->{password}
+        or return $prov->error(
+        message => 'set_password function called but password not provided',
+        fatal   => $vos->{fatal},
+    );
+
+    my $i_stopped;
+    if ( $self->is_running ) {
+        $i_stopped++;
+        $self->stop_virtualos()
+        or
+        return $prov->error( message => "unable to stop virtual $ve_name" );
+    };
+    
+    my $i_mounted;
+    if ( $self->mount_disk_image() ) {
+        $i_mounted++;
+    };
+
+    my $pass_file = "$ve_home/mnt/etc/shadow";  # SYS 5
+    if ( ! -f $pass_file ) {
+        $pass_file = "$ve_home/mnt/etc/master.passwd";  # BSD
+        if ( ! -f $pass_file ) {
+            $pass_file = "$ve_home/mnt/etc/passwd";
+            -f $pass_file or die "could not find password file\n";
+        };
+    };
+
+    my @lines = $util->file_read( file => $pass_file );
+    grep { /^root:/ } @lines or die "could not find root password entry in $pass_file!";
+    my $digest = Digest::MD5::md5_base64($pass);
+    foreach ( @lines ) {
+        s/root\:.*?\:/root\:$digest\:/ if m/^root\:/;
+    };
+    $util->file_write( file => $pass_file, lines => \@lines, debug => $vos->{debug} );
+
+    if ( $vos->{ssh_key} ) {
+        my $ssh_dir = "$ve_home/mnt/root/.ssh";
+        if ( ! -d $ssh_dir && ! -e $ssh_dir ) {
+            mkpath($ssh_dir, 0, 0700) or die "unable to create $ssh_dir\n";
+        };
+        $util->file_write( 
+            file => "$ssh_dir/authorized_keys", 
+            lines => [ "$vos->{ssh_key}\n" ],
+            mode  => 0622,
+            debug => $vos->{debug},
+            fatal => $vos->{fatal},
+        );
+    };
+
+    if ( $i_mounted ) {
+        $self->unmount_disk_image();
+    };
+
+    if ( $i_stopped ) {
+        $self->start_virtualos()
+    };
+    return 1;
+};
+
+sub set_fstab {
+    my $self = shift;
+
+    my $contents = <<EOFSTAB
+/dev/sda1               /                       ext3    defaults,noatime 1 1
+/dev/sda2               none                    swap    sw       0 0
+none                    /dev/pts                devpts  gid=5,mode=620 0 0
+none                    /dev/shm                tmpfs   defaults 0 0
+none                    /proc                   proc    defaults 0 0
+none                    /sys                    sysfs   defaults 0 0
+EOFSTAB
+;
+
+    my $ve_home = $self->get_ve_home();
+    $util->file_write( 
+        file => "$ve_home/mnt/etc/fstab", 
+        lines => [ $contents ],
+        debug => $vos->{debug},
+        fatal => $vos->{fatal},
+    );
+};
 
 sub unmount_disk_image {
     my $self = shift;
@@ -646,7 +771,7 @@ sub unmount_disk_image {
     $cmd .= " /dev/vol00/$img_name";
 
     $prov->audit("\tcmd: $cmd");
-    $util->syscmd( cmd => $cmd, debug => 0 )
+    $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} )
         or $prov->error( message => "unable to unmount $img_name" );
 }
 
@@ -656,7 +781,7 @@ sub install_config_file {
     my $ctid        = $vos->{name};
     my $ve_name     = $self->get_ve_name();
     my $config_file = $self->get_ve_config_path();
-    warn "config file: $config_file\n";
+    warn "config file: $config_file\n" if $vos->{debug};
 
     my $ip       = $vos->{ip}->[0];
     my $ram      = $vos->{ram} || 64;
@@ -684,7 +809,11 @@ EOCONF
     #nics       =
     #dhcp       =
 
-    $util->file_write( file => $config_file, lines => [$config] ) or return;
+    $util->file_write( 
+        file => $config_file, 
+        lines => [$config],
+        debug => $vos->{debug},
+    ) or return;
     return 1;
 }
 

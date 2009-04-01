@@ -28,9 +28,10 @@ recommends:
   Test::Pod::Coverage: 0
 requires:
   Config::Std: 0
+  Digest::MD5: 1
   Getopt::Long: 2.37
   Params::Validate: 0.8
   perl: 5.6.0
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.47
+version: 0.48

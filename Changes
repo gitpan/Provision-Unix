@@ -1,6 +1,17 @@
 Revision history for Provision-Unix
 
-0.46  Mar 04, 2009
+0.48  Apr 01, 2009
+  - added ssh_key parameter to virtualOS create
+  - added xen::set_password
+  - added xen::set_fstab
+  - passing fatal into more Xen methods to trap and handle errors better
+  - made Digest::MD5 a dependency 
+  - don't test after deleting a group on Darwin, the system has it cached and
+    thus the test to verify deletion fails.
+  - fixed command line creation of NicTool domains
+  - fixed command line creation of Apache vhosts
+
+0.47  Mar 04, 2009
   - corrected the regexp from =~ to !~ in Win32 platform check
 
 0.46  Mar 03, 2009
