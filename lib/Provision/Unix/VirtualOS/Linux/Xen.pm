@@ -710,9 +710,12 @@ sub set_password {
 
     my @lines = $util->file_read( file => $pass_file );
     grep { /^root:/ } @lines or die "could not find root password entry in $pass_file!";
-    my $digest = Digest::MD5::md5_base64($pass);
+
+    my $salt = '$1$' . join '', ('.', '/', 0..9, "A".."Z", "a".."z")[rand 64, rand 64, rand 64, rand 64, rand 64, rand 64, rand 64, rand 64];
+    my $crypted = crypt($pass, $salt);
+
     foreach ( @lines ) {
-        s/root\:.*?\:/root\:$digest\:/ if m/^root\:/;
+        s/root\:.*?\:/root\:$crypted\:/ if m/^root\:/;
     };
     $util->file_write( file => $pass_file, lines => \@lines, debug => $vos->{debug} );
 
