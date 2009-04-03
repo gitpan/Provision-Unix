@@ -1,11 +1,12 @@
 package Provision::Unix::User;
 
-our $VERSION = '0.15';
+our $VERSION = '0.19';
 
 use strict;
 use warnings;
 
 use English qw( -no_match_vars );
+use File::Path;
 use Params::Validate qw( :all );
 
 use lib 'lib';
@@ -60,6 +61,12 @@ sub create {
     return $self->{os}->create(@_);
 }
 
+sub create_group {
+
+    my $self = shift;
+    return $self->{os}->create_group(@_);
+}
+
 sub modify {
 
     my $self = shift;
@@ -107,6 +114,11 @@ sub exists_group {
     my $self = shift;
     return $self->{os}->exists_group(@_);
 }
+
+sub set_password {
+    my $self = shift;
+    return $self->{os}->set_password(@_);
+};
 
 sub user_quota {
 
@@ -272,30 +284,42 @@ returns a hashref with error_code and error_desc
     }
 }
 
-sub encrypt {
+sub install_ssh_key {
+    my $self = shift;
+    my %p = validate( @_, {
+            homedir => { type => SCALAR },
+            ssh_key => { type => SCALAR },
+        }
+    );
 
-=head2 encrypt
+    my $homedir = $p{homedir};
+    my $key = $p{ssh_key};
 
-	$pass->encrypt ($pass, $debug)
+    if ( ! -d $homedir ) {
+        return $prov->error(
+            message => "dir '$homedir' does not exist!",
+            debug => $self->{debug},
+            fatal => $self->{fatal},
+        );
+    };
 
-encrypt (MD5) the plain text password that arrives at $pass.
+    my $ssh_dir = "$homedir/.ssh";
+    if ( ! -d $ssh_dir && ! -e $ssh_dir ) {
+        mkpath($ssh_dir, 0, 0700) or $prov->error(
+            message=> "unable to create $ssh_dir",
+            debug => $self->{debug},
+            fatal => $self->{fatal},
+        );
+    };
 
-=cut
-
-    my ( $self, $pass, $debug ) = @_;
-
-    #    $perl->module_load(
-    #            module     => "Crypt::PasswdMD5",
-    #            port_name  => "p5-Crypt-PasswdMD5",
-    #            port_group => "security"
-    #    );
-
-    my $salt = rand;
-    my $pass_e = Crypt::PasswdMD5::unix_md5_crypt( $pass, $salt );
-
-    print "encrypt: pass_e = $pass_e\n" if $debug;
-    return $pass_e;
-}
+    return $util->file_write(
+        file => "$ssh_dir/authorized_keys",
+        lines => [ "$key\n" ],
+        mode  => 0622,
+        debug => $self->{debug},
+        fatal => $self->{fatal},
+    );
+};
 
 sub is_valid_password {
 
@@ -374,34 +398,27 @@ $r->{error_desc} will contain a string with a description of which test failed.
     return \%r;
 }
 
-sub create_group {
+sub get_crypted_password {
+
+=head2 get_crypted_password
+
+	$user->get_crypted_password($pass)
+
+get the MD5 digest of the plain text password that is passed in
+
+=cut
 
     my $self = shift;
-    return $self->{os}->create_group(@_);
-}
+    my $pass = shift;
+
+    my $salt = '$1$' . join '', ('.', '/', 0..9, "A".."Z", "a".."z") 
+        [rand 64, rand 64, rand 64, rand 64, rand 64, rand 64, rand 64, rand 64];
+    my $crypted = crypt($pass, $salt);
+    return $crypted;
+};
 
 sub archive {
 
-}
-
-sub get_username {
-    my $self = shift;
-    $prov->error( message => "too many arguments to get_username" )
-        if scalar @_ > 0;
-
- #    $prov->audit( "\tget_username \$user->{username} ($self->{username})" );
-    return $self->{username};
-}
-
-sub set_username {
-    my $self = shift;
-    $prov->error( message => "too many arguments to set_username" )
-        if scalar @_ > 1;
-    $self->{username} = shift
-        || $prov->error( message => "missing username" );
-
-    #    $prov->audit( "\tset \$user->{username} to $self->{username}" );
-    return 1;
 }
 
 sub _get_os {
@@ -494,7 +511,7 @@ sub _is_valid_username {
         );
 
     $prov->audit("checking validity of username $username");
-    $self->set_username($username);
+    $self->{username} = $username;
 
     # min 2 characters
     if ( length($username) < 2 ) {
@@ -558,10 +575,6 @@ __END__
 =head1 NAME
 
 Provision::Unix::User - Provision Unix Accounts on Unix(like) systems!
-
-=head1 VERSION
-
-Version 0.13
 
 =head1 SYNOPSIS
 

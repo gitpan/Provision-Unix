@@ -54,11 +54,8 @@ sub create_zone {
 
     my $self = shift;
     my %args = @_;
-    my %defined;
-    foreach ( keys %args ) {
-        $defined{$_} = $args{$_} if defined $args{$_};
-    };
-    $self->{server}->create_zone(%defined);
+    foreach ( keys %args ) { delete $args{$_} if ! defined $args{$_}; };
+    $self->{server}->create_zone(%args);
 }
 
 sub create_zone_record {

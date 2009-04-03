@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::OpenVZ;
 
-our $VERSION = '0.21';
+our $VERSION = '0.23';
 
 use warnings;
 use strict;
@@ -8,6 +8,9 @@ use strict;
 use English qw( -no_match_vars );
 use File::Copy;
 use Params::Validate qw(:all);
+
+use lib 'lib';
+use Provision::Unix::User;
 
 our ( $prov, $vos, $util );
 
@@ -26,7 +29,7 @@ sub new {
     };
     bless( $self, $class );
 
-    $prov->audit("loaded VirtualOS::Linux::OpenVZ");
+    $prov->audit("loaded P:U:V::Linux::OpenVZ");
 
     $prov->{etc_dir} ||= '/etc/vz/conf';    # define a default
 
@@ -90,24 +93,26 @@ sub create_virtualos {
 
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
 
-    if ( $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 ) ) {
-        $self->set_hostname()    if $vos->{hostname};
-        sleep 1;
-        $self->set_ips();
-        sleep 1;
-        $self->set_nameservers() if $vos->{nameservers};
-        sleep 1;
-        $self->set_password()    if $vos->{password};
-        sleep 1;
-        $self->start_virtualos();
-        return $prov->audit("\tvirtual os created and launched");
-    }
+    my $r = $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
+    if ( ! $r ) {
+        $prov->error(
+            message => "VPS creation failed, unknown error",
+            fatal   => $vos->{fatal},
+            debug   => $vos->{debug},
+        );
+    };
 
-    return $prov->error(
-        message => "create failed, unknown error",
-        fatal   => $vos->{fatal},
-        debug   => $vos->{debug},
-    );
+    $self->set_hostname()    if $vos->{hostname};
+    sleep 1;
+    $self->set_ips();
+    sleep 1;
+    $self->set_nameservers() if $vos->{nameservers};
+    sleep 1;
+    $self->set_password()    if $vos->{password};
+    sleep 1;
+    $self->start_virtualos();
+    sleep 1;
+    return $prov->audit("\tvirtual os created and launched");
 }
 
 sub destroy_virtualos {
@@ -581,17 +586,27 @@ sub set_password {
     my $cmd = $util->find_bin( bin => 'vzctl', debug => 0 );
     $cmd .= " set $vos->{name}";
 
-    my $user = $vos->{user} || 'root';
-    my $pass = $vos->{password}
+    my $username = $vos->{user} || 'root';
+    my $password = $vos->{password}
         or return $prov->error(
         message => 'set_password function called but password not provided',
         fatal   => $vos->{fatal},
         );
 
-    $cmd .= " --userpasswd $user:$pass";
+    $cmd .= " --userpasswd $username:$password";
 
-    # not sure why but this likes to return a failure
-    return $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
+    # not sure why but this likes to return a failure, even when it succeeds
+    my $r = $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
+
+    if ( $vos->{ssh_key} ) {
+        my $user = Provision::Unix::User->new( prov => $prov );
+        $user->install_ssh_key( 
+            homedir => $self->get_ve_home(),  # "/vz/private/$ctid"
+            ssh_key => $vos->{ssh_key},
+        );
+    };
+
+    return 1;
 }
 
 sub set_nameservers {

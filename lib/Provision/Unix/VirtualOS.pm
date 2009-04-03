@@ -553,13 +553,12 @@ sub set_password {
         }
     );
 
-    $self->{name}      = $p{name};
-    $self->{user}      = $p{user} || 'root';
-    $self->{password}  = $p{password};
-    $self->{ssh_key}   = $p{ssh_key};
-    $self->{test_mode} = $p{test_mode};
-    $self->{debug}     = $p{debug};
-    $self->{fatal}     = $p{fatal};
+    $self->{user} = $p{user} || 'root';
+
+    foreach ( qw/ name password ssh_key
+                  fatal debug test_mode / ) {
+        $self->{$_} = $p{$_} if defined $p{$_};
+    };
 
     $self->{vtype}->set_password();
 }

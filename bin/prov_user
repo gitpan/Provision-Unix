@@ -30,6 +30,7 @@ Getopt::Long::GetOptions(
     'gid=s'      => \$user->{gid},
     'homedir=s'  => \$user->{homedir},
     'password=s' => \$user->{password},
+    'ssh_key=s'  => \$user->{ssh_key},
     'quota=s'    => \$user->{quota},
     'shell=s'    => \$user->{shell},
     'uid=s'      => \$user->{uid},
@@ -45,17 +46,17 @@ my $util
     = Provision::Unix::Utility->new( prov => $prov, debug => $user->{debug} );
 
 my %actions = map { $_ => 1 }
-    qw/ create destroy suspend restore show repair test creategroup destroygroup /;
+    qw/ create destroy suspend restore show repair test creategroup destroygroup modify /;
 pod2usage( { -verbose => 1 } ) if !$actions{$action};
 
   $action eq 'create'       ? user_create() 
 : $action eq 'creategroup'  ? group_create() 
 : $action eq 'destroy'      ? user_destroy()
 : $action eq 'destroygroup' ? group_destroy()
+: $action eq 'modify'       ? user_modify()
 : die "oops, that feature isn't ready yet\n";
 
 # future functions....
-#: $action->{'modify'}  ? $user->modify ( prompt=>1 )
 #: $action->{'suspend'} ? $user->suspend( prompt=>1 )
 #: $action->{'restore'} ? $user->restore( prompt=>1 )
 #: $action->{'show'}    ? $user->show   ( prompt=>1 )
@@ -107,6 +108,16 @@ sub user_create {
     );
 };
 
+sub user_modify {
+    $user->{username} ||= $util->ask( question => 'Username' ) || die;
+    $user->{password} ||= $util->ask( question => 'Password', password => 1 );
+    $user->{ssh_key} ||= $util->ask( question => 'SSH public key' );
+    $user->modify(
+        username => $user->{username},
+        password => $user->{password},
+    );
+};
+
 sub user_destroy {
 
     $user->{username} ||= $util->ask( question => 'Username' ) || die;
@@ -115,6 +126,7 @@ sub user_destroy {
     $user->_is_valid_request();
     $user->destroy( username => $user->{username} );
 };
+
 sub group_create {
     $user->{group} ||= $util->ask( question => 'Group' ) || die;
     $user->create_group( group=>$user->{group} );

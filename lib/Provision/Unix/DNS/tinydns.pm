@@ -3,7 +3,7 @@ package Provision::Unix::DNS::tinydns;
 use strict;
 use warnings;
 
-our $VERSION = '0.52';
+our $VERSION = '0.53';
 
 use Cwd;
 use English qw( -no_match_vars );
@@ -418,8 +418,8 @@ sub _special_chars {
     return \%special;
 }
 
-=for a while
 
+my $stuff = <<'IGNORE'
 # SPF
 # ":$domain:16:" . characterCount( $text ) . escape( $text ) . ":" . $ttl;
 NAPTR
@@ -461,7 +461,8 @@ domainKeys
     }
 }
 
-=cut
+IGNORE
+;
 
 # based on http://www.anders.com/projects/sysadmin/djbdnsRecordBuilder/
 sub escape {
@@ -518,10 +519,6 @@ sub characterCount {
 =head1 NAME
 
 Provision::Unix::DNS::tinydns - Provision tinydns DNS entries
-
-=head1 VERSION
-
-Version 0.52
 
 =head1 SYNOPSIS
 
@@ -583,7 +580,7 @@ some of the record generation logic was lifted from http://www.anders.com/projec
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2008 Matt Simerson
+Copyright 2009 Matt Simerson
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

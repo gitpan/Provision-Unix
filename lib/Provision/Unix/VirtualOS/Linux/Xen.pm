@@ -6,11 +6,12 @@ use warnings;
 use strict;
 
 #use Data::Dumper;
-use Digest::MD5;
 use English qw( -no_match_vars );
 use File::Copy;
-use File::Path;
 use Params::Validate qw(:all);
+
+use lib 'lib';
+use Provision::Unix::User;
 
 my ( $prov, $vos, $util );
 
@@ -26,7 +27,7 @@ sub new {
     my $self = { prov => $prov };
     bless( $self, $class );
 
-    $prov->audit("loaded VirtualOS::Linux::Xen");
+    $prov->audit("loaded P:U:V::Linux::Xen");
 
     $vos->{disk_root} ||= '/home/xen';    # xen default
 
@@ -59,6 +60,7 @@ sub create_virtualos {
         debug   => $vos->{debug},
         );
 
+    my $errors;
     my $xm = $util->find_bin( bin => 'xm', debug => $vos->{debug}, fatal => $vos->{fatal} );
 
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
@@ -70,11 +72,26 @@ sub create_virtualos {
         or $prov->error( message => "unable to create disk image" );
 
     $self->mount_disk_image();
+
+# make sure we trap any errors here and clean up after ourselves.
     $self->extract_template()
         or $prov->error(
-        message => "unable to extract template onto disk image" );
-    $self->set_password() if $vos->{password};
-    $self->set_fstab();
+            message => "unable to extract template onto disk image",
+            fatal => 0,
+        );
+
+    eval { $self->set_password() if $vos->{password}; };
+    if ( $@ ) {
+        $errors++;
+        $prov->error(message=>$@, fatal=>0) 
+    };
+
+    eval { $self->set_fstab(); };
+    if ( $@ ) {
+        $errors++;
+        $prov->error(message=>$@, fatal=>0) 
+    };
+
     $self->unmount_disk_image();
 
     $self->install_config_file()
@@ -85,6 +102,7 @@ sub create_virtualos {
     # set_ips
     # set_nameservers
    
+    return if $errors;
     return 1;
 }
 
@@ -160,7 +178,10 @@ sub start_virtualos {
     $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} )
         or $prov->error( message => "unable to start $ctid" );
 
-    sleep 2;  # this may help cases where the VE does start but reports that it did not
+    foreach ( 1..15 ) {
+        return 1 if $self->is_running();
+        sleep 1;   # the xm start create returns before the VE is running.
+    };
     return 1 if $self->is_running();
     return;
 }
@@ -201,10 +222,10 @@ sub restart_virtualos {
 
     my $ve_name = $self->get_ve_name();
 
-    $self->stop_virtualos()
-        or
-        return $prov->error( message => "unable to stop virtual $ve_name",
-        );
+    if ( ! $self->stop_virtualos() ) {
+        $prov->error( message => "unable to stop virtual $ve_name" );
+        return;
+    };
 
     return $self->start_virtualos();
 }
@@ -294,6 +315,7 @@ sub enable_virtualos {
 }
 
 sub modify_virtualos {
+
 }
 
 sub create_disk_image {
@@ -335,7 +357,7 @@ sub create_swap_image {
     $cmd .= " /dev/vol00/${img_name}";
     $prov->audit("\tcmd: $cmd");
     $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} )
-        or $prov->error( message => "unable to create $img_name" );
+        or return $prov->error( message => "unable to create $img_name" );
 
     return 1;
 }
@@ -368,7 +390,7 @@ sub destroy_swap_image {
             = $util->find_bin( bin => 'lvremove', debug => $vos->{debug} );
         $cmd .= " -f vol00/${img_name}";
         $prov->audit("\tcmd: $cmd");
-        $util->syscmd( cmd => $cmd, debug => 0 )
+        $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} )
             or return $prov->error( message => "unable to destroy $img_name" );
         return 1;
     }
@@ -395,9 +417,10 @@ sub extract_template {
     my $cmd = $util->find_bin( bin => 'tar', debug => $vos->{debug} );
     $cmd .= " -zxf $template_dir/$vos->{template}.tar.gz -C $mount_dir";
     $prov->audit("\tcmd: $cmd");
-    $util->syscmd( cmd => $cmd, debug => 0 )
-        or $prov->error(
+    $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} )
+        or return $prov->error(
         message => "unable to extract tarball $vos->{template}" );
+    return 1;
 }
 
 sub get_disk_usage {
@@ -679,7 +702,6 @@ sub set_password {
 
     my $ve_name = $self->get_ve_name();
     my $ve_home = $self->get_ve_home();
-    my $user    = $vos->{user} || 'root';
     my $pass    = $vos->{password}
         or return $prov->error(
         message => 'set_password function called but password not provided',
@@ -695,51 +717,49 @@ sub set_password {
     };
     
     my $i_mounted;
-    if ( $self->mount_disk_image() ) {
-        $i_mounted++;
-    };
+    $i_mounted++ if $self->mount_disk_image();
 
+    # set the VE root password
     my $pass_file = "$ve_home/mnt/etc/shadow";  # SYS 5
     if ( ! -f $pass_file ) {
         $pass_file = "$ve_home/mnt/etc/master.passwd";  # BSD
         if ( ! -f $pass_file ) {
             $pass_file = "$ve_home/mnt/etc/passwd";
-            -f $pass_file or die "could not find password file\n";
+            -f $pass_file or return $prov->error(message=> "could not find password file", fatal => 0);
         };
     };
 
     my @lines = $util->file_read( file => $pass_file );
-    grep { /^root:/ } @lines or die "could not find root password entry in $pass_file!";
+    grep { /^root:/ } @lines or $prov->error( message=> "could not find root password entry in $pass_file!", fatal => 0);
 
-    my $salt = '$1$' . join '', ('.', '/', 0..9, "A".."Z", "a".."z")[rand 64, rand 64, rand 64, rand 64, rand 64, rand 64, rand 64, rand 64];
-    my $crypted = crypt($pass, $salt);
+    my $user = Provision::Unix::User->new( prov => $prov );
+    my $crypted = $user->get_crypted_password($pass);
 
     foreach ( @lines ) {
         s/root\:.*?\:/root\:$crypted\:/ if m/^root\:/;
     };
-    $util->file_write( file => $pass_file, lines => \@lines, debug => $vos->{debug} );
+    $util->file_write( file => $pass_file, lines => \@lines, debug => $vos->{debug}, fatal => 0 );
 
+    # install the SSH key
     if ( $vos->{ssh_key} ) {
-        my $ssh_dir = "$ve_home/mnt/root/.ssh";
-        if ( ! -d $ssh_dir && ! -e $ssh_dir ) {
-            mkpath($ssh_dir, 0, 0700) or die "unable to create $ssh_dir\n";
+        eval {
+            $user->install_ssh_key(
+                homedir => "$ve_home/mnt/root",
+                ssh_key => $vos->{ssh_key},
+            );
         };
-        $util->file_write( 
-            file => "$ssh_dir/authorized_keys", 
-            lines => [ "$vos->{ssh_key}\n" ],
-            mode  => 0622,
-            debug => $vos->{debug},
-            fatal => $vos->{fatal},
-        );
+        $prov->error(message=>$@, fatal => 0 ) if $@;
     };
 
-    if ( $i_mounted ) {
-        $self->unmount_disk_image();
-    };
+    # set the VE console password
+    my %request = ( username => $ve_name, password => $pass );
+    $request{username} =~ s/\.//;  # strip the . out of the veid name: NNNNN.vm
+    $request{ssh_key} = $vos->{ssh_key} if $vos->{ssh_key};
+    eval { $user->set_password( %request ); };
+    $prov->error( message => $@, fatal => 0 ) if $@;
 
-    if ( $i_stopped ) {
-        $self->start_virtualos()
-    };
+    $self->unmount_disk_image() if $i_mounted;
+    $self->start_virtualos() if $i_stopped;
     return 1;
 };
 

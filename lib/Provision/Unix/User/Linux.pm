@@ -1,6 +1,6 @@
 package Provision::Unix::User::Linux;
 
-our $VERSION = '0.06';
+our $VERSION = '0.08';
 
 use warnings;
 use strict;
@@ -235,10 +235,13 @@ sub destroy_group {
 
 sub exists {
     my $self = shift;
-    my $username = shift || $user->get_username();
+    my $username = shift || $user->{username};
 
     $user->_is_valid_username($username)
-        or $prov->error( message => "missing username param in request" );
+        or return $prov->error( 
+            message => "missing/invalid username param in request",
+            fatal => $user->{fatal},
+        );
 
     $username = lc $username;
 
@@ -273,6 +276,73 @@ sub exists_group {
     my $gid = getgrnam($group);
     return $gid ? 1 : 0;
 }
+
+sub modify {
+    my $self = shift;
+    my %p = validate(
+        @_,
+        {   'username'  => { type => SCALAR },
+            'shell'     => { type => SCALAR, optional => 1 },
+            'password'  => { type => SCALAR, optional => 1 },
+            'ssh_key'   => { type => SCALAR, optional => 1 },
+            'gecos'     => { type => SCALAR, optional => 1 },
+            'expire'    => { type => SCALAR, optional => 1 },
+            'quota'     => { type => SCALAR, optional => 1 },
+            'debug'     => { type => SCALAR, optional => 1, default => 1 },
+            'test_mode' => { type => SCALAR, optional => 1 },
+        }
+    );
+
+    if ( $p{password} ) {
+        $self->set_password( 
+            username => $p{username}, 
+            password => $p{password}, 
+            ssh_key  => $p{ssh_key},
+        );
+    };
+};
+
+sub set_password {
+
+    my $self = shift;
+    my %p = validate(
+        @_,
+        {   'username'  => { type => SCALAR },
+            'password'  => { type => SCALAR, optional => 1 },
+            'ssh_key'   => { type => SCALAR, optional => 1 },
+            'debug'     => { type => SCALAR, optional => 1, default => 1 },
+            'fatal'     => { type => SCALAR, optional => 1, default => 1 },
+            'test_mode' => { type => SCALAR, optional => 1 },
+        }
+    );
+
+    my $username = $p{username};
+    $prov->error( message => "user '$username' not found", fatal => $p{fatal} ) 
+        if ! $self->exists( $username );
+
+    my $pass_file = "/etc/shadow";  # SYS 5
+    if ( ! -f $pass_file ) {
+        $pass_file = "/etc/passwd";
+        -f $pass_file or die "could not find password file\n";
+    };
+
+    my @lines = $util->file_read( file => $pass_file );
+    my $entry = grep { /^$username:/ } @lines;
+    $entry or die "could not find $username entry in $pass_file!";
+
+    my $crypted = $user->get_crypted_password( $p{password} );
+
+    foreach ( @lines ) {
+        s/$username\:.*?\:/$username\:$crypted\:/ if m/^$username\:/;
+    };
+    $util->file_write( file => $pass_file, lines => \@lines, debug => $user->{debug} );
+
+    if ( $p{ssh_key} ) {
+        my $homedir = (split(':', $entry))[7];
+        $user->install_ssh_key( homedir => $homedir, ssh_key => $p{ssh_key} );
+    };
+    return 1;
+};
 
 1;
 

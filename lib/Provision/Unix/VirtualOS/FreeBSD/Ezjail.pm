@@ -21,7 +21,7 @@ sub new {
     my $self = { prov => $prov };
     bless( $self, $class );
 
-    $prov->audit("loaded VirtualOS::FreeBSD::Ezjail");
+    $prov->audit("loaded P:U:V::FreeBSD::Ezjail");
 
     require Provision::Unix::Utility;
     $util = Provision::Unix::Utility->new( prov => $prov );

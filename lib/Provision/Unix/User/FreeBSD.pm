@@ -432,10 +432,6 @@ returns a boolean.
 
 Provision::Unix::User::FreeBSD - Provision Unix Accounts on FreeBSD systems
 
-=head1 VERSION
-
-Version 0.08
-
 =head1 SYNOPSIS
 
 Handles provisioning operations (create, modify, destroy) for system users on UNIX based operating systems.

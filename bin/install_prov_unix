@@ -18,6 +18,7 @@ use English qw( -no_match_vars );
 use lib 'lib';   # use local version if available
 
 install_module('JSON::XS');
+install_module('LWP::UserAgent');
 
 my $module = 'Provision::Unix';
 my $version_wanted = latest_on_cpan($module);
@@ -26,20 +27,18 @@ my ($version_installed);
 eval "require $module" and $version_installed = $module->VERSION;
 print "installed version is: $version_installed\n" if $version_installed;
 
-if ( ! $version_wanted ) {
+if ( $version_installed ) {
+    eval "use $module $version_wanted";
+    if ( ! $EVAL_ERROR ) {
+        print "$module is up-to-date.\n";
+        exit;
+    };
+    print  "upgrading Provision::Unix from CPAN\n";
+} 
+else {
     print  "installing Provision::Unix from CPAN\n";
-    install_module($module);
-    exit;
 };
-
-eval "use $module $version_wanted";
-if ( ! $EVAL_ERROR ) {
-    print "$module is up-to-date.\n";
-    exit;
-};
-
-print  "upgrading Provision::Unix from CPAN\n";
-install_module($module);
+install_module($module, undef, $version_wanted);
 exit;
 
 sub latest_on_cpan {
@@ -47,7 +46,10 @@ sub latest_on_cpan {
     my $cpan     = 'http://search.cpan.org/~msimerson/Provision-Unix/';
 
     eval "require LWP::UserAgent";
-    return if $EVAL_ERROR;
+    if ( $EVAL_ERROR ) {
+        warn "\t ERROR: Could not load LWP::UserAgent. Cannot look up latest version of Provision::Unix!\n";
+        return;
+    };
 
     my $ua = LWP::UserAgent->new( timeout => 10);
     my $response = $ua->get($cpan);
@@ -67,7 +69,7 @@ sub latest_on_cpan {
 
 sub install_module {
 
-    my ($module, $info) = @_;
+    my ($module, $info, $version) = @_;
 
     if ( lc($OSNAME) eq 'darwin' ) {
         my $dport = '/opt/local/bin/port';
@@ -120,6 +122,10 @@ sub install_module {
     # this works around that annoying little habit
     $CPAN::Config = get_cpan_config();
 
+    if ( $module eq 'Provision::Unix' && $version ) {
+        $module =~ s/\:\:/\-/g;
+        $module = "M/MS/MSIMERSON/$module-$version.tar.gz";
+    }
     CPAN::Shell->install($module);
 }
 
@@ -165,7 +171,7 @@ sub get_cpan_config {
   'tar' => $tar,
   'term_is_latin' => q[1],
   'unzip' => $unzip,
-  'urllist' => [ 'http://www.perl.com/CPAN/', 'ftp://cpan.cs.utah.edu/pub/CPAN/', 'ftp://mirrors.kernel.org/pub/CPAN', 'ftp://osl.uoregon.edu/CPAN/', 'http://cpan.yahoo.com/' ],
+  'urllist' => [ 'http://www.perl.com/CPAN/', 'http://mirrors.kernel.org/pub/CPAN/', 'ftp://cpan.cs.utah.edu/pub/CPAN/', 'ftp://mirrors.kernel.org/pub/CPAN', 'ftp://osl.uoregon.edu/CPAN/', 'http://cpan.yahoo.com/', 'ftp://ftp.funet.fi/pub/languages/perl/CPAN/' ],
   'wget' => $wget, };
 }
 

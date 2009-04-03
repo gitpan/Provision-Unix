@@ -96,7 +96,7 @@ PROMPT:
             alarm 0;
         };
         if ($EVAL_ERROR) {
-            $EVAL_ERROR eq "alarm\n" ? print "timed out!\n" : carp;
+            $EVAL_ERROR eq "alarm\n" ? print "timed out!\n" : warn;
         }
     }
     else {
@@ -293,15 +293,15 @@ sub chown {
     my $file = $p{file} || $p{file_or_dir} || $p{dir};
 
     if ( !$file ) {
-        $err = "chown: you did not set a required parameter!";
-        croak $err if $p{fatal};
-        carp $err;
-        return;
+        return $prov->error(
+            message => "chown: you did not set a required parameter!",
+            fatal   => $p{fatal},
+        );
     }
 
     $prov->audit("chown: preparing to chown $uid $file");
 
-    unless ( -e $file ) {
+    if ( ! -e $file ) {
         return $prov->error(
             message => "chown: file $file does not exist!",
             fatal   => $p{fatal},
@@ -409,11 +409,10 @@ sub chown_system {
     print "chown_system: cmd: $cmd\n" if $debug;
 
     if ( !$self->syscmd( cmd => $cmd, fatal => 0, debug => 0 ) ) {
-        print "cmd: $cmd\n";
-        $err = "couldn't chown with $cmd: $!";
-        croak $err if $fatal;
-        carp $err  if $debug;
-        return;
+        return $prov->error(
+            message => "couldn't chown with $cmd: $!",
+            fatal   => $p{fatal},
+        );
     }
 
     if ($debug) {
@@ -442,9 +441,10 @@ sub clean_tmp_dir {
     my $before = cwd;
 
     if ( !chdir $dir ) {
-        carp "couldn't chdir to $dir: $!";
-        croak if $p{fatal};
-        return;
+        return $prov->error( 
+            message => "couldn't chdir to $dir: $!",
+            fatal => $p{fatal},
+        );
     }
 
     foreach ( $self->get_dir_files( dir => $dir ) ) {
@@ -525,7 +525,7 @@ sub _try_mkdir {
     my ( $foo, $debug ) = @_;
     print "_try_mkdir: trying to create $foo\n" if $debug;
     mkdir( $foo, oct("0755") )
-        or carp "cwd_source_dir: mkdir $foo failed: $!";
+        or warn "cwd_source_dir: mkdir $foo failed: $!";
 }
 
 sub file_archive {
@@ -628,11 +628,11 @@ sub file_delete {
 
     my ( $file, $fatal, $debug ) = ( $p{file}, $p{fatal}, $p{debug} );
 
-    $err = "file_delete: checking $file existence";
     if ( !-e $file ) {
-        croak "$err: $!" if $fatal;
-        carp "$err: $!"  if $debug;
-        return;
+        return $prov->error( 
+            message => "file_delete: checking $file existence",
+            fatal => $p{fatal},
+        );
     }
     $self->_formatted( $err, "ok" ) if $debug;
 
@@ -651,7 +651,7 @@ sub file_delete {
 
         $self->_formatted( $err, "FAILED" ) if $debug;
         croak "\t\t $!" if $fatal;
-        carp "\t\t $!";
+        warn "\t\t $!";
     }
 
     if ( !$p{sudo} ) {    # all done
@@ -681,7 +681,7 @@ sub file_delete {
     else {
         $self->_formatted( $err, "FAILED" ) if $debug;
         croak "\t\t $!" if $fatal;
-        carp "\t\t $!";
+        warn "\t\t $!";
     }
 
     return -e $file ? undef : 1;
@@ -741,10 +741,10 @@ sub file_get {
     if ( !$found ) {
 
         # TODO: should use LWP here if available
-        $err = "Yikes, couldn't find wget! Please install it.\n";
-        carp $err  if $debug;
-        croak $err if $p{fatal};
-        return;
+        return $prov->error( 
+            message => "Yikes, couldn't find wget! Please install it.",
+            fatal => $p{fatal},
+        );
     }
 
     my $fetchcmd = "$found $url";
@@ -766,15 +766,15 @@ sub file_get {
     }
 
     if ($EVAL_ERROR) {    # propagate unexpected errors
-        $EVAL_ERROR eq "alarm\n" ? print "timed out!\n" : carp $EVAL_ERROR;
-        croak if $p{fatal};
+        print "timed out!\n" if $EVAL_ERROR eq "alarm\n";
+        $prov->error( message => $EVAL_ERROR, fatal => $p{fatal} );
     }
 
     if ( !$r ) {
-        print "file_get error executing $fetchcmd\n";
-        print "\terror result: $r\n" if $debug;
-        croak if $p{fatal};
-        return;
+        return $prov->error( 
+            message => "file_get error executing $fetchcmd",
+            fatal => $p{fatal},
+        );
     }
 
     return 1;
@@ -2745,14 +2745,14 @@ sub syscmd {
 
     if ( $exit_code != 0 ) {     # an error of some kind
         #print 'error # ' . $ERRNO . "\n";   # $! == $ERRNO
-        carp "error $CHILD_ERROR: $r \n" if $debug;
+        warn "error $CHILD_ERROR: $r \n" if $debug;
 
         if ( $CHILD_ERROR == -1 ) {     # check $? for "normal" errors
-            carp "$cmd_request \nfailed to execute: $ERRNO" if $debug;
+            warn "$cmd_request \nfailed to execute: $ERRNO" if $debug;
         }
         elsif ( $CHILD_ERROR & 127 ) {  # check for core dump
             if ($debug) {
-                carp "syscmd: $cmd_request";
+                warn "syscmd: $cmd_request";
                 printf "child died with signal %d, %s coredump\n", ( $? & 127 ),
                     ( $? & 128 ) ? 'with' : 'without';
             }
