@@ -1,5 +1,19 @@
 Revision history for Provision-Unix
 
+0.51  Apr 07, 2009
+  - added bin/set_vps_password.pl
+  - Xen set_password only tries to set the console password if the user exists
+  - replaced specific state checks in OpenVZ start with is_running checks
+  - OpenVZ startup tests are more reliable now.
+  - don't check results of vzctl --userpassword, since it doesn't return a
+    valid result.
+  - added a set_password test to VirtualOS.t
+  - pass the $user->exists tests, even if the user is missing. Some CPAN
+    testers like to configure their test environs in interesting ways.
+  - removed audit calls before syscmd calls b/c syscmd calls audit itself
+    (remove duplicated messages in audit log).
+  - removed leading alpha character test for usernames (Linux allows it)
+
 0.50  Apr 03, 2009
   - added support for installing SSH keys on OpenVZ 
   - added support for updating User passwords on Linux

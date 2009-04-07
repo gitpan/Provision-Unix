@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::OpenVZ;
 
-our $VERSION = '0.23';
+our $VERSION = '0.24';
 
 use warnings;
 use strict;
@@ -111,7 +111,6 @@ sub create_virtualos {
     $self->set_password()    if $vos->{password};
     sleep 1;
     $self->start_virtualos();
-    sleep 1;
     return $prov->audit("\tvirtual os created and launched");
 }
 
@@ -191,12 +190,11 @@ sub start_virtualos {
 # the results of vzctl start are not reliable. Instead, use vzctl to
 # check the VE status and see if it started.
 
-    my $status = $self->get_status();
-    return 1 if ($status->{state} && $status->{state} eq 'running');
-
-    sleep 5;
-    $status = $self->get_status();
-    return 1 if ($status->{state} && $status->{state} eq 'running');
+    foreach ( 1..8 ) {
+        return 1 if $self->is_running();
+        sleep 1;   # the xm start create returns before the VE is running.
+    };
+    return 1 if $self->is_running();
 
     return $prov->error(
         message => "unable to start VE",
@@ -234,13 +232,11 @@ sub stop_virtualos {
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
     $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
 
-    sleep 1;
-    my $status = $self->get_status();
-    return 1 if $status->{state} eq 'shutdown';
-
-    sleep 5;
-    $status = $self->get_status();
-    return 1 if $status->{state} eq 'shutdown';
+    foreach ( 1..8 ) {
+        return 1 if ! $self->is_running();
+        sleep 1;
+    };
+    return 1 if ! $self->is_running();
 
     return $prov->error(
         message => "unable to stop VE",
@@ -593,16 +589,21 @@ sub set_password {
         fatal   => $vos->{fatal},
         );
 
-    $cmd .= " --userpasswd $username:$password";
+    $cmd .= " --userpasswd '$username:$password'";
 
-    # not sure why but this likes to return a failure, even when it succeeds
-    my $r = $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
+    # not sure why but this likes to return gibberish, regardless of succeess or failure
+    # $r = $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
+
+    # so we do it this way, with no error handling
+    system( $cmd );
+    # has the added advantage that we don't log the VPS password in the audit log
 
     if ( $vos->{ssh_key} ) {
         my $user = Provision::Unix::User->new( prov => $prov );
         $user->install_ssh_key( 
             homedir => $self->get_ve_home(),  # "/vz/private/$ctid"
             ssh_key => $vos->{ssh_key},
+            debug   => $vos->{debug},
         );
     };
 
@@ -691,7 +692,7 @@ sub is_running {
         @_,
         {   'name'    => { type => SCALAR, optional => 1 },
             'refresh' => { type => SCALAR, optional => 1, default => 1 },
-            'test_mode' => { type => SCALAR | UNDEF, optional => 1 },
+            'test_mode' => { type => SCALAR, optional => 1 },
             'debug' => { type => BOOLEAN, optional => 1, default => 1 },
             'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
         }

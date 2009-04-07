@@ -6,6 +6,7 @@ bin/prov_user
 bin/prov_virtual
 bin/prov_web
 bin/remoteagent
+bin/set_vps_password.pl
 bin/update_prov_unix
 Changes
 inc/Module/Install.pm
@@ -59,5 +60,6 @@ t/Unix.t
 t/User.t
 t/Utility.t
 t/VirtualOS.t
+t/vps_password.t
 t/Web.t
 TODO

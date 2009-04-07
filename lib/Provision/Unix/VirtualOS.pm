@@ -3,7 +3,7 @@ package Provision::Unix::VirtualOS;
 use warnings;
 use strict;
 
-our $VERSION = '0.25';
+our $VERSION = '0.26';
 
 use English qw( -no_match_vars );
 use Params::Validate qw(:all);
@@ -560,7 +560,7 @@ sub set_password {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
-    $self->{vtype}->set_password();
+    return $self->{vtype}->set_password();
 }
 
 sub is_present {

@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::Xen;
 
-our $VERSION = '0.21';
+our $VERSION = '0.23';
 
 use warnings;
 use strict;
@@ -80,10 +80,12 @@ sub create_virtualos {
             fatal => 0,
         );
 
-    eval { $self->set_password() if $vos->{password}; };
-    if ( $@ ) {
-        $errors++;
-        $prov->error(message=>$@, fatal=>0) 
+    if ( $vos->{password} ) {
+        eval { $self->set_password(); };
+        if ( $@ ) {
+            $errors++;
+            $prov->error(message=>$@, fatal=>0) 
+        };
     };
 
     eval { $self->set_fstab(); };
@@ -141,7 +143,6 @@ sub destroy_virtualos {
     return 1 if ! -d $container_dir;
 
     my $cmd = $util->find_bin( bin => 'rm', debug => 0 );
-    $prov->audit("$cmd -rf $container_dir");
     $util->syscmd(
         cmd   => "$cmd -rf $container_dir",
         debug => $vos->{debug},
@@ -174,7 +175,6 @@ sub start_virtualos {
 
     my $cmd = $util->find_bin( bin => 'xm', debug => 0 );
     $cmd .= " create $config_file";
-    $prov->audit("\tcmd: $cmd");
     $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} )
         or $prov->error( message => "unable to start $ctid" );
 
@@ -318,6 +318,21 @@ sub modify_virtualos {
 
 }
 
+sub reinstall_virtualos {
+
+    my $self = shift;
+
+    $self->destroy_virtualos()
+        or
+        return $prov->error( 
+            message => "unable to destroy virtual $vos->{name}",
+            fatal   => $vos->{fatal},
+            debug   => $vos->{debug},
+        );
+
+    return $self->create_virtualos();
+}
+
 sub create_disk_image {
     my $self = shift;
 
@@ -327,14 +342,12 @@ sub create_disk_image {
     # create the disk image
     my $cmd = $util->find_bin( bin => 'lvcreate', debug => $vos->{debug} );
     $cmd .= " -L$size -n${img_name} vol00";
-    $prov->audit("\tcmd: $cmd");
     $util->syscmd( cmd => $cmd, debug => 0 )
         or return $prov->error( message => "unable to create $img_name" );
 
     # format it as ext3 file system
     $cmd = $util->find_bin( bin => 'mkfs.ext3', debug => $vos->{debug} );
     $cmd .= " /dev/vol00/${img_name}";
-    $prov->audit("\tcmd: $cmd");
     return $util->syscmd( cmd => $cmd, debug => 0 );
 }
 
@@ -348,14 +361,12 @@ sub create_swap_image {
     # create the swap image
     my $cmd = $util->find_bin( bin => 'lvcreate', debug => $vos->{debug} );
     $cmd .= " -L$size -n${img_name} vol00";
-    $prov->audit("\tcmd: $cmd");
     $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} )
         or return $prov->error( message => "unable to create $img_name" );
 
     # format the swap file system
     $cmd = $util->find_bin( bin => 'mkswap', debug => $vos->{debug} );
     $cmd .= " /dev/vol00/${img_name}";
-    $prov->audit("\tcmd: $cmd");
     $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} )
         or return $prov->error( message => "unable to create $img_name" );
 
@@ -372,7 +383,6 @@ sub destroy_disk_image {
         $prov->audit("\tfound it. You killed my father, prepare to die!");
         my $cmd = $util->find_bin( bin => 'lvremove', debug => $vos->{debug} );
         $cmd .= " -f vol00/${img_name}";
-        $prov->audit("\tcmd: $cmd");
         $util->syscmd( cmd => $cmd, debug => 0 )
             or return $prov->error( message => "unable to destroy $img_name" );
         return 1;
@@ -389,7 +399,6 @@ sub destroy_swap_image {
         my $cmd
             = $util->find_bin( bin => 'lvremove', debug => $vos->{debug} );
         $cmd .= " -f vol00/${img_name}";
-        $prov->audit("\tcmd: $cmd");
         $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} )
             or return $prov->error( message => "unable to destroy $img_name" );
         return 1;
@@ -416,7 +425,6 @@ sub extract_template {
     # untar the template
     my $cmd = $util->find_bin( bin => 'tar', debug => $vos->{debug} );
     $cmd .= " -zxf $template_dir/$vos->{template}.tar.gz -C $mount_dir";
-    $prov->audit("\tcmd: $cmd");
     $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} )
         or return $prov->error(
         message => "unable to extract tarball $vos->{template}" );
@@ -571,8 +579,8 @@ sub get_ve_home {
 sub get_ve_name {
     my $self = shift;
     my $ctid = $vos->{name};
-    my $suffix = '.vm';  # TODO: make this a config file option
-    return $ctid . $suffix;
+       $ctid .= '.vm';  # TODO: make this a config file option
+    return $ctid;
 };
 
 sub is_present {
@@ -685,14 +693,12 @@ sub mount_disk_image {
         );
     }
 
-
     return if ( -d "$mount_dir/etc" );   # already mounted
 
     #$mount /dev/vol00/${VMNAME}_rootimg /home/xen/$ve_name/mnt
     my $cmd = $util->find_bin( bin => 'mount', debug => $vos->{debug} );
     $cmd .= " /dev/vol00/$img_name $disk_root/$ve_name/mnt";
-    $prov->audit("\tcmd: $cmd");
-    $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} )
+    $util->syscmd( cmd => $cmd, debug => $vos->{debug}, fatal => $vos->{fatal} )
         or $prov->error( message => "unable to mount $img_name" );
     return 1;
 }
@@ -710,14 +716,16 @@ sub set_password {
 
     my $i_stopped;
     if ( $self->is_running ) {
-        $i_stopped++;
         $self->stop_virtualos()
         or
         return $prov->error( message => "unable to stop virtual $ve_name" );
+        $i_stopped++;
     };
     
     my $i_mounted;
     $i_mounted++ if $self->mount_disk_image();
+
+    my $errors;
 
     # set the VE root password
     my $pass_file = "$ve_home/mnt/etc/shadow";  # SYS 5
@@ -725,42 +733,58 @@ sub set_password {
         $pass_file = "$ve_home/mnt/etc/master.passwd";  # BSD
         if ( ! -f $pass_file ) {
             $pass_file = "$ve_home/mnt/etc/passwd";
-            -f $pass_file or return $prov->error(message=> "could not find password file", fatal => 0);
+            if ( !  -f $pass_file ) {
+                $errors++;
+                $prov->error(message=> "could not find password file", fatal => 0);
+            };
         };
     };
-
-    my @lines = $util->file_read( file => $pass_file );
-    grep { /^root:/ } @lines or $prov->error( message=> "could not find root password entry in $pass_file!", fatal => 0);
 
     my $user = Provision::Unix::User->new( prov => $prov );
-    my $crypted = $user->get_crypted_password($pass);
+    if ( ! $errors ) {
+        my @lines = $util->file_read( file => $pass_file, fatal => 0 );
+        grep { /^root:/ } @lines 
+            or $prov->error( 
+                message=> "could not find root password entry in $pass_file!", fatal => 0);
 
-    foreach ( @lines ) {
-        s/root\:.*?\:/root\:$crypted\:/ if m/^root\:/;
-    };
-    $util->file_write( file => $pass_file, lines => \@lines, debug => $vos->{debug}, fatal => 0 );
+        my $crypted = $user->get_crypted_password($pass);
 
-    # install the SSH key
-    if ( $vos->{ssh_key} ) {
-        eval {
-            $user->install_ssh_key(
-                homedir => "$ve_home/mnt/root",
-                ssh_key => $vos->{ssh_key},
-            );
+        foreach ( @lines ) {
+            s/root\:.*?\:/root\:$crypted\:/ if m/^root\:/;
         };
-        $prov->error(message=>$@, fatal => 0 ) if $@;
+        $util->file_write( 
+            file => $pass_file, lines => \@lines, 
+            debug => $vos->{debug}, fatal => 0,
+        );
+
+        # install the SSH key
+        if ( $vos->{ssh_key} ) {
+            eval {
+                $user->install_ssh_key(
+                    homedir => "$ve_home/mnt/root",
+                    ssh_key => $vos->{ssh_key},
+                );
+            };
+            $prov->error(message=>$@, fatal => 0 ) if $@;
+        };
     };
 
     # set the VE console password
     my %request = ( username => $ve_name, password => $pass );
-    $request{username} =~ s/\.//;  # strip the . out of the veid name: NNNNN.vm
-    $request{ssh_key} = $vos->{ssh_key} if $vos->{ssh_key};
-    eval { $user->set_password( %request ); };
-    $prov->error( message => $@, fatal => 0 ) if $@;
+    $request{username} =~ s/\.//g;  # strip the . out of the veid name: NNNNN.vm
+    if ( $user->exists( $request{username} ) ) {  # see if user exists
+        $request{ssh_key} = $vos->{ssh_key} if $vos->{ssh_key};
+        eval { $user->set_password( %request ); };
+        if ( $@ ) {
+            $errors++;
+            $prov->error( message => $@, fatal => 0 );
+        };
+    };
 
     $self->unmount_disk_image() if $i_mounted;
     $self->start_virtualos() if $i_stopped;
-    return 1;
+    return 1 if ! $errors;
+    return;
 };
 
 sub set_fstab {
@@ -793,7 +817,6 @@ sub unmount_disk_image {
     my $cmd = $util->find_bin( bin => 'umount', debug => $vos->{debug} );
     $cmd .= " /dev/vol00/$img_name";
 
-    $prov->audit("\tcmd: $cmd");
     $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} )
         or $prov->error( message => "unable to unmount $img_name" );
 }
@@ -932,7 +955,7 @@ L<http://search.cpan.org/dist/Provision-Unix>
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2008 Matt Simerson
+Copyright 2009 Matt Simerson
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

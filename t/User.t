@@ -32,7 +32,13 @@ my $user_that_exists_by_default
     : lc($OSNAME) eq 'freebsd' ? 'daemon'
     :                            'daemon';
 
-ok( $user->exists($user_that_exists_by_default), 'exists' );
+my $r = $user->exists($user_that_exists_by_default);
+if ( $r ) {
+    ok( $r, 'exists' );
+}
+else {
+    warn "seriously? Your $OSNAME system doesn't have the user $user_that_exists_by_default?";
+};
 
 # _is_valid_username
 ok( $user->_is_valid_username('provunix'), '_is_valid_username valid' )

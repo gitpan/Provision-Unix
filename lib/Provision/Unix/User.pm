@@ -1,6 +1,6 @@
 package Provision::Unix::User;
 
-our $VERSION = '0.19';
+our $VERSION = '0.21';
 
 use strict;
 use warnings;
@@ -289,16 +289,18 @@ sub install_ssh_key {
     my %p = validate( @_, {
             homedir => { type => SCALAR },
             ssh_key => { type => SCALAR },
+            debug   => { type => BOOLEAN, optional => 1 },
         }
     );
 
     my $homedir = $p{homedir};
     my $key = $p{ssh_key};
+    my $debug = defined $p{debug} ? $p{debug} : $self->{debug};
 
     if ( ! -d $homedir ) {
         return $prov->error(
             message => "dir '$homedir' does not exist!",
-            debug => $self->{debug},
+            debug => $debug,
             fatal => $self->{fatal},
         );
     };
@@ -307,7 +309,7 @@ sub install_ssh_key {
     if ( ! -d $ssh_dir && ! -e $ssh_dir ) {
         mkpath($ssh_dir, 0, 0700) or $prov->error(
             message=> "unable to create $ssh_dir",
-            debug => $self->{debug},
+            debug => $debug,
             fatal => $self->{fatal},
         );
     };
@@ -316,7 +318,7 @@ sub install_ssh_key {
         file => "$ssh_dir/authorized_keys",
         lines => [ "$key\n" ],
         mode  => 0622,
-        debug => $self->{debug},
+        debug => $debug,
         fatal => $self->{fatal},
     );
 };
@@ -536,8 +538,7 @@ sub _is_valid_username {
     }
 
     # only lower case letters and numbers
-    # begins with an alpha character
-    if ( $username !~ /^[a-z][a-z0-9]+$/ ) {
+    if ( $username =~ /[^a-z0-9]/ ) {
         return $prov->error(
             {   message  => "\tusername $username has invalid characters",
                 location => join( ',', caller ),
@@ -603,7 +604,6 @@ Checks:
 
    * Usernames must be between 2 and 16 characters.
    * Usernames must have only lower alpha and numeric chars
-   * Usernames must begin with an alpha character
    * Usernames must not be defined in $denylist or reserved list
 
 The format of $local/etc/passwd.reserved is one username per line.
