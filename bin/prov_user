@@ -65,7 +65,7 @@ pod2usage( { -verbose => 1 } ) if !$actions{$action};
 
 sub user_create {
     $user->{username} ||= $util->ask( question => 'Username' ) || die;
-    $prov->error(message=> "user exists",debug=>0) if $user->exists($user->{username});
+    $prov->error( "user exists",debug=>0) if $user->exists($user->{username});
     $user->{password} ||= $util->ask( question => 'Password', password => 1 );
     $user->{uid} ||= $util->ask( question => 'uid' ) || die;
     $user->{gid} ||= $util->ask( question => 'gid' ) || die;

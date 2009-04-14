@@ -41,24 +41,23 @@ sub create_virtualos {
     my $self = shift;
 
     $EUID == 0
-        or $prov->error(
-        message => "Create function requires root privileges." );
+        or $prov->error( "Create function requires root privileges." );
 
-    my $ctid = $vos->{name} or die "name of container missing!\n";
+    my $ctid = $vos->{name} or return $prov->error( "name of container missing!");
 
-    # do not create if it exists already
-    return $prov->error(
-        message => "ctid $ctid already exists",
-        fatal   => $vos->{fatal},
-        debug   => $vos->{debug},
-    ) if $self->is_present();
+    if ( $self->is_present() ) {
+        return $prov->error( "ctid $ctid already exists",
+            fatal   => $vos->{fatal},
+            debug   => $vos->{debug},
+        ); 
+    };
 
-    $self->is_valid_template( $vos->{template} )
-        or return $prov->error(
-        message => "no valid template specified",
-        fatal   => $vos->{fatal},
-        debug   => $vos->{debug},
+    if ( !  $self->is_valid_template( $vos->{template} ) ) {
+        return $prov->error( "no valid template specified",
+            fatal   => $vos->{fatal},
+            debug   => $vos->{debug},
         );
+    };
 
     my $errors;
     my $xm = $util->find_bin( bin => 'xm', debug => $vos->{debug}, fatal => $vos->{fatal} );
@@ -66,38 +65,37 @@ sub create_virtualos {
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
 
     $self->create_swap_image()
-        or $prov->error( message => "unable to create swap" );
+        or $prov->error( "unable to create swap" );
 
     $self->create_disk_image()
-        or $prov->error( message => "unable to create disk image" );
+        or $prov->error( "unable to create disk image" );
 
     $self->mount_disk_image();
 
 # make sure we trap any errors here and clean up after ourselves.
     $self->extract_template()
-        or $prov->error(
-            message => "unable to extract template onto disk image",
+        or $prov->error( "unable to extract template onto disk image",
             fatal => 0,
         );
 
     if ( $vos->{password} ) {
-        eval { $self->set_password(); };
+        eval { $self->set_password('setup'); };
         if ( $@ ) {
             $errors++;
-            $prov->error(message=>$@, fatal=>0) 
+            $prov->error( $@, fatal=>0) 
         };
     };
 
     eval { $self->set_fstab(); };
     if ( $@ ) {
         $errors++;
-        $prov->error(message=>$@, fatal=>0) 
+        $prov->error( $@, fatal=>0) 
     };
 
     $self->unmount_disk_image();
 
     $self->install_config_file()
-        or $prov->error( message => "unable to install config file" );
+        or $prov->error( "unable to install config file" );
 
     # TODO:
     # set_hostname
@@ -113,32 +111,29 @@ sub destroy_virtualos {
     my $self = shift;
 
     $EUID == 0
-        or $prov->error(
-        message => "Destroy function requires root privileges." );
+        or $prov->error( "Destroy function requires root privileges." );
 
     my $ctid = $vos->{name};
 
-    $prov->audit("checking if $ctid exists");
-
-    # make sure CTID exists
-    return $prov->error(
-        message => "container $ctid does not exist",
-        fatal   => $vos->{fatal},
-        debug   => $vos->{debug},
-    ) if !$self->is_present();
-
-    $prov->audit("\tctid '$ctid' found, checking state...");
+    if ( !$self->is_present() ) {
+        return $prov->error( "container $ctid does not exist",
+            fatal   => $vos->{fatal},
+            debug   => $vos->{debug},
+        ); 
+    };
 
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
 
-    $self->stop_virtualos() if $self->is_running();   # shut down
+    if ( $self->is_running() ) {
+        $self->stop_virtualos() or return $prov->error("could not shut down VPS");
+    };
 
     $prov->audit("\tctid '$ctid' is stopped. Nuking it...");
     $self->destroy_disk_image();
     $self->destroy_swap_image();
 
     my $container_dir = $self->get_ve_home() or
-        $prov->error( message => "could not deduce the containers home dir" );
+        $prov->error( "could not deduce the containers home dir" );
 
     return 1 if ! -d $container_dir;
 
@@ -149,7 +144,7 @@ sub destroy_virtualos {
         fatal => $vos->{fatal},
     );
     if ( -d $container_dir ) {
-        $prov->error( message => "failed to delete $container_dir" );
+        $prov->error( "failed to delete $container_dir" );
     }
     return 1;
 }
@@ -159,24 +154,24 @@ sub start_virtualos {
 
     my $ctid = $vos->{name} or die "name of container missing!\n";
 
-    # make sure it exists
-    return $prov->error(
-        message => "ctid $ctid does not exist",
-        fatal   => $vos->{fatal},
-        debug   => $vos->{debug},
-    ) if !$self->is_present();
+    if ( !$self->is_present() ) {
+        return $prov->error( "ctid $ctid does not exist",
+            fatal   => $vos->{fatal},
+            debug   => $vos->{debug},
+        ); 
+    };
+
+    return 1 if $self->is_running();
 
     my $config_file = $self->get_ve_config_path();
     if ( !-e $config_file ) {
-        $prov->error( message =>
-                "config file for $ctid should be at $config_file and is missing."
-        );
+        return $prov->error( "config file for $ctid at $config_file is missing.");
     }
 
     my $cmd = $util->find_bin( bin => 'xm', debug => 0 );
     $cmd .= " create $config_file";
     $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} )
-        or $prov->error( message => "unable to start $ctid" );
+        or $prov->error( "unable to start $ctid" );
 
     foreach ( 1..15 ) {
         return 1 if $self->is_running();
@@ -189,29 +184,40 @@ sub start_virtualos {
 sub stop_virtualos {
     my $self = shift;
 
-    $prov->audit("\tctid '$vos->{name}' is running, stopping...");
-    my $xm = $util->find_bin( bin => 'xm', debug => 0 );
-
     my $ve_name = $self->get_ve_name();
 
-    # try a 'friendly' shutdown first for 25 seconds
+    return 1 if ! $self->is_running();
+
+    $prov->audit("\tstopping '$ve_name' ");
+    my $xm = $util->find_bin( bin => 'xm', debug => 0 );
+
+    # try a 'friendly' shutdown first for 10 seconds
     $util->syscmd(
         cmd     => "$xm shutdown -w $ve_name",
-        timeout => 25,
+        timeout => 10,
         debug   => 0,
         fatal   => 0,
     );
 
-    return 1 if !$self->is_running();
+    # wait up to 15 seconds for it to finish shutting down
+    foreach ( 1..15 ) {
+        return 1 if ! $self->is_running();
+        sleep 1;   # the xm destroy may exit before the VE is stopped.
+    };
 
     # whack it with the bigger hammer
     $util->syscmd(
         cmd   => "$xm destroy $ve_name",
-        timeout => 120,
+        timeout => 20,
         fatal => 0,
         debug => 0,
     );
-    sleep 3;
+
+    # wait up to 15 seconds for it to finish shutting down
+    foreach ( 1..15 ) {
+        return 1 if ! $self->is_running();
+        sleep 1;   # the xm destroy may exit before the VE is stopped.
+    };
 
     return 1 if !$self->is_running();
     return;
@@ -223,7 +229,7 @@ sub restart_virtualos {
     my $ve_name = $self->get_ve_name();
 
     if ( ! $self->stop_virtualos() ) {
-        $prov->error( message => "unable to stop virtual $ve_name" );
+        $prov->error( "unable to stop virtual $ve_name", fatal => 0 );
         return;
     };
 
@@ -237,8 +243,7 @@ sub disable_virtualos {
     $prov->audit("disabling virtual $ctid");
 
     # make sure CTID exists
-    return $prov->error(
-        message => "\tcontainer $ctid does not exist",
+    return $prov->error( "container $ctid does not exist",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
     ) if !$self->is_present();
@@ -246,9 +251,7 @@ sub disable_virtualos {
     # make sure config file exists
     my $config = $self->get_ve_config_path();
     if ( !-e $config ) {
-        return $prov->error(
-            message =>
-                "\tconfiguration file ($config) for $ctid does not exist",
+        return $prov->error( "configuration file ($config) for $ctid does not exist",
             fatal => $vos->{fatal},
             debug => $vos->{debug},
         );
@@ -261,8 +264,7 @@ sub disable_virtualos {
 
     $prov->audit("\tdisabling $ctid.");
     move( $config, "$config.suspend" )
-        or return $prov->error(
-        message => "\tunable to move file '$config': $!",
+        or return $prov->error( "\tunable to move file '$config': $!",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
         );
@@ -278,15 +280,13 @@ sub enable_virtualos {
     $prov->audit("enabling virtual $ctid");
 
     # make sure CTID exists
-    return $prov->error(
-        message => "\tcontainer $ctid does not exist",
+    return $prov->error( "container $ctid does not exist",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
     ) if !$self->is_present();
 
     # make sure CTID is disabled
-    return $prov->error(
-        message => "\tcontainer $ctid is not disabled",
+    return $prov->error( "container $ctid is not disabled",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
     ) if $self->is_enabled();
@@ -294,9 +294,7 @@ sub enable_virtualos {
     # make sure config file exists
     my $config = $self->get_ve_config_path();
     if ( !-e "$config.suspend" ) {
-        return $prov->error(
-            message =>
-                "\tconfiguration file ($config.suspend) for $ctid does not exist",
+        return $prov->error( "configuration file ($config.suspend) for $ctid does not exist",
             fatal => $vos->{fatal},
             debug => $vos->{debug},
         );
@@ -305,8 +303,7 @@ sub enable_virtualos {
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
 
     move( "$config.suspend", $config )
-        or return $prov->error(
-        message => "\tunable to move file '$config': $!",
+        or return $prov->error( "\tunable to move file '$config': $!",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
         );
@@ -324,8 +321,7 @@ sub reinstall_virtualos {
 
     $self->destroy_virtualos()
         or
-        return $prov->error( 
-            message => "unable to destroy virtual $vos->{name}",
+        return $prov->error( "unable to destroy virtual $vos->{name}",
             fatal   => $vos->{fatal},
             debug   => $vos->{debug},
         );
@@ -343,7 +339,7 @@ sub create_disk_image {
     my $cmd = $util->find_bin( bin => 'lvcreate', debug => $vos->{debug} );
     $cmd .= " -L$size -n${img_name} vol00";
     $util->syscmd( cmd => $cmd, debug => 0 )
-        or return $prov->error( message => "unable to create $img_name" );
+        or return $prov->error( "unable to create $img_name" );
 
     # format it as ext3 file system
     $cmd = $util->find_bin( bin => 'mkfs.ext3', debug => $vos->{debug} );
@@ -362,13 +358,13 @@ sub create_swap_image {
     my $cmd = $util->find_bin( bin => 'lvcreate', debug => $vos->{debug} );
     $cmd .= " -L$size -n${img_name} vol00";
     $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} )
-        or return $prov->error( message => "unable to create $img_name" );
+        or return $prov->error( "unable to create $img_name" );
 
     # format the swap file system
     $cmd = $util->find_bin( bin => 'mkswap', debug => $vos->{debug} );
     $cmd .= " /dev/vol00/${img_name}";
     $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} )
-        or return $prov->error( message => "unable to create $img_name" );
+        or return $prov->error( "unable to create $img_name" );
 
     return 1;
 }
@@ -384,7 +380,7 @@ sub destroy_disk_image {
         my $cmd = $util->find_bin( bin => 'lvremove', debug => $vos->{debug} );
         $cmd .= " -f vol00/${img_name}";
         $util->syscmd( cmd => $cmd, debug => 0 )
-            or return $prov->error( message => "unable to destroy $img_name" );
+            or return $prov->error( "unable to destroy $img_name" );
         return 1;
     }
     return;
@@ -400,7 +396,7 @@ sub destroy_swap_image {
             = $util->find_bin( bin => 'lvremove', debug => $vos->{debug} );
         $cmd .= " -f vol00/${img_name}";
         $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} )
-            or return $prov->error( message => "unable to destroy $img_name" );
+            or return $prov->error( "unable to destroy $img_name" );
         return 1;
     }
     return;
@@ -410,8 +406,7 @@ sub extract_template {
     my $self = shift;
 
     $self->is_valid_template( $vos->{template} )
-        or return $prov->error(
-        message => "no valid template specified",
+        or return $prov->error( "no valid template specified",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
         );
@@ -426,8 +421,7 @@ sub extract_template {
     my $cmd = $util->find_bin( bin => 'tar', debug => $vos->{debug} );
     $cmd .= " -zxf $template_dir/$vos->{template}.tar.gz -C $mount_dir";
     $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} )
-        or return $prov->error(
-        message => "unable to extract tarball $vos->{template}" );
+        or return $prov->error( "unable to extract tarball $vos->{template}" );
     return 1;
 }
 
@@ -474,16 +468,21 @@ sub get_status {
 
     my $ve_name = $self->get_ve_name();
 
+    $self->{status} = {};    # reset status
+
     if ( ! $self->is_present() ) {
-        my $error = "The xen VE $ve_name does not exist here!";
-        $prov->error( message => $error );
+        $prov->audit( "The xen VE $ve_name does not exist", fatal => 0 );
+        $self->{status}{$ve_name} = { state => 'missing' };
+        return $self->{status}{$ve_name};
     };
 
-    my $cmd = $util->find_bin( bin => 'xm', debug => 0 );
-    $cmd .= ' list $ve_name';
-    my $r = `$cmd`;
-    my $error = 'could not get valid output from xm list';
-    $r =~ /VCPUs/ or return $prov->error( message => $error );
+    # get IPs and disks from the containers config file
+    my ($ips, $disks, $disk_usage );
+    my $config_file = $self->get_ve_config_path();
+    if ( ! -e $config_file ) {
+        $prov->error( "\tmissing config file $config_file", fatal => 0);
+        return { state => 'broken' };
+    };
 
     my ($xen_conf, $config);
     eval "require Provision::Unix::VirtualOS::Xen::Config";
@@ -491,26 +490,35 @@ sub get_status {
         $xen_conf = Provision::Unix::VirtualOS::Xen::Config->new();
     };
 
-    # get IPs and disks from the containers config file
-    my ($ips, $disks, $disk_usage );
-    my $config_file = $self->get_ve_config_path();
-    if ( -e $config_file ) {
-        if ( $xen_conf && $xen_conf->read_config($config_file) ) {
-            $ips   = $xen_conf->get_ips();
-            $disks = $xen_conf->get('disk');
-        };
-        foreach ( @$disks ) {
-            my ($image) = $_ =~ /phy:(.*?),/;
-            next if ! -e $image;
-            next if $image =~ /swap/i;
-            $disk_usage = $self->get_disk_usage($image);
-        };
-    }
-    else {
-        warn "could not find $config_file\n" if $vos->{debug};
+    if ( $xen_conf && $xen_conf->read_config($config_file) ) {
+        $ips   = $xen_conf->get_ips();
+        $disks = $xen_conf->get('disk');
+    };
+    foreach ( @$disks ) {
+        my ($image) = $_ =~ /phy:(.*?),/;
+        next if ! -e $image;
+        next if $image =~ /swap/i;
+        $disk_usage = $self->get_disk_usage($image);
     };
 
-    $self->{status} = {};
+    my $cmd = $util->find_bin( bin => 'xm', debug => 0 );
+    $cmd .= " list $ve_name";
+    my $r = `$cmd 2>&1`;
+
+    if ( $r =~ /does not exist/ ) {
+
+        # a Xen VE that is shut down won't show up in the output of 'xm list'
+        $self->{status}{$ve_name} = {
+            ips      => $ips,
+            disks    => $disks,
+            state    => 'shutdown',
+        };
+        return $self->{status}{$ve_name};
+    };
+
+    $r =~ /VCPUs/ 
+        or $prov->error( "could not get valid output from '$cmd'", fatal => 0 );
+
     foreach my $line ( split /\n/, $r ) {
 
  # Name                               ID Mem(MiB) VCPUs State   Time(s)
@@ -534,13 +542,6 @@ sub get_status {
         };
         return $self->{status}{$ctid};
     }
-
-    # a Xen VE that is shut down won't show up in the output of 'xm list'
-    return {
-        ips      => $ips,
-        disks    => $disks,
-        state    => 'shutdown',
-    };
 
     sub _run_state {
         my $abbr = shift;
@@ -594,7 +595,7 @@ sub is_present {
     );
 
     my $name = $p{name} || $vos->{name} or
-        $prov->error( message => 'is_present was called without a CTID' );
+        $prov->error( 'is_present was called without a CTID' );
 
     my $ve_home = $self->get_ve_home();
 
@@ -624,14 +625,18 @@ sub is_running {
         @_, { 'refresh' => { type => SCALAR, optional => 1, default => 1 }, }
     );
 
-    my $ve_name = $self->get_ve_name();
-
     $self->get_status() if $p{refresh};
+
+    my $ve_name = $self->get_ve_name();
 
     if ( $self->{status}{$ve_name} ) {
         my $state = $self->{status}{$ve_name}{state};
-        return 1 if ( $state && $state eq 'running' );
+        if ( $state && $state eq 'running' ) {
+            $prov->audit("$ve_name is running");
+            return 1;
+        };
     }
+    $prov->audit("$ve_name is not running");
     return;
 }
 
@@ -648,7 +653,7 @@ sub is_enabled {
     );
 
     my $name = $p{name}
-        || $prov->error( message => 'is_enabled was called without a CTID' );
+        || $prov->error( 'is_enabled was called without a CTID' );
     $prov->audit("testing if virtual container $name is enabled");
 
     my $ve_name     = $self->get_ve_name();
@@ -686,8 +691,7 @@ sub mount_disk_image {
     }
 
     if ( !-d $mount_dir ) {
-        return $prov->error(
-            message => "unable to create $mount_dir",
+        return $prov->error( "unable to create $mount_dir",
             fatal   => $vos->{fatal},
             debug   => $vos->{debug},
         );
@@ -699,31 +703,36 @@ sub mount_disk_image {
     my $cmd = $util->find_bin( bin => 'mount', debug => $vos->{debug} );
     $cmd .= " /dev/vol00/$img_name $disk_root/$ve_name/mnt";
     $util->syscmd( cmd => $cmd, debug => $vos->{debug}, fatal => $vos->{fatal} )
-        or $prov->error( message => "unable to mount $img_name" );
+        or $prov->error( "unable to mount $img_name" );
     return 1;
 }
 
 sub set_password {
     my $self = shift;
+    my $arg = shift;
 
     my $ve_name = $self->get_ve_name();
     my $ve_home = $self->get_ve_home();
     my $pass    = $vos->{password}
-        or return $prov->error(
-        message => 'set_password function called but password not provided',
+        or return $prov->error( 'no password provided',
         fatal   => $vos->{fatal},
     );
 
+    $prov->audit("setting VPS password");
+
     my $i_stopped;
-    if ( $self->is_running ) {
-        $self->stop_virtualos()
-        or
-        return $prov->error( message => "unable to stop virtual $ve_name" );
-        $i_stopped++;
-    };
-    
     my $i_mounted;
-    $i_mounted++ if $self->mount_disk_image();
+
+    if ( ! $arg || $arg ne 'setup' ) {
+        if ( $self->is_running ) {
+            $self->stop_virtualos()
+            or
+            return $prov->error( "\tunable to stop virtual $ve_name" );
+            $i_stopped++;
+        };
+    
+        $i_mounted++ if $self->mount_disk_image();
+    }
 
     my $errors;
 
@@ -735,7 +744,7 @@ sub set_password {
             $pass_file = "$ve_home/mnt/etc/passwd";
             if ( !  -f $pass_file ) {
                 $errors++;
-                $prov->error(message=> "could not find password file", fatal => 0);
+                $prov->error( "\tcould not find password file", fatal => 0);
             };
         };
     };
@@ -744,8 +753,7 @@ sub set_password {
     if ( ! $errors ) {
         my @lines = $util->file_read( file => $pass_file, fatal => 0 );
         grep { /^root:/ } @lines 
-            or $prov->error( 
-                message=> "could not find root password entry in $pass_file!", fatal => 0);
+            or $prov->error( "\tcould not find root password entry in $pass_file!", fatal => 0);
 
         my $crypted = $user->get_crypted_password($pass);
 
@@ -765,7 +773,7 @@ sub set_password {
                     ssh_key => $vos->{ssh_key},
                 );
             };
-            $prov->error(message=>$@, fatal => 0 ) if $@;
+            $prov->error( $@, fatal => 0 ) if $@;
         };
     };
 
@@ -777,12 +785,14 @@ sub set_password {
         eval { $user->set_password( %request ); };
         if ( $@ ) {
             $errors++;
-            $prov->error( message => $@, fatal => 0 );
+            $prov->error( $@, fatal => 0 );
         };
     };
 
-    $self->unmount_disk_image() if $i_mounted;
-    $self->start_virtualos() if $i_stopped;
+    if ( ! $arg || $arg ne 'setup' ) {
+        $self->unmount_disk_image() if $i_mounted;
+        $self->start_virtualos() if $i_stopped;
+    };
     return 1 if ! $errors;
     return;
 };
@@ -818,7 +828,7 @@ sub unmount_disk_image {
     $cmd .= " /dev/vol00/$img_name";
 
     $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} )
-        or $prov->error( message => "unable to unmount $img_name" );
+        or $prov->error( "unable to unmount $img_name" );
 }
 
 sub install_config_file {
@@ -882,16 +892,12 @@ sub is_valid_template {
 
         # TODO
 
-        return $prov->error(
-            message =>
-                'template does not exist and programmers have not yet written the code to retrieve templates via URL',
+        return $prov->error( 'template does not exist and programmers have not yet written the code to retrieve templates via URL',
             fatal => 0,
         );
     }
 
-    return $prov->error(
-        message =>
-            "template '$template' does not exist and is not a valid URL",
+    return $prov->error( "template '$template' does not exist and is not a valid URL",
         debug => $vos->{debug},
         fatal => $vos->{fatal},
     );

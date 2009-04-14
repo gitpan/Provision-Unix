@@ -1,6 +1,6 @@
 package Provision::Unix::User;
 
-our $VERSION = '0.21';
+our $VERSION = '0.23';
 
 use strict;
 use warnings;
@@ -298,8 +298,7 @@ sub install_ssh_key {
     my $debug = defined $p{debug} ? $p{debug} : $self->{debug};
 
     if ( ! -d $homedir ) {
-        return $prov->error(
-            message => "dir '$homedir' does not exist!",
+        return $prov->error( "dir '$homedir' does not exist!",
             debug => $debug,
             fatal => $self->{fatal},
         );
@@ -307,8 +306,7 @@ sub install_ssh_key {
 
     my $ssh_dir = "$homedir/.ssh";
     if ( ! -d $ssh_dir && ! -e $ssh_dir ) {
-        mkpath($ssh_dir, 0, 0700) or $prov->error(
-            message=> "unable to create $ssh_dir",
+        mkpath($ssh_dir, 0, 0700) or $prov->error( "unable to create $ssh_dir",
             debug => $debug,
             fatal => $self->{fatal},
         );
@@ -404,20 +402,51 @@ sub get_crypted_password {
 
 =head2 get_crypted_password
 
-	$user->get_crypted_password($pass)
+	$user->get_crypted_password($pass, [$salt] )
 
-get the MD5 digest of the plain text password that is passed in
+get the DES/MD5 digest of the plain text password that is passed in
 
 =cut
 
     my $self = shift;
     my $pass = shift;
+    my $salt = shift || $self->get_salt(8);
 
-    my $salt = '$1$' . join '', ('.', '/', 0..9, "A".."Z", "a".."z") 
-        [rand 64, rand 64, rand 64, rand 64, rand 64, rand 64, rand 64, rand 64];
     my $crypted = crypt($pass, $salt);
     return $crypted;
 };
+
+sub get_salt {
+    my $self = shift;
+    my $count = shift || 8;  # default to 8 chars
+    my @salt_chars = ('.', '/', 0..9, 'A'..'Z', 'a'..'z'); # from perldoc crypt()
+
+    my $salt;
+    for (1 .. $count) {
+        $salt .= (@salt_chars)[rand scalar(@salt_chars) ];
+    }
+
+# ick. crypt may return different results on platforms that support enhanced crypt
+# algorithms (ie, DES vs MD5 vs SHA, etc). Use a special prefix to your salt to 
+# select the algorith to choose MD5 ($1$), blowfish ($2$), etc...
+# real examples with pass 'T3stlN#PaSs' and salt 'ylhEgHiL':
+#   Linux $1$   : $1$ylhEgHiL$rNfB2rqa2JDH9/y8nVyKW.   # MD5
+#   FreeBSD $1$ : $1$ylhEgHiL$rNfB2rqa2JDH9/y8nVyKW.   # MD5
+#   Mac OS 10.5 $1$ : $1eiJVUGcT0JU                    # Gack, no MD5 support!
+#   Linux       : yl0FgzQYzpoVU  # DES
+#   FreeBSD     : yl0FgzQYzpoVU  # DES
+#   Mac OS 10.5 : yl0FgzQYzpoVU  # DES
+# More Info
+#   http://en.wikipedia.org/wiki/Crypt_(Unix)
+#   http://search.cpan.org/~luismunoz/Crypt-PasswdMD5-1.3/PasswdMD5.pm
+#   http://sial.org/howto/perl/password-crypt/
+
+    if ( $OSNAME =~ /Linux|FreeBSD|Solaris/i ) {
+#warn "using MD5 password\n";
+        return '$1$' . $salt;
+    };
+    return $salt;
+}
 
 sub archive {
 
@@ -452,8 +481,7 @@ sub _get_os {
         );
     }
     else {
-        $prov->error( message => "_get_os: "
-                . " FAILED! There is no support for $OSNAME yet. Consider submitting a patch.",
+        $prov->error( "There is no support for $OSNAME yet. Consider submitting a patch.",
                 fatal => 0,
         );
     }
@@ -505,8 +533,7 @@ sub _is_valid_username {
     my $username 
         = shift
         || $self->{username}
-        || return $self->{prov}->error(
-        message  => "username missing",
+        || return $self->{prov}->error( "username missing",
         location => join( ',', caller ),
         fatal    => 0,
         debug    => 0,
@@ -517,34 +544,28 @@ sub _is_valid_username {
 
     # min 2 characters
     if ( length($username) < 2 ) {
-        return $prov->error(
-            {   message  => "\tusername $username is too short",
-                location => join( ',', caller ),
-                fatal    => 0,
-                debug    => 0,
-            }
+        return $prov->error( "username $username is too short",
+            location => join( ',', caller ),
+            fatal    => 0,
+            debug    => 0,
         );
     }
 
     # max 16 characters
     if ( length($username) > 16 ) {
-        return $prov->error(
-            {   message  => "\tusername $username is too long",
-                location => join( ',', caller ),
-                fatal    => 0,
-                debug    => 0,
-            }
+        return $prov->error( "username $username is too long",
+            location => join( ',', caller ),
+            fatal    => 0,
+            debug    => 0,
         );
     }
 
     # only lower case letters and numbers
     if ( $username =~ /[^a-z0-9]/ ) {
-        return $prov->error(
-            {   message  => "\tusername $username has invalid characters",
-                location => join( ',', caller ),
-                fatal    => 0,
-                debug    => 0,
-            }
+        return $prov->error( "username $username has invalid characters",
+            location => join( ',', caller ),
+            fatal    => 0,
+            debug    => 0,
         );
     }
 
@@ -554,12 +575,10 @@ sub _is_valid_username {
             $util->file_read( file => $reserved, fatal => 0, debug => 0 ) )
         {
             if ( $username eq $line ) {
-                return $prov->error(
-                    {   message  => "\t$username is a reserved username.",
-                        location => join( ',', caller ),
-                        fatal    => 0,
-                        debug    => 1,
-                    }
+                return $prov->error( "\t$username is a reserved username.",
+                    location => join( ',', caller ),
+                    fatal    => 0,
+                    debug    => 1,
                 );
             }
         }

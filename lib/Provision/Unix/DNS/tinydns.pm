@@ -56,8 +56,7 @@ sub create_zone {
 
     my $service_dir = $prov->{config}{tinydns}{service_dir};
     if ( $self->get_zone( zone => $zone, fatal => 0 ) ) {
-        return $prov->error(
-            message => "zone $zone already exists",
+        return $prov->error( "zone $zone already exists",
             fatal   => $p{fatal},
             debug   => $p{debug},
         );
@@ -126,7 +125,7 @@ sub create_zone_record {
     $prov->audit("creating $type record in $p{zone}");
 
     if ( !$self->get_zone( zone => $p{zone} ) ) {
-        $prov->error( message => "zone $p{zone} does not exist!" );
+        $prov->error( "zone $p{zone} does not exist!" );
     }
 
     my $record
@@ -139,10 +138,7 @@ sub create_zone_record {
         : $type eq 'SRV'   ? $self->build_srv( \%p )
         : $type eq 'NAPTR' ? $self->build_naptr( \%p )
         : $type eq 'AAAA'  ? $self->build_aaaa( \%p )
-        : $prov->error(
-        message => 'invalid record type',
-        fatal   => $p{fatal}
-        );
+        : $prov->error( 'invalid record type', fatal => $p{fatal} );
 
     my $service_dir = $prov->{config}{tinydns}{service_dir};
 
@@ -245,13 +241,13 @@ sub build_srv {
 # SRV
 # :sip.tcp.example.com:33:\000\001\000\002\023\304\003pbx\007example\003com\000
     if ( $priority < 0 || $priority > 65535 ) {
-        $prov->error( message => "priority $priority not within 0 - 65535" );
+        $prov->error( "priority $priority not within 0 - 65535" );
     }
     if ( $weight < 0 || $weight > 65535 ) {
-        $prov->error( message => "weight $weight not within 0 - 65535" );
+        $prov->error( "weight $weight not within 0 - 65535" );
     }
     if ( $port < 0 || $port > 65535 ) {
-        $prov->error( message => "port $port not within 0 - 65535" );
+        $prov->error( "port $port not within 0 - 65535" );
     }
 
     $priority = escapeNumber($priority);
@@ -328,8 +324,8 @@ sub compile_data_cdb {
     # compile the data.cdb file
     my $original_wd = getcwd;
     chdir($data_dir)
-        or $prov->error( message => "unable to chdir to $data_dir" );
-    system $tdata and $prov->error( message => "could not compile data" );
+        or $prov->error( "unable to chdir to $data_dir" );
+    system $tdata and $prov->error( "could not compile data" );
     chdir $original_wd;
 
     return 1;
@@ -388,8 +384,7 @@ sub _load_DNS_TinyDNS {
 #    eval { require DNS::TinyDNS; };
 
 #    if ($EVAL_ERROR) {
-#        $prov->error(
-#            message => "could not load DNS::TinyDNS. Is it installed?" );
+#        $prov->error( "could not load DNS::TinyDNS. Is it installed?" );
 #    }
 
 #    my $service_dir = $prov->{config}{tinydns}{service_dir};

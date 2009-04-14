@@ -11,9 +11,16 @@ use Params::Validate qw(:all);
 sub new {
     my $class = shift;
 
-    my %p = validate( @_, { 'prov' => { type => OBJECT }, } );
+    my %p = validate( @_, 
+        {   'prov'  => { type => OBJECT }, 
+            'debug' => { type => BOOLEAN, optional => 1 },
+        }
+    );
 
-    my $self = { prov => $p{prov}, };
+    my $self = { 
+        prov  => $p{prov}, 
+        debug => $p{debug},
+    };
     bless( $self, $class );
 
     $self->{nt} = $self->connect();
@@ -28,13 +35,13 @@ sub connect {
     eval { require NicTool; };
 
     if ($EVAL_ERROR) {
-        $prov->error( message =>
-                "Could not load NicTool.pm. Are the NicTool client libraries installed? They can be found in NicToolServer/sys/client in the NicToolServer distribution. See http://nictool.com/"
+        $prov->error( "Could not load NicTool.pm. Are the NicTool client libraries installed? They can be found in NicToolServer/sys/client in the NicToolServer distribution. See http://nictool.com/"
         );
     }
 
+    my $host = $self->{prov}{config}{NicTool}{server_host};
     my $nt = NicTool->new(
-        server_host => $self->{prov}{config}{NicTool}{server_host},
+        server_host => $host,
         server_port => $self->{prov}{config}{NicTool}{server_port},
         protocol    => $self->{prov}{config}{NicTool}{protocol},
     );
@@ -42,18 +49,21 @@ sub connect {
     my $user = $self->{prov}{config}{NicTool}{username};
     my $pass = $self->{prov}{config}{NicTool}{password};
 
-    $prov->audit("logging into nictool with $user:$pass");
+    $prov->audit("logging into nictool at $host with $user:$pass");
 
     my $r = $nt->login( username => $user, password => $pass );
 
     if ( $nt->is_error($r) ) {
-        $prov->error( message => "error logging in: $r->{store}{error_msg}" );
+        return $prov->error( "error logging in: $r->{store}{error_msg}" );
     }
 
-    #warn Data::Dumper::Dumper( $nt ); # ->{user}{store} );
+    my $session = $nt->{nt_user_session};
+    if ( ! $session ) {
+        warn Data::Dumper::Dumper( $nt ); # ->{user}{store} );
+        return $prov->error( "unable to get session" );
+    };
 
-    $prov->audit(
-        "\tlogin successful (session " . $nt->{nt_user_session} . ")" );
+    $prov->audit( "login successful (session $nt->{nt_user_session} )" );
     return $nt;
 }
 
@@ -74,10 +84,13 @@ sub create_zone {
             'template'    => { type => SCALAR, optional => 1, },
             'ip'          => { type => SCALAR, optional => 1, },
             'mailip'      => { type => SCALAR, optional => 1, },
-            'fatal'       => { type => BOOLEAN, optional => 1, default => 1 },
-            'debug'       => { type => BOOLEAN, optional => 1, default => 1 },
+            'fatal'       => { type => BOOLEAN, optional => 1 },
+            'debug'       => { type => BOOLEAN, optional => 1 },
         }
     );
+
+    my $debug = $self->set_debug( $p{debug} );
+    my $fatal = $self->set_fatal( $p{fatal} );
 
     my $prov = $self->{prov};
     $prov->audit("creating zone $p{zone}");
@@ -105,15 +118,15 @@ sub create_zone {
     );
 
     if ( $r->{store}{error_code} != 200 ) {
-        $prov->error(
-            message => "\t$r->{store}{error_desc} ( $r->{store}{error_msg} )",
-            fatal   => $p{fatal},
-            debug   => $p{debug},
+        $prov->error( "$r->{store}{error_desc} ( $r->{store}{error_msg} )",
+            fatal   => $fatal,
+            debug   => $debug,
         );
         return;
     }
 
     my $zone_id = $r->{store}{nt_zone_id};
+    return if ! $zone_id;
     $prov->audit("\tcreated ( $zone_id ) ");
     return $zone_id;
 
@@ -137,10 +150,13 @@ sub create_zone_record {
             'ttl'      => { type => SCALAR, optional => 1 },
             'priority' => { type => SCALAR, optional => 1 },
             'port'     => { type => SCALAR, optional => 1 },
-            'fatal'    => { type => BOOLEAN, optional => 1, default => 1 },
-            'debug'    => { type => BOOLEAN, optional => 1, default => 1 },
+            'fatal'    => { type => BOOLEAN, optional => 1, },
+            'debug'    => { type => BOOLEAN, optional => 1, },
         }
     );
+
+    my $debug = $self->set_debug( $p{debug} );
+    my $fatal = $self->set_fatal( $p{fatal} );
 
     my %valid_types;
     foreach ( qw/ A MX CNAME NS SRV TXT/ ) {
@@ -151,12 +167,12 @@ sub create_zone_record {
     my $type = $p{type};
 
     if ( !$valid_types{$type} ) {
-        $prov->error( message => 'invalid record type', fatal => $p{fatal} );
+        $prov->error( 'invalid record type', fatal => $fatal );
     }
 
     $prov->audit("creating $type record in $p{zone}");
 
-    my $zone_id = $p{zone_id} || $self->get_zone_id( zone => $p{zone} );
+    my $zone_id = $p{zone_id} || $self->get_zone( zone => $p{zone} );
 
     my %request = (
         nt_zone_record_id => undef,
@@ -173,7 +189,7 @@ sub create_zone_record {
     if ( lc($type) eq 'srv' ) {
         $request{priority} = $p{priority} || 5;
         $request{port} = $p{port}
-            || $prov->error( message => 'SRV records require a port' );
+            || $prov->error( 'SRV records require a port' );
     }
 
     my $nt = $self->{nt};
@@ -181,7 +197,7 @@ sub create_zone_record {
 
     if ( $r->{store}{error_code} != 200 ) {
         $prov->error(
-            message => "$r->{store}{error_desc} ( $r->{store}{error_msg} )" );
+            "$r->{store}{error_desc} ( $r->{store}{error_msg} )" );
         return;
     }
 
@@ -199,10 +215,13 @@ sub get_zone {
     my %p = validate(
         @_,
         {   'zone'  => { type => SCALAR },
-            'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
-            'debug' => { type => BOOLEAN, optional => 1, default => 1 },
+            'fatal' => { type => BOOLEAN, optional => 1 },
+            'debug' => { type => BOOLEAN, optional => 1 },
         }
     );
+
+    my $debug = $self->set_debug( $p{debug} );
+    my $fatal = $self->set_fatal( $p{fatal} );
 
     my $prov = $self->{prov};
     $prov->audit("getting zone $p{zone}");
@@ -221,18 +240,16 @@ sub get_zone {
     #warn Data::Dumper::Dumper($r);
 
     if ( $r->{store}{error_code} != 200 ) {
-        return $prov->error(
-            message => "$r->{store}{error_desc} ( $r->{store}{error_msg} )",
-            fatal   => $p{fatal},
-            debug   => $p{debug},
+        return $prov->error( "$r->{store}{error_desc} ( $r->{store}{error_msg} )",
+            fatal   => $fatal,
+            debug   => $debug,
         );
     }
 
     if ( !$r->{store}{zones}[0]{store}{nt_zone_id} ) {
-        return $prov->error(
-            message => "\tzone not found!",
-            fatal   => $p{fatal},
-            debug   => $p{debug},
+        return $prov->error( "zone not found!",
+            fatal   => $fatal,
+            debug   => $debug,
         );
     }
 
@@ -249,25 +266,27 @@ sub delete_zone {
         @_,
         {   'id'   => { type => SCALAR, optional => 1 },
             'zone' => { type => SCALAR },
-            'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
-            'debug' => { type => BOOLEAN, optional => 1, default => 1 },
+            'fatal' => { type => BOOLEAN, optional => 1 },
+            'debug' => { type => BOOLEAN, optional => 1 },
         }
     );
+
+    my $debug = $self->set_debug( $p{debug} );
+    my $fatal = $self->set_fatal( $p{fatal} );
 
     my $prov = $self->{prov};
     $prov->audit("getting zone $p{zone}");
 
-    my $id = $p{id} || $self->get_zone_id( zone => $p{zone} );
+    my $id = $p{id} || $self->get_zone( zone => $p{zone} );
 
     my $nt = $self->{nt};
     my $r = $nt->delete_zones( zone_list => [$id], );
 
     if ( $r->{store}{error_code} != 200 ) {
-        $prov->error(
-            message => "$r->{store}{error_desc} ( $r->{store}{error_msg} )" );
-
-        #warn Data::Dumper::Dumper($r);
-        return;
+        return $prov->error( "$r->{store}{error_desc} ( $r->{store}{error_msg} )", 
+            debug => $debug,
+            fatal => $fatal,
+        );
     }
 
     return $id;
@@ -281,12 +300,31 @@ sub delete_zone_record {
         {   'id'     => { type => SCALAR, optional => 1 },
             'zone'   => { type => SCALAR },
             'record' => { type => SCALAR },
-            'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
-            'debug' => { type => BOOLEAN, optional => 1, default => 1 },
+            'fatal' => { type => BOOLEAN, optional => 1 },
+            'debug' => { type => BOOLEAN, optional => 1 },
         }
     );
 
+    my $debug = $self->set_debug( $p{debug} );
+    my $fatal = $self->set_fatal( $p{fatal} );
+
 }
+
+sub set_debug {
+    my $self = shift;
+    my $new_debug = shift;
+    return $self->{debug} if ! defined $new_debug;
+    $self->{debug} = $new_debug;
+    return $new_debug;
+};
+
+sub set_fatal {
+    my $self = shift;
+    my $new_fatal = shift;
+    return $self->{fatal} if ! defined $new_fatal;
+    $self->{fatal} = $new_fatal;
+    return $new_fatal;
+};
 
 1;
 

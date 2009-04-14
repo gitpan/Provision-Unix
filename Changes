@@ -1,5 +1,15 @@
 Revision history for Provision-Unix
 
+0.52  Apr 
+  - DNS/NicTool was calling get_zone_id but sub was named get_zone
+  - abstracted gen_salt out of get_crypted_password and added logic to choose
+    MD5 on platforms where it's available and fall back to DES if not
+  - added tests for get_salt and get_crypted_password
+  - push errors onto the audit stack as well (as error stack)
+  - added Config::Tiny to list of modules in install_prov_unix.pl
+  - removed 'message => ' named parameter in calls to error ( brevity)
+  - enhancements to Xen.pm for better error handling and reporting
+
 0.51  Apr 07, 2009
   - added bin/set_vps_password.pl
   - Xen set_password only tries to set the console password if the user exists
@@ -17,6 +27,8 @@ Revision history for Provision-Unix
 0.50  Apr 03, 2009
   - added support for installing SSH keys on OpenVZ 
   - added support for updating User passwords on Linux
+  - a section of pod that was inadvertantly being displayed on CPAN web page,
+    wrapped in a heredoc instead.
   - 'xm create' doesn't return anything predictable on busy nodes. Instead,
     retry testing to see if the Xen VE has started for up to 15 seconds, 
     waiting for it to start.

@@ -31,7 +31,7 @@ ok( !$prov->find_config( file => 'provisoin.conf', debug => 0, fatal => 0 ),
     'find_config invalid param' );
 
 # error
-ok( !$prov->error( message => 'test error', fatal => 0, debug => 0 ),
+ok( !$prov->error( 'test error', fatal => 0, debug => 0 ),
     'error' );
 
 # error, missing argument

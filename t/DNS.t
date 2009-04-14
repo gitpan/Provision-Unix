@@ -2,7 +2,6 @@
 use strict;
 use warnings;
 
-use Config::Std { def_sep => '=' };
 use Data::Dumper;
 use English qw( -no_match_vars );
 use Test::More;
@@ -36,7 +35,7 @@ if ( lc( $prov->{config}{DNS}{server} ) ne 'nictool' ) {
         'fully_qualify' );
 }
 
-#$prov->error(message=>'test breakpoint');
+#$prov->error('test breakpoint');
 
 my $server = $prov->{config}{DNS}{server};
 if ( $server eq 'tinydns' ) {
@@ -56,11 +55,14 @@ if ( $server eq 'tinydns' ) {
         = $util->find_bin( bin => 'tinydns-data', fatal => 0, debug => 0 );
     if ( !$tdata || !-x $tdata ) {
 
-        #$prov->error( message => 'djbdns is not installed' );
+        #$prov->error( 'djbdns is not installed' );
         diag('tinydns is selected but djbdns is not installed!');
         exit;
     }
 }
+elsif ( $server =~ /nictool/i ) {
+    $dns->connect() or die "couldn't connect to NicTool server\n";
+};
 
 my @zones = qw/ example.com 2.2.2.in-addr.arpa /;
 
@@ -86,7 +88,7 @@ foreach my $zone (@zones) {
     }
 }
 
-#$prov->error(message=>'test breakpoint');
+#$prov->error('test breakpoint');
 
 my $zone_name = 'example.com';
 my $zone_id = $dns->get_zone( zone => $zone_name, fatal => 0, debug => 0 );
@@ -225,7 +227,7 @@ ok( $dns->create_zone_record(
     'create_zone_record SRV'
 );
 
-#$prov->error(message=>'test breakpoint',debug=>0);
+#$prov->error('test breakpoint',debug=>0);
 
 # delete_zone
 ok( $dns->delete_zone(

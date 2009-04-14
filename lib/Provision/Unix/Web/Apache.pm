@@ -31,8 +31,7 @@ sub new {
     $prov = $p{prov};
     eval "require Apache::Admin::Config";
     if ( $EVAL_ERROR ) {
-        return $prov->error( 
-            message => 'Apache::Admin::Config not installed', 
+        return $prov->error( 'Apache::Admin::Config not installed', 
             fatal => $p{fatal}, 
             debug => $p{debug},
         );
@@ -68,7 +67,7 @@ sub create {
     $prov->audit("apache create");
 
     if ( $self->exists( request => $vals ) ) {
-        return $prov->error( message => "that virtual host already exists", );
+        return $prov->error( "that virtual host already exists", );
     }
 
     # test all the values and make sure we've got enough to form a vhost
@@ -81,7 +80,7 @@ sub create {
 
     unless ($docroot) {
         if ( -d "$home/$name" ) { $docroot = "$home/$name" }
-        return $prov->error( message =>
+        return $prov->error( 
                 "documentroot was not set and could not be determined!", )
             unless -d $docroot;
     }
@@ -130,7 +129,7 @@ sub create {
             or !-f $vals->{'sslkey'}
             or !$vals->{'sslcert'} )
         {
-            return $prov->error( error_desc =>
+            return $prov->error( 
                     "ssl is enabled but either the key or cert is missing!" );
         }
         push @lines, "	SSLEngine on";
@@ -493,7 +492,7 @@ sub get_vhosts {
         :   warn "could not determine where your apache vhosts are\n";
 
     return $vhosts_conf if $vhosts_conf;
-    $prov->error( message => "you must set [Apache][etc] in provision.conf" );
+    $prov->error( "you must set [Apache][etc] in provision.conf" );
 }
 
 sub exists {

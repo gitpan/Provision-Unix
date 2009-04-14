@@ -150,7 +150,7 @@ sub dns_create {
             default  => 5 );
         $request{port} = $port || $util->ask(
             question => $questions->{port} )
-            or $prov->error( message => 'SRV records require a port' );
+            or $prov->error( 'SRV records require a port' );
     }
 
     return $dns->create_zone_record( %request );

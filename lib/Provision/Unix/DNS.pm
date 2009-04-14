@@ -36,6 +36,13 @@ sub new {
     return $self;
 }
 
+sub connect {
+    my $self = shift;
+    my %args = @_;
+    foreach ( keys %args ) { delete $args{$_} if ! defined $args{$_}; };
+    $self->{server}->connect(%args);
+}
+
 sub create_zone {
 
     ############################################
@@ -124,8 +131,7 @@ sub _get_server {
     my $fatal = $self->{fatal};
 
     my $chosen_server = $prov->{config}{DNS}{server}
-        or $prov->error(
-            message => 'missing [DNS] server setting in provision.conf',
+        or $prov->error( 'missing [DNS] server setting in provision.conf',
             fatal  => $fatal,
             debug  => $debug,
         );
@@ -141,8 +147,7 @@ sub _get_server {
     };
 
     if ( ! $chosen_server ) {
-        return $prov->error( 
-            message => "No DNS server selected and I could not find one installed. Giving up.",
+        return $prov->error( "No DNS server selected and I could not find one installed. Giving up.",
             fatal  => $fatal,
             debug  => $debug,
         );
@@ -161,8 +166,7 @@ sub _get_server {
         return Provision::Unix::DNS::BIND->new( prov => $prov );
     }
     else {
-        return $prov->error( 
-            message => "no support for $chosen_server yet",
+        return $prov->error( "no support for $chosen_server yet",
             fatal  => $fatal,
             debug  => $debug,
         );

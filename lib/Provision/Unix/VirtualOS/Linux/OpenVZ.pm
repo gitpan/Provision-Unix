@@ -45,14 +45,12 @@ sub create_virtualos {
     my $self = shift;
 
     $EUID == 0
-        or $prov->error(
-        message => "Create function requires root privileges." );
+        or $prov->error( "Create function requires root privileges." );
 
     my $ctid = $vos->{name};
 
     # do not create if it exists already
-    return $prov->error(
-        message => "ctid $ctid already exists",
+    return $prov->error( "ctid $ctid already exists",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
     ) if $self->is_present();
@@ -66,8 +64,7 @@ sub create_virtualos {
         $err = "ctid must be less than $max"    if ( $max && $ctid > $max );
     };
     if ( $err && $err ne '' ) {
-        return $prov->error(
-            message => $err,
+        return $prov->error( $err,
             fatal   => $vos->{fatal},
             debug   => $vos->{debug},
         );
@@ -95,8 +92,7 @@ sub create_virtualos {
 
     my $r = $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
     if ( ! $r ) {
-        $prov->error(
-            message => "VPS creation failed, unknown error",
+        $prov->error( "VPS creation failed, unknown error",
             fatal   => $vos->{fatal},
             debug   => $vos->{debug},
         );
@@ -119,14 +115,12 @@ sub destroy_virtualos {
     my $self = shift;
 
     $EUID == 0
-        or $prov->error(
-        message => "Destroy function requires root privileges." );
+        or $prov->error( "Destroy function requires root privileges." );
 
     my $name = $vos->{name};
 
     # make sure container name/ID exists
-    return $prov->error(
-        message => "container $name does not exist",
+    return $prov->error( "container $name does not exist",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
     ) if !$self->is_present();
@@ -138,8 +132,7 @@ sub destroy_virtualos {
         $prov->audit("\tcontainer '$name' is running, stopping...");
         $self->stop_virtualos() 
             or return
-            $prov->error(
-                message => "shut down failed. I cannot continue.",
+            $prov->error( "shut down failed. I cannot continue.",
                 fatal   => $vos->{fatal},
                 debug   => $vos->{debug},
             );
@@ -166,8 +159,7 @@ sub destroy_virtualos {
         return $prov->audit("\tdestroyed container");
     };
 
-    return $prov->error(
-        message => "destroy failed, unknown error",
+    return $prov->error( "destroy failed, unknown error",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
     );
@@ -196,8 +188,7 @@ sub start_virtualos {
     };
     return 1 if $self->is_running();
 
-    return $prov->error(
-        message => "unable to start VE",
+    return $prov->error( "unable to start VE",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
     );
@@ -211,16 +202,14 @@ sub stop_virtualos {
     $prov->audit("stopping virtual $ctid");
 
     # make sure CTID exists
-    return $prov->error(
-        message => "\tcontainer $ctid does not exist",
+    return $prov->error( "container $ctid does not exist",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
     ) if !$self->is_present();
 
     # see if VE is running
     if ( !$self->is_running( refresh => 0 ) ) {
-        return $prov->error(
-            message => "\tcontainer $ctid is not running",
+        return $prov->error( "container $ctid is not running",
             fatal   => $vos->{fatal},
             debug   => $vos->{debug},
         );
@@ -238,8 +227,7 @@ sub stop_virtualos {
     };
     return 1 if ! $self->is_running();
 
-    return $prov->error(
-        message => "unable to stop VE",
+    return $prov->error( "unable to stop VE",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
     );
@@ -251,8 +239,7 @@ sub restart_virtualos {
 
     $self->stop_virtualos()
         or
-        return $prov->error( 
-            message => "unable to stop virtual $vos->{name}",
+        return $prov->error( "unable to stop virtual $vos->{name}",
             fatal   => $vos->{fatal},
             debug   => $vos->{debug},
         );
@@ -268,8 +255,7 @@ sub disable_virtualos {
     $prov->audit("disabling virtual $ctid");
 
     # make sure CTID exists
-    return $prov->error(
-        message => "\tcontainer $ctid does not exist",
+    return $prov->error( "container $ctid does not exist",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
     ) if !$self->is_present();
@@ -277,9 +263,7 @@ sub disable_virtualos {
     # make sure config file exists
     my $config = $self->get_config();
     if ( !-e $config ) {
-        return $prov->error(
-            message =>
-                "\tconfiguration file ($config) for $ctid does not exist",
+        return $prov->error( "configuration file ($config) for $ctid does not exist",
             fatal => $vos->{fatal},
             debug => $vos->{debug},
         );
@@ -291,8 +275,7 @@ sub disable_virtualos {
     $self->stop_virtualos() if $self->is_running( refresh => 0 );
 
     move( $config, "$config.suspend" )
-        or return $prov->error(
-        message => "\tunable to move file '$config' to '$config.suspend': $!",
+        or return $prov->error( "unable to move file '$config' to '$config.suspend': $!",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
         );
@@ -308,8 +291,7 @@ sub enable_virtualos {
     $prov->audit("enabling virtual $ctid");
 
     # make sure CTID exists 
-    return $prov->error(
-        message => "\tcontainer $ctid does not exist",
+    return $prov->error( "container $ctid does not exist",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
     ) if ! $self->is_present();
@@ -317,9 +299,7 @@ sub enable_virtualos {
     # make sure config file exists
     my $config = $self->get_config();
     if ( !-e "$config.suspend" ) {
-        return $prov->error(
-            message =>
-                "\tconfiguration file ($config.suspend) for $ctid does not exist",
+        return $prov->error( "configuration file ($config.suspend) for $ctid does not exist",
             fatal => $vos->{fatal},
             debug => $vos->{debug},
         );
@@ -328,9 +308,7 @@ sub enable_virtualos {
     # make sure container directory exists
     my $ct_dir = $self->get_ve_home();  # "/vz/private/$ctid";
     if ( !-e $ct_dir ) {
-        return $prov->error(
-            message =>
-                "\tcontainer directory '$ct_dir' for $ctid does not exist",
+        return $prov->error( "container directory '$ct_dir' for $ctid does not exist",
             fatal => $vos->{fatal},
             debug => $vos->{debug},
         );
@@ -339,8 +317,7 @@ sub enable_virtualos {
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
 
     move( "$config.suspend", $config )
-        or return $prov->error(
-        message => "\tunable to move file '$config': $!",
+        or return $prov->error( "unable to move file '$config': $!",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
         );
@@ -353,14 +330,12 @@ sub modify_virtualos {
     my $self = shift;
 
     $EUID == 0
-        or $prov->error(
-        message => "Modify function requires root privileges." );
+        or $prov->error( "Modify function requires root privileges." );
 
     my $ctid = $vos->{name};
 
     # cannot modify unless it exists
-    return $prov->error(
-        message => "ctid $ctid does not exist",
+    return $prov->error( "ctid $ctid does not exist",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
     ) if !$self->is_present();
@@ -378,8 +353,7 @@ sub modify_virtualos {
 
     return $prov->audit("\tcontainer modified");
 
-    return $prov->error(
-        message => "modify failed, unknown error",
+    return $prov->error( "modify failed, unknown error",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
     );
@@ -391,8 +365,7 @@ sub reinstall_virtualos {
 
     $self->destroy_virtualos()
         or
-        return $prov->error( 
-            message => "unable to destroy virtual $vos->{name}",
+        return $prov->error( "unable to destroy virtual $vos->{name}",
             fatal   => $vos->{fatal},
             debug   => $vos->{debug},
         );
@@ -412,15 +385,14 @@ sub get_disk_usage {
     my $self = shift;
 
     $EUID == 0
-        or return $prov->error(
-        message => "Sorry, that requires root.",
+        or return $prov->error( "Sorry, that requires root.",
         fatal   => 0,
         );
 
 
     my $name = $vos->{name};
     my $vzquota = $util->find_bin( bin => 'vzquota', debug => 0, fatal => 0 );
-    $vzquota or return $prov->error( message => "Cannot find vzquota.", fatal => 0 );
+    $vzquota or return $prov->error( "Cannot find vzquota.", fatal => 0 );
 
     $vzquota .= " show $name";
     my $r = `$vzquota 2>/dev/null`;
@@ -439,15 +411,14 @@ sub get_disk_usage {
 #    if ( $usage =~ /^\d+$/ ) {
 #        return $usage;
 #    };
-#    return $prov->error( message => "du returned unknown result: $r", fatal => 0 );
+#    return $prov->error( "du returned unknown result: $r", fatal => 0 );
 }
 
 sub get_os_template {
     
     my $self = shift;
 
-    $EUID == 0 or return $prov->error(
-        message => "Sorry, that requires root.",
+    $EUID == 0 or return $prov->error( "Sorry, that requires root.",
         fatal   => 0,
     );
 
@@ -468,14 +439,13 @@ sub get_status {
     $self->{status}{$name} = undef;  # reset this
 
     $EUID == 0
-        or return $prov->error(
-        message => "Status function requires root privileges.",
+        or return $prov->error( "Status function requires root privileges.",
         fatal   => 0
         );
 
     my $vzctl = $util->find_bin( bin => 'vzctl', debug => 0, fatal => 0 );
     $vzctl or 
-        return $prov->error( message => "Cannot find vzctl.", fatal => 0 );
+        return $prov->error( "Cannot find vzctl.", fatal => 0 );
 
 # VEID 1002362 exist mounted running
 # VEID 1002362 exist unmounted down
@@ -503,7 +473,7 @@ sub get_status {
         }
     }
     else {
-        return $prov->error( message => "unknown output from vzctl status.", fatal => 0 );
+        return $prov->error( "unknown output from vzctl status.", fatal => 0 );
     };
 
     return \%ve_info if ! $exists;
@@ -563,8 +533,7 @@ sub set_ips {
 
     my $ips = $vos->{ip};
     @$ips > 0
-        or return $prov->error(
-        message => 'set_ips called but no valid IPs were provided',
+        or return $prov->error( 'set_ips called but no valid IPs were provided',
         fatal   => $vos->{fatal},
         );
 
@@ -584,8 +553,7 @@ sub set_password {
 
     my $username = $vos->{user} || 'root';
     my $password = $vos->{password}
-        or return $prov->error(
-        message => 'set_password function called but password not provided',
+        or return $prov->error( 'set_password function called but password not provided',
         fatal   => $vos->{fatal},
         );
 
@@ -618,9 +586,7 @@ sub set_nameservers {
 
     my $search      = $vos->{searchdomain};
     my $nameservers = $vos->{nameservers}
-        or return $prov->error(
-        message =>
-            'set_nameservers function called with no valid nameserver ips',
+        or return $prov->error( 'set_nameservers function called with no valid nameserver ips',
         fatal => $vos->{fatal},
         debug => $vos->{debug},
         );
@@ -640,8 +606,7 @@ sub set_hostname {
     $cmd .= " set $vos->{name}";
 
     my $hostname = $vos->{hostname}
-        or return $prov->error(
-        message => 'set_hostname function called with no hostname defined',
+        or return $prov->error( 'no hostname defined',
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
         );
@@ -678,7 +643,7 @@ sub is_present {
     );
 
     my $name = $p{name} || $vos->{name} or
-        $prov->error( message => 'is_present was called without a CTID' );
+        $prov->error( 'is_present was called without a CTID' );
 
     $self->get_status() if $p{refresh};
     return 1 if $self->{status}{ $name };
@@ -699,7 +664,7 @@ sub is_running {
     );
 
     my $name = $p{name} || $vos->{name} or
-         $prov->error( message => 'is_running was called without a CTID' );
+         $prov->error( 'is_running was called without a CTID' );
 
     $self->get_status() if $p{refresh};
     return 1 if $self->{status}{$name}{state} eq 'running';
@@ -726,16 +691,12 @@ sub _is_valid_template {
         # TODO
         # stor01:/usr/local/cosmonaut/templates/vpslink
 
-        return $prov->error(
-            message =>
-                'template does not exist and programmers have not yet written the code to retrieve templates via URL',
+        return $prov->error( 'template does not exist and programmers have not yet written the code to retrieve templates via URL',
             fatal => 0
         );
     }
 
-    return $prov->error(
-        message =>
-            "template '$template' does not exist and is not a valid URL",
+    return $prov->error( "template '$template' does not exist and is not a valid URL",
         debug => $vos->{debug},
         fatal => $vos->{fatal},
     );
@@ -746,8 +707,7 @@ sub _is_valid_name {
     my $name = shift;
 
     if ( $name !~ /^[0-9]+$/ ) {
-        return $prov->error(
-            message => "OpenVZ requires the name (VEID/CTID) to be numeric",
+        return $prov->error( "OpenVZ requires the name (VEID/CTID) to be numeric",
             fatal   => $vos->{fatal},
             debug   => $vos->{debug},
         );

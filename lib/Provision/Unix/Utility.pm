@@ -21,7 +21,7 @@ sub new {
     my $class = shift;
     my %p     = validate(
         @_,
-        {   prov  => { type => OBJECT },
+        {   prov  => { type => OBJECT, optional => 1 },
             debug => { type => BOOLEAN, optional => 1, default => 1 },
             fatal => { type => BOOLEAN, optional => 1, default => 1 },
         }
@@ -73,8 +73,7 @@ sub ask {
 
     # basic input validation
     if ( $p{question} !~ m{\A \p{Any}* \z}xms ) {
-        return $prov->error( message =>
-                "ask called with \'$p{question}\' which looks unsafe." );
+        return $prov->error( "ask called with \'$p{question}\' which looks unsafe." );
     }
 
     my $response;
@@ -148,8 +147,7 @@ sub archive_expand {
         elsif ( -e "$archive.tgz" )     { $archive = "$archive.tgz" }
         elsif ( -e "$archive.tar.bz2" ) { $archive = "$archive.tar.bz2" }
         else {
-            return $prov->error(
-                message => "archive_expand: file $archive is missing!",
+            return $prov->error( "file $archive is missing!",
                 fatal   => $p{fatal},
             );
         }
@@ -160,9 +158,7 @@ sub archive_expand {
     $ENV{PATH} = '/bin:/usr/bin'; # do this or taint checks will blow up on ``
 
     if ( $archive !~ /[bz2|gz]$/ ) {
-        return $prov->error(
-            message =>
-                "archive_expand: FAILED: I don't know how to expand $archive!",
+        return $prov->error( "I don't know how to expand $archive!",
             fatal => $p{fatal},
         );
     }
@@ -190,8 +186,7 @@ sub archive_expand {
     # Check to make sure the archive contents match the file extension
     # this shouldn't be necessary but the world isn't perfect. Sigh.
     unless ( grep ( /$types{$type}{content}/, `$file $archive` ) ) {
-        return $prov->error(
-            message => "archive_expand: $archive not a $type compressed file",
+        return $prov->error( "$archive not a $type compressed file",
             fatal   => $p{fatal},
         );
     }
@@ -209,8 +204,7 @@ sub archive_expand {
         return 1;
     }
 
-    return $prov->error(
-        message => "archive_expand: error extracting $archive",
+    return $prov->error( "error extracting $archive",
         fatal   => $p{fatal},
     );
 }
@@ -238,9 +232,7 @@ sub chmod {
     $file ||= $p{file_or_dir} ||= $p{dir};
 
     if ( !$file ) {
-        return $prov->error( message =>
-                "chmod: invalid params, see perldoc Provision::Unix::Utility"
-        );
+        return $prov->error( "invalid params, see perldoc Provision::Unix::Utility");
     }
 
     if ( $p{sudo} ) {
@@ -249,8 +241,7 @@ sub chmod {
         my $cmd   = "$sudo $chmod $mode $file";
         $prov->audit( "cmd: " . $cmd );
         if ( !$self->syscmd( cmd => $cmd, debug => 0 ) ) {
-            return $prov->error(
-                message => "couldn't chmod $file: $!",
+            return $prov->error( "couldn't chmod $file: $!",
                 fatal   => $p{fatal},
                 debug   => $p{debug},
             );
@@ -261,8 +252,7 @@ sub chmod {
 
     # note how we convert a string ($mode) to an octal value. Very Important!
     unless ( chmod oct($mode), $file ) {
-        return $prov->error(
-            message => "couldn't chmod $file: $!",
+        return $prov->error( "couldn't chmod $file: $!",
             fatal   => $p{fatal},
             debug   => $p{debug},
         );
@@ -293,8 +283,7 @@ sub chown {
     my $file = $p{file} || $p{file_or_dir} || $p{dir};
 
     if ( !$file ) {
-        return $prov->error(
-            message => "chown: you did not set a required parameter!",
+        return $prov->error( "you did not set a required parameter!",
             fatal   => $p{fatal},
         );
     }
@@ -302,8 +291,7 @@ sub chown {
     $prov->audit("chown: preparing to chown $uid $file");
 
     if ( ! -e $file ) {
-        return $prov->error(
-            message => "chown: file $file does not exist!",
+        return $prov->error( "file $file does not exist!",
             fatal   => $p{fatal},
         );
     }
@@ -329,8 +317,7 @@ sub chown {
     else {
         $nuid = getpwnam($uid);
         if ( !defined $nuid ) {
-            return $prov->error(
-                message => "failed to get uid for $uid. FATAL!",
+            return $prov->error( "failed to get uid for $uid. FATAL!",
                 fatal   => $p{fatal},
                 debug   => $debug,
             );
@@ -345,8 +332,7 @@ sub chown {
     else {
         $ngid = getgrnam( $p{gid} );
         if ( !defined $ngid ) {
-            return $prov->error(
-                message => "failed to get gid for $p{gid}. FATAL!",
+            return $prov->error( "failed to get gid for $p{gid}. FATAL!",
                 fatal   => $p{fatal},
                 debug   => $p{debug},
             );
@@ -355,8 +341,7 @@ sub chown {
     }
 
     if ( !chown $nuid, $ngid, $file ) {
-        return $prov->error(
-            message => "couldn't chown $file: $!",
+        return $prov->error( "couldn't chown $file: $!",
             fatal   => $p{fatal},
             debug   => $p{debug},
         );
@@ -409,8 +394,7 @@ sub chown_system {
     print "chown_system: cmd: $cmd\n" if $debug;
 
     if ( !$self->syscmd( cmd => $cmd, fatal => 0, debug => 0 ) ) {
-        return $prov->error(
-            message => "couldn't chown with $cmd: $!",
+        return $prov->error( "couldn't chown with $cmd: $!",
             fatal   => $p{fatal},
         );
     }
@@ -441,8 +425,7 @@ sub clean_tmp_dir {
     my $before = cwd;
 
     if ( !chdir $dir ) {
-        return $prov->error( 
-            message => "couldn't chdir to $dir: $!",
+        return $prov->error( "couldn't chdir to $dir: $!",
             fatal => $p{fatal},
         );
     }
@@ -547,10 +530,9 @@ sub file_archive {
     my $date = time;
 
     if ( !-e $file ) {
-        return $prov->error(
+        return $prov->error( "file ($file) is missing!",
             debug   => $p{debug},
             fatal   => $p{fatal},
-            message => "file_archive: file ($file) is missing!",
         );
     }
 
@@ -606,8 +588,7 @@ sub file_archive {
         return "$file.$date";
     }
 
-    return $prov->error(
-        message => "backup of $file to $file.$date failed: $!",
+    return $prov->error( "backup of $file to $file.$date failed: $!",
         fatal   => $p{fatal},
         debug   => $p{debug},
     );
@@ -629,10 +610,7 @@ sub file_delete {
     my ( $file, $fatal, $debug ) = ( $p{file}, $p{fatal}, $p{debug} );
 
     if ( !-e $file ) {
-        return $prov->error( 
-            message => "file_delete: checking $file existence",
-            fatal => $p{fatal},
-        );
+        return $prov->error(  "checking $file existence", fatal => $p{fatal} );
     }
     $self->_formatted( $err, "ok" ) if $debug;
 
@@ -741,8 +719,7 @@ sub file_get {
     if ( !$found ) {
 
         # TODO: should use LWP here if available
-        return $prov->error( 
-            message => "Yikes, couldn't find wget! Please install it.",
+        return $prov->error( "couldn't find wget. Please install it.",
             fatal => $p{fatal},
         );
     }
@@ -767,14 +744,11 @@ sub file_get {
 
     if ($EVAL_ERROR) {    # propagate unexpected errors
         print "timed out!\n" if $EVAL_ERROR eq "alarm\n";
-        $prov->error( message => $EVAL_ERROR, fatal => $p{fatal} );
+        $prov->error( $EVAL_ERROR, fatal => $p{fatal} );
     }
 
     if ( !$r ) {
-        return $prov->error( 
-            message => "file_get error executing $fetchcmd",
-            fatal => $p{fatal},
-        );
+        return $prov->error( "error executing $fetchcmd", fatal => $p{fatal} );
     }
 
     return 1;
@@ -835,8 +809,7 @@ sub file_read {
         = ( $p{file}, $p{max_lines}, $p{max_length}, $p{debug} );
 
     if ( !-e $filename ) {
-        return $prov->error(
-            message => "file_read: $filename does not exist!",
+        return $prov->error( "$filename does not exist!",
             fatal   => $p{fatal},
             debug   => $p{debug},
         );
@@ -2671,8 +2644,7 @@ sub syscmd {
         }
 
         if ( !-x $bin ) {
-            return $prov->error(
-                message => "\t cmd: $cmd_request \t bin: $bin is not found",
+            return $prov->error( "cmd: $cmd_request \t bin: $bin is not found",
                 fatal => $p{fatal},
                 debug => $p{debug},
             );
@@ -2695,8 +2667,7 @@ sub syscmd {
         # safety for now.
         # $ENV{PATH} = '';
 
-        return $prov->error(
-            message => "$status_message ...TAINTED!",
+        return $prov->error( "$status_message ...TAINTED!",
             fatal   => $p{fatal},
             debug   => $p{debug},
         );
@@ -2709,7 +2680,7 @@ sub syscmd {
         $ENV{PATH} = "/bin:/sbin:/usr/bin:/usr/sbin:$prefix/bin:$prefix/sbin";
     }
 
-    $prov->audit("syscmd: $cmd_request");
+    $prov->audit("syscmd: $cmd_request") if $prov;
 
     my $r;
     if ( $p{timeout} ) {
@@ -2726,8 +2697,7 @@ sub syscmd {
                 $prov->audit("timed out '$cmd_request'");
             }
             else {
-                return $prov->error( 
-                    message => "unknown error '$EVAL_ERROR'",
+                return $prov->error( "unknown error '$EVAL_ERROR'",
                     fatal => $p{fatal},
                     debug => $p{fatal},
                 );
@@ -2736,7 +2706,7 @@ sub syscmd {
     }
     else {
         $r = `$cmd_request 2>&1`;
-        #$r = system ( @args );
+        #$r = system $cmd_request;
     }
 
     my $exit_code = sprintf ("%d", $CHILD_ERROR >> 8);
@@ -2758,8 +2728,7 @@ sub syscmd {
             }
         }
 
-        return $prov->error(
-            message  => "syscmd tried to run $cmd_request but received the following error ($CHILD_ERROR): $r",
+        return $prov->error( "syscmd tried to run $cmd_request but received the following error ($CHILD_ERROR): $r",
             location => join( ", ", caller ),
             fatal    => $p{fatal},
             debug    => $p{debug},

@@ -9,10 +9,8 @@ use warnings;
 use English qw( -no_match_vars );
 
 use lib 'lib';
-use Provision::Unix;
 use Provision::Unix::Utility;
-my $prov = Provision::Unix->new();
-my $util = Provision::Unix::Utility->new( prov => $prov );
+my $util = Provision::Unix::Utility->new();
 
 my $deps = {
     'apps' => [
@@ -21,7 +19,7 @@ my $deps = {
     'modules' => [
         { module => 'Test::More'        , info => { } },
         { module => 'Getopt::Long'      , info => { version => 2.37 } },
-        { module => 'Config::Std'       , info => { } },
+        { module => 'Config::Tiny'      , info => { } },
         { module => 'Params::Validate'  , info => { } },
         { module => 'Apache::Admin::Config', info => { } },
         { module => 'JSON::XS'          , info => { } },

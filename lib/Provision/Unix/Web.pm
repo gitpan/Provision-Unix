@@ -57,8 +57,7 @@ sub _get_server {
     );
 
     my $chosen_server = $prov->{config}{Web}{server}
-        or $prov->error(
-        message => 'missing [Web] server setting in provision.conf',
+        or $prov->error( 'missing [Web] server setting in provision.conf',
         debug   => $p{debug},
         fatal   => $p{fatal},
         );
@@ -84,8 +83,7 @@ sub _get_server {
         );
     }
     else {
-        return $prov->error( message => 
-            "unknown web server. Supported values are lighttpd and apache.",
+        return $prov->error( "unknown web server. Supported values are lighttpd and apache.",
             debug => $p{debug},
             fatal => $p{fatal},
         );
@@ -116,7 +114,7 @@ sub get_vhost_attributes {
     }
 
     my $vhost = $vals->{'vhost'}
-        or $prov->error( message => "vhost is required" );
+        or $prov->error( "vhost is required" );
 
     if ( $p{'prompt'} ) {
         $vals->{'ip'} ||= $util->ask( question => 'ip', default => '*:80' );

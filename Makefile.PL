@@ -11,12 +11,12 @@ license          'perl';
 perl_version     '5.006';
 version_from     'lib/Provision/Unix.pm';
 
-requires         'Config::Std'       => 0;
-requires         'Digest::MD5'         => 1;
+requires         'Config::Tiny'      => 0;
 requires         'Getopt::Long'      => 2.37;
 requires         'Params::Validate'  => .8;
+requires         'Digest::MD5'       => 1;
 
-test_requires    'Test::More'      => 0;
+test_requires    'Test::More'        => 0;
 
 # these are for module authors and tests
 recommends        'Test::Pod'           => 0;
@@ -29,6 +29,7 @@ recommends        'Mail::Send'          => 1;
 recommends        'Proc::ProcessTable'  => 1;
 recommends        'Apache::Admin::Config' => .9;
 recommends        'JSON::XS'            => 0;
+recommends        'NicTool'             => 0;
 
 feature             'JSON Provisioning Agent',
                         -default          => 1,

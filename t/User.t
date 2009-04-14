@@ -96,6 +96,27 @@ ok( !$user->create(
     'create user, too long'
 );
 
+
+# get_salt
+my $length = 8;
+my $salt = $user->get_salt( $length );
+# the salt may include a prefix if crypt supports encryption better than DES
+ok( length($salt) >= $length, "get_salt, $salt" );
+
+
+# get_crypted_password
+$salt = 'ylhEgHiL';
+my $crypt = 'ylkljnQCaRzYE';
+$r = $user->get_crypted_password( 'password', 'ylhEgHiL' );
+ok( $r eq $crypt, "get_crypted_password, $r") or warn $r;
+
+if ( $OSNAME =~ /FreeBSD|Linux|Solaris/i ) {
+    $crypt = '$1$ylhEgHiL$86s2tXl.1oj4J/cisUqN1/';
+    $r = $user->get_crypted_password( 'password', '$1$ylhEgHiL' );
+    ok( $r eq $crypt, "get_crypted_password, $r") or warn $r;
+};
+
+
 SKIP: {
     skip "you are not root", 7 if $EFFECTIVE_USER_ID != 0;
 

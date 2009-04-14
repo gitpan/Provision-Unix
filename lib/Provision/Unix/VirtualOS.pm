@@ -396,8 +396,7 @@ sub get_ips {
 
     my $ips = @r;
     if ( $ips == 0 ) {
-        return $prov->error(
-            message => "no valid IPs in request!",
+        return $prov->error( "no valid IPs in request!",
             debug   => $self->{debug},
             fatal   => $self->{fatal},
         );
@@ -453,8 +452,7 @@ sub get_template_dir {
 
     $dir and return $dir;
 
-    return $prov->error(
-            message => 'unable to determine template directory',
+    return $prov->error( 'unable to determine template directory',
             fatal  => $p{fatal},
             debug  => $p{debug},
         );
@@ -475,8 +473,7 @@ sub get_template_list {
     my $v_type = $p{v_type};
 
     my $template_dir = $self->get_template_dir( v_type=> $v_type ) 
-        or return $prov->error(
-            message => 'unable to determine template directory',
+        or return $prov->error( 'unable to determine template directory',
             fatal  => $p{fatal},
             debug  => $p{debug},
         );
@@ -608,14 +605,14 @@ sub is_running {
 sub is_valid_ip {
     my $self  = shift;
     my $ip    = shift;
-    my $error = "'$ip' is not a valid IPv4 address";
+    my $error = "\t'$ip' is not a valid IPv4 address";
 
     my $r = grep /\./, split( //, $ip );    # need 3 dots
-    return $prov->error( message => $error, fatal => 0, debug => 0 )
+    return $prov->error( $error, fatal => 0, debug => 0 )
         if $r != 3;
 
     my @octets = split /\./, $ip;
-    return $prov->error( message => $error, fatal => 0, debug => 0 )
+    return $prov->error( $error, fatal => 0, debug => 0 )
         if @octets != 4;
 
     foreach (@octets) {
@@ -623,14 +620,14 @@ sub is_valid_ip {
         $_ = 0 + $_;
     }
 
-    return $prov->error( message => $error, fatal => 0, debug => 0 )
+    return $prov->error( $error, fatal => 0, debug => 0 )
         if $octets[0] == 0;    # 0. is invalid
 
-    return $prov->error( message => $error, fatal => 0, debug => 0 )
+    return $prov->error( $error, fatal => 0, debug => 0 )
         if 0 + $octets[0] + $octets[1] + $octets[2] + $octets[3]
             == 0;              # 0.0.0.0 is invalid
 
-    return $prov->error( message => $error, fatal => 0, debug => 0 )
+    return $prov->error( $error, fatal => 0, debug => 0 )
         if grep( $_ eq '255', @octets ) == 4;    # 255.255.255.255 is invalid
 
     return join( '.', @octets );
@@ -680,7 +677,7 @@ sub _get_virt_type {
         }
         else {
             $prov->error( 
-                message => "Unable to determine your virtualization method. You need one supported hypervisor (xen, openvz) installed.",
+                "Unable to determine your virtualization method. You need one supported hypervisor (xen, openvz) installed.",
                 fatal => $p{fatal},
                 debug => $p{debug},
             );
@@ -703,7 +700,7 @@ sub _get_virt_type {
     else {
         print "fatal: $p{fatal}\n";
         $prov->error( 
-            message => "No virtualization methods for $OSNAME are supported yet",
+            "No virtualization methods for $OSNAME are supported yet",
             fatal   => $p{fatal},
             debug   => $p{debug},
         );

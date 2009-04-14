@@ -22,11 +22,10 @@ sub create_virtualos {
     my $util = $self->{util};
 
     $EUID == 0
-        or $prov->error( message => "That requires root privileges." ); 
+        or $prov->error( "That requires root privileges." ); 
 
     # make sure it doesn't exist already
-    return $prov->error(
-        message => "container $ctid already exists",
+    return $prov->error( "container $ctid already exists",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
     ) if $self->is_present();
@@ -41,8 +40,7 @@ sub create_virtualos {
     };
 
     if ( $err && $err ne '' ) {
-        return $prov->error(
-            message => $err,
+        return $prov->error( $err,
             fatal   => $vos->{fatal},
             debug   => $vos->{debug},
         );
@@ -93,8 +91,7 @@ sub create_virtualos {
         return $prov->audit("\tvirtual os created");
     }
 
-    return $prov->error(
-        message => "create failed, unknown error",
+    return $prov->error( "create failed, unknown error",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
     );
@@ -123,15 +120,12 @@ sub _is_valid_template {
 
         # TODO        # stor01:/usr/local/cosmonaut/templates/vpslink
 
-        return $prov->error(
-            message =>
-                'template does not exist and programmers have not yet written the code to retrieve templates via URL',
+        return $prov->error( 'template does not exist and programmers have not yet written the code to retrieve templates via URL',
             fatal => 0
         );
     }
         
-    return $prov->error(
-        message =>
+    return $prov->error( 
             "template '$template' does not exist and is not a valid URL",
         debug => $vos->{debug},
         fatal => $vos->{fatal},

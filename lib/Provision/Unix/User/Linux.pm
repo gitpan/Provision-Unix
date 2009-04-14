@@ -90,8 +90,7 @@ sub create {
         ## no critic
         my $FH;
         unless ( open $FH, "| $passwd --stdin" ) {
-            return $prov->error( message =>
-                    "user_add: opening passwd failed for $p{username}" );
+            return $prov->error( "opening passwd failed for $p{username}" );
         }
         print $FH "$p{password}\n";
         close $FH;
@@ -103,7 +102,7 @@ sub create {
         num  => 10,
         desc => "created user $p{username} successfully"
         )
-        : $prov->error( message => "create user $p{username} failed" );
+        : $prov->error( "create user $p{username} failed" );
 }
 
 sub create_group {
@@ -238,14 +237,11 @@ sub exists {
     my $username = shift || $user->{username};
 
     $user->_is_valid_username($username)
-        or return $prov->error( 
-            message => "missing/invalid username param in request",
+        or return $prov->error( "missing/invalid username param in request",
             fatal => $user->{fatal},
         );
 
     $username = lc $username;
-
-  #$prov->error(message=>"\tchecking for existence of '$username'", fatal=>0);
 
     # double check
     if ( -f '/etc/passwd' ) {
@@ -266,7 +262,7 @@ sub exists {
 sub exists_group {
 
     my ( $self, $group ) = @_;
-    $group ||= $user->{group} || $prov->error("missing group");
+    $group ||= $user->{group} || $prov->error( "missing group" );
 
     if ( -f '/etc/group' ) {
         my $exists = `grep '^$group:' /etc/group`;
@@ -317,7 +313,7 @@ sub set_password {
     );
 
     my $username = $p{username};
-    $prov->error( message => "user '$username' not found", fatal => $p{fatal} ) 
+    $prov->error( "user '$username' not found", fatal => $p{fatal} ) 
         if ! $self->exists( $username );
 
     my $pass_file = "/etc/shadow";  # SYS 5

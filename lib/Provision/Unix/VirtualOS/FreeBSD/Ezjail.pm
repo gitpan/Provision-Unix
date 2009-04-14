@@ -59,8 +59,7 @@ sub create_virtualos {
             $cmd .= " -a $jails_root/$template.tgz";
         }
         else {
-            $prov->error( message =>
-                    "You chose the template ($template) but it is not defined as a flavor in $jails_root/flavours or an archive at $jails_root/$template.tgz"
+            $prov->error( "You chose the template ($template) but it is not defined as a flavor in $jails_root/flavours or an archive at $jails_root/$template.tgz"
             );
         }
     }

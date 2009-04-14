@@ -3,7 +3,6 @@
 use strict;
 use warnings;
 
-use Config::Std { def_sep => '=' };
 use English;
 use Getopt::Long;
 use Pod::Usage;

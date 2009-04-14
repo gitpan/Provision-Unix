@@ -1,12 +1,12 @@
 package Provision::Unix;
 
-our $VERSION = '0.51';
+our $VERSION = '0.52';
 
 use warnings;
 use strict;
 
 use Carp;
-use Config::Std { def_sep => '=' };
+use Config::Tiny;
 use Cwd;
 use Data::Dumper;
 use English qw( -no_match_vars );
@@ -33,13 +33,14 @@ sub new {
         config => undef,
         errors => [],          # runtime errors will get added to this array
         audit  => [],          # status messages accumulate here
+        last_audit => 0,
     };
 
     bless( $self, $class );
     my $config_file
         = $self->find_config( file => $p{file}, debug => $p{debug}, fatal => 0 );
     if ( $config_file ) {
-        read_config( $config_file => $self->{config} );
+        $self->{config} = Config::Tiny->read( $config_file );
     }
     else {
         warn "could not find provision.conf. Consider installing it in your local etc directory.\n";
@@ -51,7 +52,6 @@ sub find_config {
 
     my $self = shift;
 
-    # parameter validation
     my %p = validate(
         @_,
         {   'file'   => { type => SCALAR, },
@@ -82,8 +82,7 @@ sub find_config {
         return "$working_directory/$file-dist";
     }
 
-    return $self->error(
-        message => "could not find $file",
+    return $self->error( "could not find $file",
         fatal   => $p{fatal},
         debug   => $p{debug},
     );
@@ -124,7 +123,7 @@ sub progress {
         else {
             print {*STDERR} "\n\t$p{err}\n";
         }
-        return $self->error( message => $p{err}, fatal => 0, debug => 0 );
+        return $self->error( $p{err}, fatal => 0, debug => 0 );
     }
 
     if ( $msg_length > 54 ) {
@@ -158,24 +157,22 @@ sub progress {
 sub error {
 
     my $self = shift;
-
+    my $message = shift;
     my %p = validate(
         @_,
-        {    # parameter validation here
-            'message'  => { type => SCALAR, optional => 1 },
-            'location' => { type => SCALAR, optional => 1, },
+        {   'location' => { type => SCALAR, optional => 1, },
             'fatal'    => { type => BOOLEAN, optional => 1, default => 1 },
             'debug'    => { type => BOOLEAN, optional => 1, default => 1 },
         },
     );
 
-    my $message = $p{message};
-
     if ( $message ) {
+        push @{ $self->{audit} }, $message;
+
         # append message to $self->error stack
         push @{ $self->{errors} },
             {
-            errmsg => "ERROR: $p{message}",
+            errmsg => "ERROR: $message",
             errloc => $p{location} || join( ", ", caller ),
             };
     }
@@ -186,20 +183,30 @@ sub error {
     # print audit and error results to stderr
     if ( $p{fatal} ) {
         warn "\n\t\t\tAudit & Error history Report \n\n";
-        warn Dumper( $self->{audit}, $self->{errors}[-1] ) if $p{debug};
+        $self->dump_audit() if $p{debug};
+        warn Dumper( $self->{errors}[-1] ) if $p{debug};
         croak "FATAL ERROR";
     }
 
     if ( $p{debug} ) {
-        carp "WARNING: An error occurred";
-
-        #warn "$message\n";
-        warn Dumper( $self->{audit}, $self->{errors}[-1] );
+        $self->dump_audit();
     }
 
-    $self->audit("Error: $message");
     return;
 }
+
+sub dump_audit {
+    my $self = shift;
+    my $last_line = $self->{last_audit};
+    my $i;
+    foreach ( @{ $self->{audit} } ) {
+        $i++;
+        next if $i < $last_line;
+        print "\t$_\n";
+    };
+    $self->{last_audit} = $i;
+    return;
+};
 
 sub audit {
     my $self = shift;
@@ -217,7 +224,6 @@ sub _find_readable {
     my $self = shift;
     my $file = shift;
     my $dir  = shift or return;    # breaks recursion at end of @_
-                                   #warn "dir: $dir \t $dir/$file\n";
 
     $self->audit("looking for $file in $dir");
 
@@ -231,14 +237,13 @@ sub _find_readable {
 
         # warn about directories we don't have read access to
         if ( !-r $dir ) {
-            $self->error( message => "$dir is not readable", fatal => 0 );
+            $self->error( "$dir is not readable", fatal => 0 );
         }
         else {
 
             # warn about files that exist but aren't readable
             if ( -e "$dir/$file" ) {
-                $self->error(
-                    message => "$dir/$file is not readable",
+                $self->error( "$dir/$file is not readable",
                     fatal   => 0
                 );
             }
@@ -327,7 +332,7 @@ Methods have an optional debug parameter that defaults to enabled. Often, that m
 
 Supressed messages are not lost! All error messages are stored in $prov->errors and all status messages are in $prov->audit. You can dump those arrays any time to to inspect the status or error messages. A handy way to do so is:
 
-  $prov->error(message=>'test breakpoint');
+  $prov->error('test breakpoint');
 
 That will dump the contents of $prov->audit and $prov->errors and then terminate your program. If you want your program to continue after calling $prov->error, just set fatal=>0. 
 
@@ -353,14 +358,13 @@ Whenever a method runs into an unexpected condition, it should call $prov->error
 
 Examples:
 
- $prov->error( message => 'could not write to file /etc/passwd' );
+ $prov->error( 'could not write to file /etc/passwd' );
 
 This error is fatal and will throw an exception, after dumping the contents of $prov->audit and the last error message from $prov->errors to stderr. 
 
 A very helpful thing to do is call error with a location as well:
 
- $prov->error( 
-    message  => 'could not write to file /etc/passwd',
+ $prov->error( 'could not write to file /etc/passwd',
     location => join( ", ", caller ),
  );
 

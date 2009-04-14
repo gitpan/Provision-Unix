@@ -17,6 +17,7 @@ use English qw( -no_match_vars );
 
 use lib 'lib';   # use local version if available
 
+install_module('Config::Tiny');
 install_module('JSON::XS');
 install_module('LWP::UserAgent');
 

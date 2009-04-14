@@ -107,8 +107,7 @@ sub create {
         ## no critic
         my $FH;
         unless ( open $FH, "| $pwcmd -h 0" ) {
-            return $prov->error(
-                message => "user_add: opening pw failed for $username" );
+            return $prov->error( "user_add: opening pw failed for $username" );
         }
         print $FH "$p{password}\n";
         close $FH;
@@ -125,7 +124,7 @@ sub create {
 
     return $self->exists($username)
         ? $prov->progress( num => 10, desc => 'created successfully' )
-        : $prov->error( message => 'create user failed' );
+        : $prov->error( 'create user failed' );
 }
 
 sub create_group {
@@ -394,18 +393,18 @@ returns a boolean.
     my $rm  = $util->find_bin( bin => "rm" );
 
     if ( !$self->exists($user) ) {
-        $prov->error( { message => "user $user does not exist!" } );
+        $prov->error( "user $user does not exist!" );
     }
 
     my $homedir = ( getpwnam($user) )[7];
     unless ( -d $homedir ) {
-        $prov->error( { message => "The home directory does not exist!" } );
+        $prov->error( "The home directory does not exist!" );
     }
 
     my ( $path, $userdir ) = $util->path_parse( { dir => $homedir } );
 
     chdir($path)
-        or $prov->error( { message => "couldn't cd to $path: $!\n" } );
+        or $prov->error( "couldn't cd to $path: $!\n" );
 
     if ( -e "$path/$user.tar.gz" && -d "$path/$user" ) {
         carp "user_archive:\tReplacing old tarfile $path/$user.tar.gz.\n";

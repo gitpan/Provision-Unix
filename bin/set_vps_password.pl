@@ -38,4 +38,4 @@ $vos->set_password(
     ssh_key  => $ssh_key,
 ); 
 
-$prov->error( message => 'dump' );
+$prov->error( 'dump' );

@@ -129,11 +129,11 @@ my $r;
 
         if ( $vos->is_running( name => $container_id_or_name ) ) {
             ok( $vos->stop_virtualos(
-                name  => $container_id_or_name,
-                debug => 0,
-                fatal => 0,
-            ),
-            'stop_virtualos'
+                    name  => $container_id_or_name,
+                    debug => 0,
+                    fatal => 0,
+                ),
+                'stop_virtualos'
             );
         };
 
@@ -148,7 +148,7 @@ my $r;
         sleep 1;
     }
 
-#$prov->error( message => 'dump' );
+#$prov->error( 'dump' );
 
 #SKIP: {
 #    skip "negative tests for now", 3;
@@ -234,7 +234,7 @@ my $r;
     );
 
 #exit;
-#$prov->error( message => 'dump' );
+#$prov->error( 'dump' );
 
     ok( $vos->restart_virtualos(
             name  => $container_id_or_name,
@@ -289,5 +289,5 @@ my $r;
     );
 };
 
-#$prov->error( message => 'dump' );
+#$prov->error( 'dump' );
 
