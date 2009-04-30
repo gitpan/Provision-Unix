@@ -1,6 +1,12 @@
 Revision history for Provision-Unix
 
-0.52  Apr 
+0.53  Apr 30, 2009
+  - further enhancements to error reporting
+  - VirtualOS/Xen was reporting non-existent ve as 'missing', changed to
+    'non-existent' for consistency
+  - added empty is_present methods to FreeBSD virtualos/*, so they pass tests
+
+0.52  Apr 14, 2009
   - DNS/NicTool was calling get_zone_id but sub was named get_zone
   - abstracted gen_salt out of get_crypted_password and added logic to choose
     MD5 on platforms where it's available and fall back to DES if not

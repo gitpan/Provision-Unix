@@ -43,6 +43,8 @@ my $container_id_or_name
  : $virt_type eq 'jails'     ? 'test1'
  :                             undef;
 
+exit if ! $container_id_or_name;
+
 my $r;
 
 if ( $vos->is_present( name => $container_id_or_name ) ) {

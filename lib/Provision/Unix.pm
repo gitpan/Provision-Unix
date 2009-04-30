@@ -1,6 +1,6 @@
 package Provision::Unix;
 
-our $VERSION = '0.52';
+our $VERSION = '0.53';
 
 use warnings;
 use strict;
@@ -181,28 +181,31 @@ sub error {
     }
 
     # print audit and error results to stderr
-    if ( $p{fatal} ) {
-        warn "\n\t\t\tAudit & Error history Report \n\n";
-        $self->dump_audit() if $p{debug};
-        warn Dumper( $self->{errors}[-1] ) if $p{debug};
-        croak "FATAL ERROR";
-    }
-
     if ( $p{debug} ) {
         $self->dump_audit();
+        warn Dumper( $self->{errors}[-1] );
     }
 
+    if ( $p{fatal} ) {
+        $self->dump_audit();  # dump if err is fatal and debug is not set
+        croak "FATAL ERROR";
+    };
     return;
 }
 
 sub dump_audit {
     my $self = shift;
     my $last_line = $self->{last_audit};
+
+    # we already dumped everything
+    return if $last_line == scalar @{ $self->{audit} };
+
+    print STDERR "\n\t\t\tAudit & Error history Report \n\n";
     my $i;
     foreach ( @{ $self->{audit} } ) {
         $i++;
         next if $i < $last_line;
-        print "\t$_\n";
+        print STDERR "\t$_\n";
     };
     $self->{last_audit} = $i;
     return;

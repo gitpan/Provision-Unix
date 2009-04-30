@@ -71,6 +71,9 @@ sub create_virtualos {
     return $util->syscmd( cmd => $cmd );
 }
 
+sub is_present {
+};
+
 sub _get_jails_root {
     my $r = `grep '^ezjail_jaildir' /usr/local/etc/ezjail.conf`;
     if ($r) {

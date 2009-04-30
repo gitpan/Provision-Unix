@@ -472,7 +472,7 @@ sub get_status {
 
     if ( ! $self->is_present() ) {
         $prov->audit( "The xen VE $ve_name does not exist", fatal => 0 );
-        $self->{status}{$ve_name} = { state => 'missing' };
+        $self->{status}{$ve_name} = { state => 'non-existent' };
         return $self->{status}{$ve_name};
     };
 
@@ -480,7 +480,7 @@ sub get_status {
     my ($ips, $disks, $disk_usage );
     my $config_file = $self->get_ve_config_path();
     if ( ! -e $config_file ) {
-        $prov->error( "\tmissing config file $config_file", fatal => 0);
+        $prov->audit( "\tmissing config file $config_file" );
         return { state => 'broken' };
     };
 

@@ -680,10 +680,17 @@ sub file_get {
 
     my ( $url, $debug ) = ( $p{url}, $p{debug} );
 
-    my ( $fetchbin, $found );
+    my $found;
 
     print "file_get: fetching $url\n" if $debug;
 
+    my ($ua, $response);
+    eval "require LWP::Simple";
+    if ( ! $EVAL_ERROR ) {
+#        $response = LWP::Simple::getstore($url);
+    };
+
+    my $fetchbin;
     if ( $OSNAME eq "freebsd" ) {
         $fetchbin = $self->find_bin(
             bin   => 'fetch',

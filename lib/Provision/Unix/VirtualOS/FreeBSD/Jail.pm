@@ -47,6 +47,9 @@ sub create_virtualos {
 
 }
 
+sub is_present {
+};
+
 1;
 
 __END__
