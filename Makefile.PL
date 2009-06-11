@@ -8,7 +8,7 @@ name             'Provision-Unix';
 abstract_from    'lib/Provision/Unix.pm';
 author           'msimerson@cpan.org';
 license          'perl';
-perl_version     '5.006';
+perl_version     '5.008';
 version_from     'lib/Provision/Unix.pm';
 
 requires         'Config::Tiny'      => 0;

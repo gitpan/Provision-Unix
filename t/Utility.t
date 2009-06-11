@@ -507,7 +507,12 @@ if ( eval "require $mod" ) {
 
     @list = $util->get_the_date( bump => 1, debug => 0 );
     cmp_ok( $list[0], '!=', `$date '+%d'`, 'get_the_date day' );
-    cmp_ok( $list[1], '==', `$date '+%m'`, 'get_the_date month' );
+    if ( $list[0] == 1 ) {
+        cmp_ok( $list[1], '!=', `$date '+%m'`, 'get_the_date month' );
+    }
+    else {
+        cmp_ok( $list[1], '==', `$date '+%m'`, 'get_the_date month' );
+    }
     cmp_ok( $list[2], '==', `$date '+%Y'`, 'get_the_date year' );
     cmp_ok( $list[4], '==', `$date '+%H'`, 'get_the_date hour' );
     cmp_ok( $list[5], '==', `$date '+%M'`, 'get_the_date minutes' );
