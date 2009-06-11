@@ -5,8 +5,11 @@ use strict;
 
 our $VERSION = '0.26';
 
+use Data::Dumper;
 use English qw( -no_match_vars );
 use Params::Validate qw(:all);
+use LWP::Simple;
+use LWP::UserAgent;
 
 use lib 'lib';
 use Provision::Unix::Utility;
@@ -458,13 +461,15 @@ sub get_template_dir {
         );
 };
 
-sub get_template_list {
+sub get_template {
 
     my $self = shift;
 
     my %p = validate(
         @_,
         {   'v_type'    => { type => SCALAR  },
+            'template'  => { type => SCALAR  },
+            'repo'      => { type => SCALAR  },
             'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
             'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
         }
@@ -478,11 +483,59 @@ sub get_template_list {
             debug  => $p{debug},
         );
 
-    my @templates = <$template_dir/*.tar.gz>;
-    foreach my $template ( @templates ) {
-        ($template) = $template =~ /\/([\w\.\-]+)\.tar\.gz$/;
+    my $url = "http://$p{repo}/$p{template}";
+    warn "url: $url\n";
+    my $response = LWP::Simple::getstore($url, "$template_dir/$p{template}");
+    warn Dumper($response);
+    return $response; 
+};
+
+sub get_template_list {
+
+    my $self = shift;
+
+    my %p = validate(
+        @_,
+        {   'v_type'    => { type => SCALAR  },
+            'url'       => { type => SCALAR,  optional => 1 },
+            'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
+            'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
+        }
+    );
+
+    my $v_type = $p{v_type};
+
+    if ( ! $p{url} ) {
+        my $template_dir = $self->get_template_dir( v_type=> $v_type ) 
+            or return $prov->error( 'unable to determine template directory',
+                fatal  => $p{fatal},
+                debug  => $p{debug},
+            );
+
+        my @templates = <$template_dir/*.tar.gz>;
+        foreach my $template ( @templates ) {
+            ($template) = $template =~ /\/([\w\.\-]+)\.tar\.gz$/;
+        };
+
+        return \@templates if scalar @templates;
     };
 
+    my $url = $p{url} || 'http://spry-ovz.templates.int.spry.com/';
+
+    my $ua = LWP::UserAgent->new( timeout => 10);
+    my $response = $ua->get($url);
+
+    die $response->status_line if ! $response->is_success;
+
+    my $content = $response->content;
+    #warn Dumper($content);
+
+#  >centos-5-i386-plesk-8.6.tar.gz<
+    my @templates = grep { /gz$/ } split /<\/a>/, $content;
+    foreach ( @templates ) {
+        $_ =~ s/\A.*gz">//xmsg;
+    };
+    #print join "\n", @templates;
     return \@templates;
 };
 

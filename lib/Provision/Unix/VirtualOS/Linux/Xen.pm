@@ -855,7 +855,8 @@ vnc        = 0
 vncviewer  = 0
 serial     = 'pty'
 disk       = ['phy:/dev/vol00/${ctid}_rootimg,sda1,w', 'phy:/dev/vol00/${ctid}_vmswap,sda2,w']
-root = '/dev/sda1 ro'
+root       = '/dev/sda1 ro'
+extra      = 'console=xvc0'
 EOCONF
         ;
 

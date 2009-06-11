@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::OpenVZ;
 
-our $VERSION = '0.24';
+our $VERSION = '0.25';
 
 use warnings;
 use strict;
@@ -79,8 +79,15 @@ sub create_virtualos {
     my $cmd = $util->find_bin( bin => 'vzctl', debug => 0 );
 
     $cmd .= " create $ctid";
-    $cmd .= " --root $vos->{disk_root}"    if $vos->{disk_root};
-    $cmd .= " --config $vos->{config}"     if $vos->{config};
+    $cmd .= " --root $vos->{disk_root}" if $vos->{disk_root};
+
+    if ( $vos->{config} ) {
+        $cmd .= " --config $vos->{config}";
+    }
+    else {
+        $self->set_config_default();
+        $cmd .= " --config default";
+    };
 
     if ( $vos->{template} ) {
         my $template = $self->_is_valid_template( $vos->{template} )
@@ -525,6 +532,33 @@ sub get_ve_home {
     return $homedir;
 };
 
+sub set_config {
+    my $self = shift;
+    my $config = shift || _default_config();
+    my $ctid = $vos->{name};
+    my $config_file = $prov->{etc_dir} . "/$ctid.conf";
+
+    return $util->file_write(
+        file  => $config_file,
+        lines => $config,
+        debug => 0,
+    );
+};
+
+sub set_config_default {
+    my $self = shift;
+
+    my $config_file = $prov->{etc_dir} . "/ve-default.conf-sample";
+    return if -f $config_file;
+
+    return $util->file_write(
+        file  => $config_file,
+        lines => _default_config(),
+        debug => 0,
+        fatal => 0,
+    );
+};
+
 sub set_ips {
     my $self = shift;
 
@@ -594,7 +628,7 @@ sub set_nameservers {
     foreach my $ns (@$nameservers) { $cmd .= " --nameserver $ns"; }
 
     $cmd .= " --searchdomain $search" if $search;
-    $cmd .= " --save";
+#    $cmd .= " --save";
 
     return $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} );
 }
@@ -714,6 +748,58 @@ sub _is_valid_name {
     }
     return 1;
 }
+
+
+sub _default_config {
+
+    return <<'EOCONFIG'
+ONBOOT="yes"
+NUMPROC="2550:2550"
+AVNUMPROC="1275:1275"
+NUMTCPSOCK="2550:2550"
+NUMOTHERSOCK="2550:2550"
+VMGUARPAGES="131072:9223372036854775807"
+
+# Secondary parameters
+KMEMSIZE="104506470:114957117"
+TCPSNDBUF="24390690:34835490"
+TCPRCVBUF="24390690:34835490"
+OTHERSOCKBUF="12195345:22640145"
+DGRAMRCVBUF="12195345:12195345"
+OOMGUARPAGES="75742:9223372036854775807"
+PRIVVMPAGES="128000:131072"
+
+# Auxiliary parameters
+LOCKEDPAGES="5102:5102"
+SHMPAGES="45445:45445"
+PHYSPAGES="0:9223372036854775807"
+NUMFILE="40800:40800"
+NUMFLOCK="1000:1100"
+NUMPTY="255:255"
+NUMSIGINFO="1024:1024"
+DCACHESIZE="22816310:23500800"
+NUMIPTENT="1536:1536"
+
+# Disk Resource Limits
+DISKINODES="2280000:2400000"
+DISKSPACE="19922944:20971520"
+
+# Quota Resource Limits
+QUOTATIME="0"
+QUOTAUGIDLIMIT="3000"
+
+# CPU Resource Limits
+CPUUNITS="1000"
+RATE="eth0:1:6000"
+
+# IPTables config
+IPTABLES="ipt_REJECT ipt_tos ipt_limit ipt_multiport iptable_filter iptable_mangle ipt_TCPMSS ipt_tcpmss ipt_ttl ipt_length ip_conntrack ip_conntrack_ftp ipt_LOG ipt_conntrack ipt_helper ipt_state iptable_nat ip_nat_ftp ipt_TOS ipt_REDIRECT"
+
+# Default Devices
+DEVICES="c:10:229:rw c:10:200:rw "
+EOCONFIG
+;
+};
 
 1;
 

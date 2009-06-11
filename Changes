@@ -1,5 +1,15 @@
 Revision history for Provision-Unix
 
+0.55  Jun 10, 2009
+  - added ability to fetch templates from repo via HTTP
+  - added extra='console=xvc0' to new Xen ve config files
+
+0.54  May 29, 2009
+  - do not --save openvz nameservers (causes user customized /etc/resolv.conf
+    to get overwritten after each reboot/restart.
+  - added 'url' option to get_template_list, adding support to get template
+    list and fetch templates from a central repo
+
 0.53  Apr 30, 2009
   - further enhancements to error reporting
   - VirtualOS/Xen was reporting non-existent ve as 'missing', changed to

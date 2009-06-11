@@ -37,11 +37,13 @@ my @parts = split /::/, $virt_class;
 my $virt_type = lc( $parts[-1] );
 ok( $virt_type, "virtualization type: $virt_type");
 
+my $template_dir;
 my $template_that_exists = undef;
 if ( $virt_type =~ /virtuozzo|ovz|openvz|xen|ezjail/ ) {
 
 # get_template_dir
-    ok( $vos->get_template_dir( v_type => $virt_type ), 'get_template_dir');
+    $template_dir = $vos->get_template_dir( v_type => $virt_type );
+    ok( $template_dir, "get_template_dir, $template_dir");
 
 # get_template_list
     my $templates = $vos->get_template_list(v_type => $virt_type );
@@ -50,6 +52,7 @@ if ( $virt_type =~ /virtuozzo|ovz|openvz|xen|ezjail/ ) {
 
 # select a template for testing
     my @preferred;
+    @preferred = grep {/cpanel/} @$templates or
     @preferred = grep {/debian/} @$templates or
     @preferred = grep {/ubuntu/} @$templates or
     @preferred = grep {/centos/} @$templates or
@@ -66,7 +69,14 @@ if ( $virt_type =~ /virtuozzo|ovz|openvz|xen|ezjail/ ) {
         $template_that_exists ||= $preferred[0];
     };
 
-    ok( $template_that_exists, "template found: $template_that_exists") or exit;
+    ok( $template_that_exists, "template chosen: $template_that_exists") or exit;
+    if ( ! -e "$template_dir/$template_that_exists" ) {
+        $vos->get_template( 
+            template => $template_that_exists, 
+            repo     => 'spry-ovz.templates.int.spry.com',
+            v_type   => 'openvz',
+        );
+    };
 };
 
 my $container_id_or_name

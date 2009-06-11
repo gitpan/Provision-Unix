@@ -44,9 +44,8 @@ to $prov->error.
 
 Replace all general logging with calls to $prov->status. 
 
-This will conform with
-the coding standards of the rest of Provision Unix, which uses those functions
-extensively for logging and error reporting.
+This will conform with the coding standards of the rest of Provision Unix,
+which uses those functions extensively for logging and error reporting.
 
 =cut
 
@@ -2611,7 +2610,7 @@ sub syscmd {
     my $cmd_request = $p{cmd};
     my $debug       = $p{debug};
 
-    $prov->audit("syscmd is preparing: $cmd_request") if $debug;
+    $prov->audit("syscmd is preparing: $cmd_request") if $prov;
 
     my ( $is_safe, $tainted, $bin, @args );
 
