@@ -2610,7 +2610,7 @@ sub syscmd {
     my $cmd_request = $p{cmd};
     my $debug       = $p{debug};
 
-    $prov->audit("syscmd is preparing: $cmd_request") if $prov;
+    $prov->audit("syscmd is preparing: $cmd_request") if ($prov && $debug);
 
     my ( $is_safe, $tainted, $bin, @args );
 

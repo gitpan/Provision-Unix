@@ -1,6 +1,6 @@
 package Provision::Unix;
 
-our $VERSION = '0.56';
+our $VERSION = '0.57';
 
 use warnings;
 use strict;
@@ -228,7 +228,7 @@ sub _find_readable {
     my $file = shift;
     my $dir  = shift or return;    # breaks recursion at end of @_
 
-    $self->audit("looking for $file in $dir");
+    $self->audit("looking for $file in $dir") if $self->{debug};
 
     if ( -r "$dir/$file" ) {
         no warnings;

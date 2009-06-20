@@ -3,7 +3,7 @@ package Provision::Unix::VirtualOS;
 use warnings;
 use strict;
 
-our $VERSION = '0.26';
+our $VERSION = '0.27';
 
 use Data::Dumper;
 use English qw( -no_match_vars );
@@ -97,8 +97,11 @@ sub create_virtualos {
 
     $self->{name}        = $p{name};
     $self->{ip}          = $self->get_ips( $p{ip} ) or return;
-    $self->{nameservers} = $self->get_ips( $p{nameservers} )
-        if $p{nameservers};
+
+    if ( $p{nameservers} ) {
+        $prov->audit( "getting nameserver IP list");
+        $self->{nameservers} = $self->get_ips( $p{nameservers} );
+    };
 
     foreach ( qw/ hostname disk_root disk_size ram config
                   template password ssh_key searchdomain
@@ -106,7 +109,8 @@ sub create_virtualos {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
-    $prov->audit("\tdelegating request to $self->{vtype}");
+    my ($delegate) = $self->{vtype} =~ m/^(.*)=HASH/;
+    $prov->audit("\tdelegating request to $delegate");
     $self->{vtype}->create_virtualos();
 }
 
@@ -484,9 +488,9 @@ sub get_template {
         );
 
     my $url = "http://$p{repo}/$p{template}";
-    warn "url: $url\n";
+warn "url: $url\n";
     my $response = LWP::Simple::getstore($url, "$template_dir/$p{template}");
-    warn Dumper($response);
+warn Dumper($response);
     return $response; 
 };
 

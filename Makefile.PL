@@ -31,6 +31,7 @@ recommends        'Apache::Admin::Config' => .9;
 recommends        'JSON::XS'            => 0;
 recommends        'NicTool'             => 0;
 recommends        'LWP::UserAgent'      => 0;
+recommends        'URI'                 => 0;
 
 feature             'JSON Provisioning Agent',
                         -default          => 1,

@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::OpenVZ;
 
-our $VERSION = '0.25';
+our $VERSION = '0.26';
 
 use warnings;
 use strict;
@@ -8,6 +8,7 @@ use strict;
 use English qw( -no_match_vars );
 use File::Copy;
 use Params::Validate qw(:all);
+use URI;
 
 use lib 'lib';
 use Provision::Unix::User;
@@ -540,7 +541,7 @@ sub set_config {
 
     return $util->file_write(
         file  => $config_file,
-        lines => $config,
+        lines => [ $config ],
         debug => 0,
     );
 };
@@ -553,7 +554,7 @@ sub set_config_default {
 
     return $util->file_write(
         file  => $config_file,
-        lines => _default_config(),
+        lines => [ _default_config() ],
         debug => 0,
         fatal => 0,
     );
@@ -630,14 +631,11 @@ sub set_nameservers {
     $cmd .= " --searchdomain $search" if $search;
 #    $cmd .= " --save";
 
-    return $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} );
+    return $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
 }
 
 sub set_hostname {
     my $self = shift;
-
-    my $cmd = $util->find_bin( bin => 'vzctl', debug => 0 );
-    $cmd .= " set $vos->{name}";
 
     my $hostname = $vos->{hostname}
         or return $prov->error( 'no hostname defined',
@@ -645,7 +643,9 @@ sub set_hostname {
         debug   => $vos->{debug},
         );
 
-    $cmd .= " --hostname $hostname --save" if $hostname;
+    my $cmd = $util->find_bin( bin => 'vzctl', debug => 0 );
+    $cmd .= " set $vos->{name}";
+    $cmd .= " --hostname $hostname --save";
 
     return $util->syscmd( 
         cmd => $cmd, 
@@ -711,23 +711,30 @@ sub _is_valid_template {
     my $template = shift;
 
     my $template_dir = $self->{prov}{config}{ovz_template_dir} || '/vz/template/cache';
-    if ( -f "$template_dir/$template.tar.gz" ) {
-        return $template;
-    }
 
-    # is $template a URL?
-    my ( $protocol, $host, $path, $file )
-        = $template
-        =~ /^((http[s]?|rsync):\/)?\/?([^:\/\s]+)((\/\w+)*\/)([\w\-\.]+[^#?\s]+)(.*)?(#[\w\-]+)?$/;
-    if ( $protocol && $protocol =~ /http|rsync/ ) {
-        $prov->audit("fetching $file with $protocol");
+    if ( $template =~ /http/ ) {
 
-        # TODO
-        # stor01:/usr/local/cosmonaut/templates/vpslink
+        my $uri = URI->new($template);
+        my @segments = $uri->path_segments;
+        my @path_bits = grep { /\w/ } @segments;
+        my $file = $path_bits[-1];
 
-        return $prov->error( 'template does not exist and programmers have not yet written the code to retrieve templates via URL',
+        return $file if -f "$template_dir/$file.tar.gz";
+
+        $prov->audit("fetching $file from " . $uri->host);
+
+        $vos->get_template( 
+            v_type   => 'ovz',
+            template => "$file.tar.gz",
+            repo     => $uri->host,
+        )
+        or return $prov->error( 'template does not exist. The attempt to retrieve it failed.',
             fatal => 0
         );
+        return $file if -f "$template_dir/$file.tar.gz";
+    }
+    else {
+        return $template if -f "$template_dir/$template.tar.gz";
     }
 
     return $prov->error( "template '$template' does not exist and is not a valid URL",
