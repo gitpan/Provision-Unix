@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::OpenVZ;
 
-our $VERSION = '0.26';
+our $VERSION = '0.27';
 
 use warnings;
 use strict;
@@ -80,7 +80,17 @@ sub create_virtualos {
     my $cmd = $util->find_bin( bin => 'vzctl', debug => 0 );
 
     $cmd .= " create $ctid";
-    $cmd .= " --root $vos->{disk_root}" if $vos->{disk_root};
+    if ( $vos->{disk_root} ) {
+        my $disk_root = "$vos->{disk_root}/root/$ctid";
+        if ( -e $disk_root ) {
+            return $prov->error( "the root directory for $ctid ($disk_root) already exists!",
+                fatal   => $vos->{fatal},
+                debug   => $vos->{debug},
+            );
+        };
+        $cmd .= " --root $disk_root";
+        $cmd .= " --private $vos->{disk_root}/private/$ctid";
+    };
 
     if ( $vos->{config} ) {
         $cmd .= " --config $vos->{config}";

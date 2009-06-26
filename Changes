@@ -1,5 +1,8 @@
 Revision history for Provision-Unix
 
+0.58  Jun 23, 2009
+  - fixes for homedir setting on OpenVZ VPS creation
+
 0.57  Jun 11, 2009
   - cleaned up audit trail, show less debug info if debug option not specified
   - fixed OpenVZ config file creation
