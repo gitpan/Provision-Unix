@@ -7,23 +7,23 @@ use English qw( -no_match_vars );
 use Test::More;
 
 use lib 'lib';
+use lib "inc";
 use Provision::Unix;
 use Provision::Unix::DNS;
 
 my $prov = Provision::Unix->new( debug => 0 );
-my $dns = Provision::Unix::DNS->new( prov => $prov, debug => 0, fatal => 0 );
+my $dns;
 
-if ( ! $dns) {
-    my $error = $prov->get_last_error_message;
-    plan skip_all => "Could not load Provision::Unix::DNS:\n$error";
+eval { $dns = Provision::Unix::DNS->new( prov => $prov, fatal => 0, debug => 0 ) };
+if ( $EVAL_ERROR ) {
+    my $message = $EVAL_ERROR; chop $message;
+    $message .= " on " . $OSNAME;
+    plan skip_all => $message;
+} 
+else {
+    plan 'no_plan';
 };
 
-plan 'no_plan';
-
-use lib "inc";
-use lib "lib";
-
-use Data::Dumper;
 #warn Dumper ( $dns );
 
 # fully_qualify
@@ -61,7 +61,8 @@ if ( $server eq 'tinydns' ) {
     }
 }
 elsif ( $server =~ /nictool/i ) {
-    $dns->connect() or die "couldn't connect to NicTool server\n";
+    $dns->connect() or 
+        warn $prov->get_last_error_message() and exit;
 };
 
 my @zones = qw/ example.com 2.2.2.in-addr.arpa /;

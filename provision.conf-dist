@@ -20,8 +20,8 @@ server       = apache
 
 
 [DNS]
-#server           = tinydns
-server           = nictool
+server           = tinydns
+#server           = nictool
 zone_ttl         = 86400
 zone_refresh     = 16384
 zone_retry       =  2048

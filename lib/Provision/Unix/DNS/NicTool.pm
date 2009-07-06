@@ -13,15 +13,16 @@ sub new {
 
     my %p = validate( @_, 
         {   'prov'  => { type => OBJECT }, 
-            'debug' => { type => BOOLEAN, optional => 1 },
+            'debug' => { type => BOOLEAN, optional => 1, default => 1 },
+            'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
         }
     );
 
-    my $self = { 
-        prov  => $p{prov}, 
-        debug => $p{debug},
-    };
+    my $self = { prov  => $p{prov} };
     bless( $self, $class );
+
+    $self->set_debug( $p{debug} );
+    $self->set_fatal( $p{fatal} );
 
     $self->{nt} = $self->connect();
     return $self;
@@ -35,7 +36,9 @@ sub connect {
     eval { require NicTool; };
 
     if ($EVAL_ERROR) {
-        $prov->error( "Could not load NicTool.pm. Are the NicTool client libraries installed? They can be found in NicToolServer/sys/client in the NicToolServer distribution. See http://nictool.com/"
+        return $prov->error( "Could not load NicTool.pm. Are the NicTool client libraries installed? They can be found in NicToolServer/sys/client in the NicToolServer distribution. See http://nictool.com/",
+            fatal => $self->{fatal},
+            debug => $self->{debug},
         );
     }
 
@@ -54,12 +57,12 @@ sub connect {
     my $r = $nt->login( username => $user, password => $pass );
 
     if ( $nt->is_error($r) ) {
-        return $prov->error( "error logging in: $r->{store}{error_msg}" );
+        return $prov->error( "error logging in: $r->{store}{error_msg}", fatal => $self->{fatal}, debug => $self->{debug} );
     }
 
     my $session = $nt->{nt_user_session};
     if ( ! $session ) {
-        warn Data::Dumper::Dumper( $nt ); # ->{user}{store} );
+        #warn Data::Dumper::Dumper( $nt ); # ->{user}{store} );
         return $prov->error( "unable to get session" );
     };
 

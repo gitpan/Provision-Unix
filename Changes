@@ -1,5 +1,12 @@
 Revision history for Provision-Unix
 
+0.59  Jul 05, 2009
+  - if an ovz VE is already suspended/disabled, succeed at subsequent attempts
+  - if an ovz VE is suspended, enable it before destroying (vzctl requires it)
+  - switched default DNS server to NicTool (was tinydns) causing DNS tests to
+    fail on systems w/o NicTool installed. Added error handling to prevent test
+    suite breakage under these circumstances, and reset the default DNS server.
+
 0.58  Jun 23, 2009
   - fixes for homedir setting on OpenVZ VPS creation
 

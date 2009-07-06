@@ -3,7 +3,7 @@ package Provision::Unix::DNS;
 use strict;
 use warnings;
 
-our $VERSION = '0.23';
+our $VERSION = '0.24';
 
 use English qw( -no_match_vars );
 use Params::Validate qw(:all);
@@ -30,7 +30,7 @@ sub new {
     bless( $self, $class );
 
     $util = Provision::Unix::Utility->new( prov => $p{prov}, debug=>$p{debug},fatal=>$p{fatal} );
-    $self->{server} = $self->_get_server() or return undef;
+    $self->{server} = $self->_get_server() or return;
     $self->{prov}->audit("loaded DNS");
 
     return $self;
@@ -154,8 +154,23 @@ sub _get_server {
     };
 
     if ( $chosen_server eq 'nictool' ) {
-        require Provision::Unix::DNS::NicTool;
-        return Provision::Unix::DNS::NicTool->new( prov => $prov );
+        eval { require Provision::Unix::DNS::NicTool; };
+        if ($EVAL_ERROR) {
+            return $prov->error ( $EVAL_ERROR, fatal => $fatal, debug => $debug );
+        };
+        my $r = Provision::Unix::DNS::NicTool->new( 
+            prov => $prov, 
+            fatal => $fatal, 
+            debug => $debug,
+        );
+#warn Data::Dumper::Dumper($r);
+        if ( ! $r ) {
+            return $prov->error( $prov->get_last_error_message(),
+                debug => $debug,
+                fatal => $fatal,
+            );    
+        }
+        return $r;
     }
     elsif ( $chosen_server eq 'tinydns' ) {
         require Provision::Unix::DNS::tinydns;

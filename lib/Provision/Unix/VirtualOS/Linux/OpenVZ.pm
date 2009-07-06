@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::OpenVZ;
 
-our $VERSION = '0.27';
+our $VERSION = '0.29';
 
 use warnings;
 use strict;
@@ -143,7 +143,16 @@ sub destroy_virtualos {
         debug   => $vos->{debug},
     ) if !$self->is_present();
 
-# TODO: if disabled, enable it
+
+    # if disabled, enable it, else vzctl pukes when it attempts to destroy
+    my $config = $self->get_config();
+    if ( ! -e $config && -e "$config.suspend" ) {
+        move( "$config.suspend", $config )
+            or return $prov->error( "unable to move file '$config.suspend' to '$config': $!",
+            fatal   => $vos->{fatal},
+            debug   => $vos->{debug},
+            );
+    };
 
     # if VE is running, shut it down
     if ( $self->is_running( refresh => 0 ) ) {
@@ -280,8 +289,13 @@ sub disable_virtualos {
 
     # make sure config file exists
     my $config = $self->get_config();
+    if ( ! -e $config && -e "$config.suspend" ) {
+        $prov->audit( "container is already disabled." );
+        return 1;
+    };
+
     if ( !-e $config ) {
-        return $prov->error( "configuration file ($config) for $ctid does not exist",
+        return $prov->error( "configuration file ($config) for $ctid does not exist.",
             fatal => $vos->{fatal},
             debug => $vos->{debug},
         );
@@ -297,6 +311,8 @@ sub disable_virtualos {
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
         );
+
+    $prov->audit( "virtual $ctid is disabled." );
 
     return 1;
 }
