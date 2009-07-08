@@ -1,5 +1,8 @@
 Revision history for Provision-Unix
 
+0.60  Jul 07, 2009
+  - fixed a bug in the DNS test
+
 0.59  Jul 05, 2009
   - if an ovz VE is already suspended/disabled, succeed at subsequent attempts
   - if an ovz VE is suspended, enable it before destroying (vzctl requires it)

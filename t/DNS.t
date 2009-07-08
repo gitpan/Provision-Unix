@@ -15,7 +15,7 @@ my $prov = Provision::Unix->new( debug => 0 );
 my $dns;
 
 eval { $dns = Provision::Unix::DNS->new( prov => $prov, fatal => 0, debug => 0 ) };
-if ( $EVAL_ERROR ) {
+if ( $EVAL_ERROR || ! $dns ) {
     my $message = $EVAL_ERROR; chop $message;
     $message .= " on " . $OSNAME;
     plan skip_all => $message;
