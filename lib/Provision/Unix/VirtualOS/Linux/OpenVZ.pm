@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::OpenVZ;
 
-our $VERSION = '0.29';
+our $VERSION = '0.30';
 
 use warnings;
 use strict;
@@ -554,8 +554,8 @@ sub get_status {
 sub get_ve_home {
     my $self = shift;
     my $name = $vos->{name};
-    my $disk_root = $vos->{disk_root} || '/vz/private';
-    my $homedir = "$disk_root/$name";
+    my $disk_root = $vos->{disk_root} || '/vz';
+    my $homedir = "$disk_root/private/$name";
     return $homedir;
 };
 

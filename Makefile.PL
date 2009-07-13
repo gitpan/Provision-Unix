@@ -15,6 +15,7 @@ requires         'Config::Tiny'      => 0;
 requires         'Getopt::Long'      => 2.37;
 requires         'Params::Validate'  => .8;
 requires         'Digest::MD5'       => 1;
+requires         'LWP::UserAgent'    => 0;
 
 test_requires    'Test::More'        => 0;
 
@@ -30,7 +31,6 @@ recommends        'Proc::ProcessTable'  => 1;
 recommends        'Apache::Admin::Config' => .9;
 recommends        'JSON::XS'            => 0;
 recommends        'NicTool'             => 0;
-recommends        'LWP::UserAgent'      => 0;
 recommends        'URI'                 => 0;
 
 feature             'JSON Provisioning Agent',
@@ -55,10 +55,6 @@ feature             'NicTool API integration',
 
 #feature         'tinydns data files'    # not used.
 #                    DNS::TinyDNS'    => 1;
-
-feature               'self-update to latest CPAN version',
-                        -default           => 0,
-                        'LWP::UserAgent'   => 0;
 
 clean_files           'Provision-Unix-*';
 clean_files           'pod2htm*';

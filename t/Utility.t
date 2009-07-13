@@ -364,9 +364,8 @@ my $before = sprintf "%lo", $st->mode & 07777;
 
 # change the permissions to something slightly unique
 ok( $util->chmod(
-        file_or_dir => $rwtest,
-        mode        => '0700',
-        debug       => 0
+        file_or_dir => $rwtest,   mode        => '0700',
+        debug       => 0,         fatal       => 0,
     ),
     'chmod'
 );
@@ -384,7 +383,7 @@ cmp_ok( $result_mode, '==', 700, 'file_mode' );
 ok( $util->chmod(
         file_or_dir => $rwtest,
         mode        => $before,
-        debug       => 0
+        debug       => 0, fatal => 0,
     ),
     'chmod'
 );
@@ -622,7 +621,7 @@ if ( eval "require $mod" ) {
 # mkdir_system
 my $mkdir = "$tmp/bar";
 ok( $util->mkdir_system( dir => $mkdir, debug => 0 ), 'mkdir_system' );
-ok( $util->chmod( file_or_dir => $mkdir, mode => '0744', debug => 0 ),
+ok( $util->chmod( file_or_dir => $mkdir, mode => '0744', debug => 0, fatal => 0 ),
     'chmod' );
 ok( rmdir($mkdir), 'mkdir_system' );
 

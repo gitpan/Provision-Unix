@@ -3,7 +3,7 @@ package Provision::Unix::VirtualOS;
 use warnings;
 use strict;
 
-our $VERSION = '0.27';
+our $VERSION = '0.28';
 
 use Data::Dumper;
 use English qw( -no_match_vars );
@@ -128,6 +128,7 @@ sub destroy_virtualos {
     my %p = validate(
         @_,
         {   'name'      => { type => SCALAR },
+            'disk_root' => { type => SCALAR,  optional => 1 },
             'test_mode' => { type => BOOLEAN, optional => 1 },
             'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
             'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
@@ -240,6 +241,7 @@ sub disable_virtualos {
     my %p = validate(
         @_,
         {   'name'      => { type => SCALAR },
+            'disk_root' => { type => SCALAR,  optional => 1 },
             'test_mode' => { type => BOOLEAN, optional => 1 },
             'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
             'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
@@ -250,6 +252,7 @@ sub disable_virtualos {
     $self->{test_mode} = $p{test_mode};
     $self->{debug}     = $p{debug};
     $self->{fatal}     = $p{fatal};
+    $self->{disk_root} = $p{disk_root} if defined $p{disk_root};
 
     $self->{vtype}->disable_virtualos();
 }
@@ -268,6 +271,7 @@ sub enable_virtualos {
     my %p = validate(
         @_,
         {   'name'      => { type => SCALAR },
+            'disk_root' => { type => SCALAR,  optional => 1 },
             'test_mode' => { type => BOOLEAN, optional => 1 },
             'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
             'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
@@ -278,6 +282,7 @@ sub enable_virtualos {
     $self->{test_mode} = $p{test_mode};
     $self->{debug}     = $p{debug};
     $self->{fatal}     = $p{fatal};
+    $self->{disk_root} = $p{disk_root} if defined $p{disk_root};
 
     $self->{vtype}->enable_virtualos();
 }
@@ -600,6 +605,7 @@ sub set_password {
         {   'name'      => { type => SCALAR },
             'user'      => { type => SCALAR | UNDEF, optional => 1 },
             'password'  => { type => SCALAR },
+            'disk_root' => { type => SCALAR,  optional => 1 },
             'ssh_key'   => { type => SCALAR,  optional => 1 },
             'test_mode' => { type => BOOLEAN, optional => 1 },
             'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
@@ -609,7 +615,7 @@ sub set_password {
 
     $self->{user} = $p{user} || 'root';
 
-    foreach ( qw/ name password ssh_key
+    foreach ( qw/ name password ssh_key disk_root
                   fatal debug test_mode / ) {
         $self->{$_} = $p{$_} if defined $p{$_};
     };

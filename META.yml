@@ -20,7 +20,6 @@ no_index:
 recommends:
   Apache::Admin::Config: 0.9
   JSON::XS: 0
-  LWP::UserAgent: 0
   Mail::Send: 1
   NicTool: 0
   Proc::ProcessTable: 1
@@ -33,8 +32,9 @@ requires:
   Config::Tiny: 0
   Digest::MD5: 1
   Getopt::Long: 2.37
+  LWP::UserAgent: 0
   Params::Validate: 0.8
   perl: 5.8.0
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.60
+version: 0.61

@@ -1,5 +1,10 @@
 Revision history for Provision-Unix
 
+0.61  Jul 08, 2009
+  - disable, enable, password, and destroy methods accept disk_root param now
+  - added LWP::UserAgent to the list of dependencies
+  - made t/utility.t chmod tests non-fatal
+
 0.60  Jul 07, 2009
   - fixed a bug in the DNS test
 
