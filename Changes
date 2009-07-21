@@ -1,5 +1,14 @@
 Revision history for Provision-Unix
 
+0.62  Jul 21, 2009
+  - added pod docs to bin/prov_virtual
+  - added OpenVZ gen_config method
+  - added OpenVZ upgrade_virtualos method
+  - worked around a bug where Proc::ProcessTable would load but not work
+  - added OpenVZ unmount_virtualos and is_mounted methods. Before a reinstall
+    and disable actions, check if disk is mounted and unmount it.
+  - added a few conditionals to skip tests that fail on IRIX and cygwin
+
 0.61  Jul 08, 2009
   - disable, enable, password, and destroy methods accept disk_root param now
   - added LWP::UserAgent to the list of dependencies

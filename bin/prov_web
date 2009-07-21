@@ -119,11 +119,11 @@ prov_web.pl is a command line interface to the Provision::Web provisioning modul
 
 =head1 DEPENDENCIES
  
-A list of all the other modules that this module relies upon, including any
-restrictions on versions, and an indication whether these required modules are
-part of the standard Perl distribution, part of the module's distribution,
-or must be installed separately.
-
+  Config::Tiny
+  Getopt::Long
+  Params::Validate
+  Digest::MD5 
+  LWP::UserAgent
 
 =head1 AUTHOR
  

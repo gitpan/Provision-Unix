@@ -1992,26 +1992,32 @@ sub is_process_running {
     if ( ! $EVAL_ERROR ) {
         my $i = 0;
         my $t = Proc::ProcessTable->new();
-        foreach my $p ( @{ $t->table } ) {
-            $i++ if ( $p->cmndline =~ m/$process/i );
+        if ( scalar @{ $t->table } ) {
+            foreach my $p ( @{ $t->table } ) {
+                $i++ if ( $p->cmndline =~ m/$process/i );
+            };
+            return $i;
         };
-        return $i;
     };
 
     my $ps   = $self->find_bin( bin => 'ps',   debug => 0 );
     my $grep = $self->find_bin( bin => 'grep', debug => 0 );
 
-    if ( lc($OSNAME) =~ /solaris/ ) {
+    if ( lc($OSNAME) =~ /solaris/i ) {
         $ps .= " -ef";
     }
-    elsif ( lc($OSNAME) =~ /linux/ ) {
+    elsif ( lc($OSNAME) =~ /linux/i ) {
         $ps .= " -efw";
     }
     else {
         $ps .= " axw";
     };
 
-    return `$ps | $grep $process | $grep -v grep` ? 1 : 0;
+    my $is_running = `$ps | $grep $process | $grep -v grep` ? 1 : 0;
+    if ( ! $is_running ) {
+        #warn "$ps | $grep $process | $grep -v grep\n";
+    };
+    return $is_running;
 }
 
 sub is_readable {

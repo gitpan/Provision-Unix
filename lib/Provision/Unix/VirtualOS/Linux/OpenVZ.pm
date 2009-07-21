@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::OpenVZ;
 
-our $VERSION = '0.30';
+our $VERSION = '0.34';
 
 use warnings;
 use strict;
@@ -72,7 +72,7 @@ sub create_virtualos {
     }
 
     # TODO
-    # validate the config (package)
+    # validate the config (package). <- HUH? -mps 7/21/09
 
     $prov->audit("\tctid '$ctid' does not exist, creating...");
 
@@ -165,7 +165,16 @@ sub destroy_virtualos {
             );
     };
 
-# TODO: make sure none of the mounts are active
+# if VE is mounted, unmount it
+    if ( $self->is_mounted( refresh => 0 ) ) {
+        $prov->audit("\tcontainer '$name' is mounted, unmounting...");
+        $self->unmount_virtualos() 
+            or return
+            $prov->error( "unmount failed. I cannot continue.",
+                fatal   => $vos->{fatal},
+                debug   => $vos->{debug},
+            );
+    };
 
 # TODO: optionally back it up
     if ( $vos->{safe_delete} ) {
@@ -306,6 +315,8 @@ sub disable_virtualos {
     # see if VE is running, and if so, stop it
     $self->stop_virtualos() if $self->is_running( refresh => 0 );
 
+    $self->unmount_virtualos() if $self->is_mounted( refresh => 0 );
+
     move( $config, "$config.suspend" )
         or return $prov->error( "unable to move file '$config' to '$config.suspend': $!",
         fatal   => $vos->{fatal},
@@ -407,6 +418,159 @@ sub reinstall_virtualos {
     return $self->create_virtualos();
 }
 
+sub upgrade_virtualos {
+    my $self = shift;
+
+# generate updated config file
+    my $config = $self->gen_config();
+    my $conf_file = $self->get_config();
+    
+# install config file
+    $util->file_write( file => $conf_file, lines => [ $config ] );
+    $prov->audit("updated config file, restarting VE");
+
+# restart VE
+    $self->restart_virtualos()
+        or return $prov->error( "unable to restart virtual $vos->{name}",
+            fatal   => $vos->{fatal},
+            debug   => $vos->{debug},
+        );
+
+    return 1;
+};
+
+sub unmount_virtualos {
+
+    my $self = shift;
+
+    my $ctid = $vos->{name};
+    $prov->audit("unmounting virtual $ctid");
+
+    # make sure CTID exists
+    return $prov->error( "container $ctid does not exist",
+        fatal   => $vos->{fatal},
+        debug   => $vos->{debug},
+    ) if !$self->is_present();
+
+    # see if VE is mounted
+    if ( !$self->is_mounted( refresh => 0 ) ) {
+        return $prov->error( "container $ctid is not mounted",
+            fatal   => $vos->{fatal},
+            debug   => $vos->{debug},
+        );
+    }
+
+    my $cmd = $util->find_bin( bin => 'vzctl', debug => 0 );
+    $cmd .= " umount $vos->{name}";
+
+    return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
+    $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
+
+    foreach ( 1..8 ) {
+        return 1 if ! $self->is_mounted();
+        sleep 1;
+    };
+    return 1 if ! $self->is_mounted();
+
+    return $prov->error( "unable to unmount VE",
+        fatal   => $vos->{fatal},
+        debug   => $vos->{debug},
+    );
+}
+
+sub gen_config {
+    my $self = shift;
+# most of this method was written by Max Vohra - 2009
+
+    my $ram  = $vos->{ram} or die "unable to determine RAM";
+    my $disk = $vos->{disk_size} or die "unable to determine disk space";
+
+    my $MAX_ULONG = "2147483647";
+    if( ($CHILD_ERROR>>8) == 0 ){
+        $MAX_ULONG = "9223372036854775807"
+    };
+
+    # UBC parameters (in form of barrier:limit)
+    my $config = {
+        NUMPROC      => [ int($ram*5),   int($ram*5)   ],
+        AVNUMPROC    => [ int($ram*2.5), int($ram*2.5) ],
+        NUMTCPSOCK   => [ int($ram*5),   int($ram*5)   ],
+        NUMOTHERSOCK => [ int($ram*5),   int($ram*5)   ],
+        VMGUARPAGES  => [ int($ram*256), $MAX_ULONG    ],
+    };
+
+    # Secondary parameters
+    $config->{KMEMSIZE} = [ $config->{NUMPROC}[0]*45*1024, $config->{NUMPROC}[0]*45*1024 ];
+    $config->{TCPSNDBUF} = [ int($ram*2*23819), int($ram*2*23819)+$config->{NUMTCPSOCK}[0]*4096 ];
+    $config->{TCPRCVBUF} = [ int($ram*2*23819), int($ram*2*23819)+$config->{NUMTCPSOCK}[0]*4096 ];
+    $config->{OTHERSOCKBUF} = [ int(23819*$ram), int(23819*$ram)+$config->{NUMOTHERSOCK}[0]*4096 ];
+    $config->{DGRAMRCVBUF} = [ int(23819*$ram), int(23819*$ram) ];
+    $config->{OOMGUARPAGES} = [ int(23819*$ram), $MAX_ULONG ];
+    $config->{PRIVVMPAGES} = [ int(250*$ram), int(256*$ram) ];
+
+    # Auxiliary parameters
+    $config->{LOCKEDPAGES} = [ int($config->{NUMPROC}[0]*2), int($config->{NUMPROC}[0]*2) ];
+    $config->{SHMPAGES} = [ int($ram*100), int($ram*100) ]; 
+    $config->{PHYSPAGES} = [ 0, $MAX_ULONG ];
+    $config->{NUMFILE} = [ 16*$config->{NUMPROC}[0], 16*$config->{NUMPROC}[0] ];
+    $config->{NUMFLOCK} = [ 1000, 1000 ];
+    $config->{NUMPTY} = [ 256, 256 ];
+    $config->{NUMSIGINFO} = [ 1024, 1024 ];
+    $config->{DCACHESIZE} = [ int($config->{NUMFILE}[1]*576*0.95), $config->{NUMFILE}[1]*576 ];
+
+    $config->{NUMIPTENT}  = $ram < 513  ? [ 1536, 1536 ]
+                          : $ram < 1025 ? [ 3072, 3072 ]
+                          : [ 6144, 6144 ];
+
+    # Disk Resource Limits
+    $config->{DISKSPACE}  = [ int($disk*1024*1024*0.95), int($disk*1024*1024) ]; 
+    $config->{DISKINODES} = [ int($disk*114000), int($disk*120000) ];
+    $config->{QUOTAUGIDLIMIT} = [ 3000 ];
+    $config->{QUOTATIME}  = [ 0 ];
+
+    # CPU Resource Limits
+    $config->{CPUUNITS}   = [ 1000 ];
+    $config->{RATE}       = [ 'eth0', 1, 6000 ];
+
+    $config->{IPTABLES}   = [ join(" ", qw(
+        ipt_REJECT ipt_tos ipt_limit ipt_multiport
+        iptable_filter iptable_mangle ipt_TCPMSS 
+        ipt_tcpmss ipt_ttl ipt_length ip_conntrack 
+        ip_conntrack_ftp ipt_LOG ipt_conntrack 
+        ipt_helper ipt_state iptable_nat ip_nat_ftp 
+        ipt_TOS ipt_REDIRECT ) ) ];
+    $config->{DEVICES} = [ "c:10:229:rw c:10:200:rw" ];
+    $config->{ONBOOT}  = [ "yes" ]; 
+    
+    my $result = <<EO_MAX_CONFIG
+# This is a configuration file generated by Provision::Unix
+# The config parameters are: $ram RAM, and $disk disk space
+#
+EO_MAX_CONFIG
+;
+    for my $var ( sort keys %$config ){
+        #print $var, '="', join(":",@{$config->{$var}}),"\"\n";
+        $result .= $var . '="' . join(":",@{$config->{$var}}) . "\"\n";
+    };
+
+    my $name = $vos->{name};
+    my $disk_root = $vos->{disk_root} || '/vz';
+    my $ip_string = join(' ', @{ $vos->{ip} } ) if $vos->{ip};
+
+    $result .= <<EO_VE_CUSTOM
+\n# Provision::Unix Custom VE Additions
+VE_ROOT="$disk_root/root/\$VEID"
+VE_PRIVATE="$disk_root/private/\$VEID"
+OSTEMPLATE="$vos->{template}"
+ORIGIN_SAMPLE="$vos->{config}"
+HOSTNAME="$vos->{hostname}"
+IP_ADDRESS="$ip_string"
+EO_VE_CUSTOM
+;
+
+    return $result;
+};
+
 sub get_config {
     my $ctid   = $vos->{name};
     my $etc_dir = $prov->{etc_dir} || '/etc/vz/conf';
@@ -499,12 +663,11 @@ sub get_status {
     }
     elsif ( $r =~ /exist/i ) {
         $exists++;
-        if ( $r =~ /running/i ) {
-            $ve_info{state} = 'running';
-        }
-        elsif ( $r =~ /down/i ) {
-            $ve_info{state} = 'shutdown';
-        }
+        if    ( $r =~ /running/i ) { $ve_info{state} = 'running'; }
+        elsif ( $r =~ /down/i    ) { $ve_info{state} = 'shutdown'; };
+
+        if    ( $r =~ /unmounted/ ) { $ve_info{mount} = 'unmounted'; }
+        elsif ( $r =~ /mounted/   ) { $ve_info{mount} = 'mounted';   };
     }
     else {
         return $prov->error( "unknown output from vzctl status.", fatal => 0 );
@@ -689,6 +852,26 @@ sub pre_configure {
 
 }
 
+sub is_mounted {
+    my $self = shift;
+
+    my %p = validate(
+        @_,
+        {   name   => { type => SCALAR,  optional => 1 },
+            refresh=> { type => BOOLEAN, optional => 1, default => 1 },
+            debug  => { type => BOOLEAN, optional => 1, default => 1 },
+            fatal  => { type => BOOLEAN, optional => 1, default => 1 },
+        }
+    );
+
+    my $name = $p{name} || $vos->{name} or
+        $prov->error( 'is_mounted was called without a CTID' );
+
+    $self->get_status() if $p{refresh};
+    return 1 if $self->{status}{$name}{mount} eq 'mounted';
+    return;
+};
+
 sub is_present {
     my $self = shift;
 
@@ -782,7 +965,6 @@ sub _is_valid_name {
     return 1;
 }
 
-
 sub _default_config {
 
     return <<'EOCONFIG'
@@ -834,7 +1016,8 @@ EOCONFIG
 ;
 };
 
-1;
+
+1
 
 __END__
 

@@ -3,7 +3,7 @@ package Provision::Unix::VirtualOS;
 use warnings;
 use strict;
 
-our $VERSION = '0.28';
+our $VERSION = '0.31';
 
 use Data::Dumper;
 use English qw( -no_match_vars );
@@ -191,10 +191,9 @@ sub stop_virtualos {
         }
     );
 
-    $self->{name}      = $p{name};
-    $self->{test_mode} = $p{test_mode};
-    $self->{debug}     = $p{debug};
-    $self->{fatal}     = $p{fatal};
+    foreach ( qw/ name test_mode debug fatal / ) {
+        $self->{$_} = $p{$_} if defined $p{$_};
+    };
 
     $self->{vtype}->stop_virtualos();
 }
@@ -219,10 +218,9 @@ sub restart_virtualos {
         }
     );
 
-    $self->{name}      = $p{name};
-    $self->{test_mode} = $p{test_mode};
-    $self->{debug}     = $p{debug};
-    $self->{fatal}     = $p{fatal};
+    foreach ( qw/ name test_mode debug fatal / ) {
+        $self->{$_} = $p{$_} if defined $p{$_};
+    };
 
     $self->{vtype}->restart_virtualos();
 }
@@ -248,11 +246,9 @@ sub disable_virtualos {
         }
     );
 
-    $self->{name}      = $p{name};
-    $self->{test_mode} = $p{test_mode};
-    $self->{debug}     = $p{debug};
-    $self->{fatal}     = $p{fatal};
-    $self->{disk_root} = $p{disk_root} if defined $p{disk_root};
+    foreach ( qw/ name test_mode debug fatal disk_root / ) {
+        $self->{$_} = $p{$_} if defined $p{$_};
+    };
 
     $self->{vtype}->disable_virtualos();
 }
@@ -278,11 +274,9 @@ sub enable_virtualos {
         }
     );
 
-    $self->{name}      = $p{name};
-    $self->{test_mode} = $p{test_mode};
-    $self->{debug}     = $p{debug};
-    $self->{fatal}     = $p{fatal};
-    $self->{disk_root} = $p{disk_root} if defined $p{disk_root};
+    foreach ( qw/ name test_mode debug fatal disk_root / ) {
+        $self->{$_} = $p{$_} if defined $p{$_};
+    };
 
     $self->{vtype}->enable_virtualos();
 }
@@ -373,25 +367,97 @@ sub reinstall_virtualos {
 
     $prov->audit( "initializing request to reinstall ve '$p{name}'");
 
-    $self->{debug}     = $p{debug};
-    $self->{fatal}     = $p{fatal};
-    $self->{test_mode} = $p{test_mode};
+    foreach ( qw/ debug fatal test_mode 
+        name template hostname disk_root disk_size ram config password
+        searchdomain / ) {
+        $self->{$_} = $p{$_} if defined $p{$_};
+    };
 
-    $self->{name}        = $p{name};
-    $self->{template}    = $p{template};
     $self->{ip}          = $self->get_ips( $p{ip} ) or return;
-    $self->{hostname}    = $p{hostname}    if $p{hostname};
-    $self->{disk_root}   = $p{disk_root}   if $p{disk_root};
-    $self->{disk_size}   = $p{disk_size}   if $p{disk_size};
-    $self->{ram}         = $p{ram}         if $p{ram};
-    $self->{config}      = $p{config}      if $p{config};
-    $self->{password}    = $p{password}    if $p{password};
     $self->{nameservers} = $self->get_ips( $p{nameservers} ) if $p{nameservers};
-    $self->{searchdomain} = $p{searchdomain} if $p{searchdomain};
 
     $prov->audit("\tdelegating request to $self->{vtype}");
     $self->{vtype}->reinstall_virtualos();
 }
+
+sub upgrade_virtualos {
+    my $self = shift;
+    my %p = validate(
+        @_,
+        {   'name'         => { type => SCALAR },
+            'ram'          => { type => SCALAR },
+            'disk_size'    => { type => SCALAR },
+            'template'     => { type => SCALAR },
+            'hostname'     => { type => SCALAR },
+            'config'       => { type => SCALAR },
+            'ip'           => { type => SCALAR },
+            'disk_root'    => { type => SCALAR|UNDEF, optional => 1 },
+            'test_mode'    => { type => BOOLEAN, optional => 1 },
+            'debug' => { type => BOOLEAN, optional => 1, default => 1 },
+            'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
+        }
+    );
+
+    $prov->audit( "initializing request to upgrade ve '$p{name}'");
+
+    foreach ( qw/ debug fatal test_mode 
+        name ram disk_root disk_size template hostname config / ) {
+        $self->{$_} = $p{$_} if defined $p{$_};
+    };
+
+    $self->{ip} = $self->get_ips( $p{ip} ) or return;
+
+    $self->{vtype}->upgrade_virtualos();
+};
+
+sub unmount_virtualos {
+    my $self = shift;
+    my %p = validate(
+        @_,
+        {   name      => { type => SCALAR },
+            refresh   => { type => BOOLEAN, optional => 1, default => 1 },
+            test_mode => { type => BOOLEAN, optional => 1 },
+            debug     => { type => BOOLEAN, optional => 1, default => 1 },
+            fatal     => { type => BOOLEAN, optional => 1, default => 1 },
+        }
+    );
+
+    $prov->audit( "initializing request to unmount ve '$p{name}'");
+
+    foreach ( qw/ name refresh test_mode debug fatal / ) {
+        $self->{$_} = $p{$_} if defined $p{$_};
+    };
+
+    $self->{vtype}->unmount_virtualos();
+};
+
+sub gen_config {
+    my $self = shift;
+    my %p = validate(
+        @_,
+        {   name      => { type => SCALAR },
+            ram       => { type => SCALAR },
+            disk_root => { type => SCALAR },
+            disk_size => { type => SCALAR },
+            template  => { type => SCALAR },
+            config    => { type => SCALAR },
+            hostname  => { type => SCALAR },
+            ip        => { type => SCALAR },
+            debug     => { type => BOOLEAN, optional => 1, default => 1 },
+            fatal     => { type => BOOLEAN, optional => 1, default => 1 },
+        }
+    );
+
+    foreach ( qw/ ram disk_size name disk_root template config hostname
+        debug fatal / ) 
+    {
+        $self->{$_} = $p{$_} if defined $p{$_};
+    };
+
+    $self->{ip} = $self->get_ips( $p{ip} );
+
+    $self->{vtype}->gen_config();
+};
 
 sub get_ips {
     my $self      = shift;
@@ -424,17 +490,16 @@ sub get_status {
 
     my %p = validate(
         @_,
-        {   'name'      => { type => SCALAR | UNDEF,  optional => 1 },
-            'test_mode' => { type => BOOLEAN, optional => 1 },
-            'debug' => { type => BOOLEAN, optional => 1, default => 1 },
-            'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
+        {   name      => { type => SCALAR | UNDEF,  optional => 1 },
+            test_mode => { type => BOOLEAN, optional => 1 },
+            debug     => { type => BOOLEAN, optional => 1, default => 1 },
+            fatal     => { type => BOOLEAN, optional => 1, default => 1 },
         }
     );
 
-    $self->{name}      = $p{name};
-    $self->{test_mode} = $p{test_mode};
-    $self->{debug}     = $p{debug};
-    $self->{fatal}     = $p{fatal};
+    foreach ( qw/ name test_mode debug fatal / ) {
+        $self->{$_} = $p{$_} if defined $p{$_};
+    };
 
     $self->{vtype}->get_status();
 }
@@ -445,9 +510,9 @@ sub get_template_dir {
 
     my %p = validate(
         @_,
-        {   'v_type'    => { type => SCALAR  },
-            'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
-            'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
+        {   v_type => { type => SCALAR  },
+            debug  => { type => BOOLEAN, optional => 1, default => 1 },
+            fatal  => { type => BOOLEAN, optional => 1, default => 1 },
         }
     );
 
@@ -476,11 +541,11 @@ sub get_template {
 
     my %p = validate(
         @_,
-        {   'v_type'    => { type => SCALAR  },
-            'template'  => { type => SCALAR  },
-            'repo'      => { type => SCALAR  },
-            'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
-            'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
+        {   v_type    => { type => SCALAR  },
+            template  => { type => SCALAR  },
+            repo      => { type => SCALAR  },
+            debug     => { type => BOOLEAN, optional => 1, default => 1 },
+            fatal     => { type => BOOLEAN, optional => 1, default => 1 },
         }
     );
 
@@ -493,9 +558,11 @@ sub get_template {
         );
 
     my $url = "http://$p{repo}/$p{template}";
-warn "url: $url\n";
+
+    $prov->audit("fetching template from $url");
     my $response = LWP::Simple::getstore($url, "$template_dir/$p{template}");
-warn Dumper($response);
+    $prov->audit("fetching result: $response ");
+
     return $response; 
 };
 
@@ -597,7 +664,6 @@ sub set_nameservers {
 }
 
 sub set_password {
-
     my $self = shift;
 
     my %p = validate(
@@ -621,6 +687,26 @@ sub set_password {
     };
 
     return $self->{vtype}->set_password();
+}
+
+sub is_mounted {
+    my $self = shift;
+
+    my %p = validate(
+        @_,
+        {   name      => { type => SCALAR },
+            refresh   => { type => BOOLEAN, optional => 1, default => 1 },
+            test_mode => { type => BOOLEAN, optional => 1 },
+            debug     => { type => BOOLEAN, optional => 1, default => 1 },
+            fatal     => { type => BOOLEAN, optional => 1, default => 1 },
+        }
+    );
+
+    foreach ( qw/ name refresh test_mode debug fatal / ) {
+        $self->{$_} = $p{$_} if defined $p{$_};
+    };
+
+    $self->{vtype}->is_mounted();
 }
 
 sub is_present {
@@ -657,10 +743,9 @@ sub is_running {
         }
     );
 
-    $self->{name}      = $p{name};
-    $self->{test_mode} = $p{test_mode};
-    $self->{debug}     = $p{debug};
-    $self->{fatal}     = $p{fatal};
+    foreach ( qw/ name test_mode debug fatal / ) {
+        $self->{$_} = $p{$_} if defined $p{$_};
+    };
 
     $self->{vtype}->is_running();
 }

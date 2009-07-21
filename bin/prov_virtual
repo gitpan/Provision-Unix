@@ -137,4 +137,75 @@ sub probe {
 
 __END__
 
+=head1 NAME 
 
+prov_virtual.pl - a command line interface for provisioning virtual machines
+
+=head1 SYNOPSIS
+
+    prov_virtual.pl --action= [--name example.com]
+
+Action is one of the following:
+
+  --create   - creates a new virtual machine/container/server
+  --destroy  - remove a VE from the system
+  --start    - start up a VE
+  --stop     - shut down a VE
+  --restart  - restart a VE
+  --enable   - disable a VE
+  --disable  - restore a VE
+  --modify   - make changes to an existing VE
+  --probe    - get status of a VE (returns a hash)
+
+required arguments:
+
+  action 
+  name 
+  ip
+
+optional arguments:
+
+  hostname
+  template
+  config
+  password
+  nameservers
+  searchdomain
+
+=head1 USAGE
+ 
+ prov_virtual.pl --create  --name=www.example.com
+ prov_virtual.pl --destroy --name=www.example.com
+ prov_virtual.pl --modify  --name=www.example.com --options='Indexes ExecCGI'
+
+
+=head1 DESCRIPTION
+ 
+prov_virtual.pl is a command line interface to the Provision::Unix::VirtualOS provisioning modules. Support is included for OpenVZ, Xen, and FreeBSD jails. Support is planned for Solaris Zones/Containers. 
+
+ 
+=head1 CONFIGURATION AND ENVIRONMENT
+
+=head1 DEPENDENCIES
+ 
+  Config::Tiny
+  Getopt::Long
+  Params::Validate
+  Digest::MD5 
+  LWP::UserAgent
+
+=head1 AUTHOR
+ 
+Matt Simerson, C<< <matt at tnpi.net> >>
+ 
+ 
+=head1 LICENCE AND COPYRIGHT
+ 
+Copyright (c) 2009 The Network People, Inc. (info@tnpi.net)
+
+This module is free software; you can redistribute it and/or
+modify it under the same terms as Perl itself. See L<perlartistic>.
+ 
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.

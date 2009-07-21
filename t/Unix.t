@@ -74,23 +74,25 @@ $prov->_continue();
 $prov->_end();
 
 # find_config
-ok( $prov->find_config(
-        file  => 'services',
-        debug => 0,
-        fatal => 0,
-    ),
-    'find_config valid'
-);
+if ( $OSNAME ne 'cygwin' ) {
+    ok( $prov->find_config(
+            file  => 'services',
+            debug => 0,
+            fatal => 0,
+        ),
+        'find_config valid'
+    );
 
 # same as above but with etcdir defined
-ok( $prov->find_config(
-        file   => 'services',
-        etcdir => '/etc',
-        debug  => 0,
-        fatal  => 0
-    ),
-    'find_config valid'
-);
+    ok( $prov->find_config(
+            file   => 'services',
+            etcdir => '/etc',
+            debug  => 0,
+            fatal  => 0
+        ),
+        'find_config valid'
+    );
+};
 
 # this one fails because etcdir is set incorrect
 ok( !$prov->find_config(
