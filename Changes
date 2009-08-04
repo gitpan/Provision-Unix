@@ -1,5 +1,16 @@
 Revision history for Provision-Unix
 
+0.63 Aug 04, 2009
+  - report disabled xen VE as 'disabled' instead of 'broken'
+  - report ovz state if config file renamed to .suspended (instead of .suspend)
+  - reworded some ovz audit statements for clarity
+  - remoteagent will use JSON if JSON::XS is not installed
+  - updated prov_virtual docs to match interface
+  - updated OS template fetching logic to retrieve the remote template if it's
+    newer than the locally cached version.
+  - added additional error handling logic to get_template and get_template_list
+  - added --version and --help options to bin/prov_* apps
+ 
 0.62  Jul 21, 2009
   - added pod docs to bin/prov_virtual
   - added OpenVZ gen_config method

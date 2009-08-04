@@ -1,6 +1,6 @@
 package Provision::Unix;
 
-our $VERSION = '0.62';
+our $VERSION = '0.63';
 
 use warnings;
 use strict;
@@ -46,6 +46,75 @@ sub new {
         warn "could not find provision.conf. Consider installing it in your local etc directory.\n";
     };
     return $self;
+}
+
+sub audit {
+    my $self = shift;
+    my $mess = shift;
+
+    if ($mess) {
+        push @{ $self->{audit} }, $mess;
+        warn "$mess\n" if $self->{debug};
+    }
+
+    return $self->{audit};
+}
+
+sub dump_audit {
+    my $self = shift;
+    my $last_line = $self->{last_audit};
+
+    # we already dumped everything
+    return if $last_line == scalar @{ $self->{audit} };
+
+    print STDERR "\n\t\t\tAudit & Error history Report \n\n";
+    my $i;
+    foreach ( @{ $self->{audit} } ) {
+        $i++;
+        next if $i < $last_line;
+        print STDERR "\t$_\n";
+    };
+    $self->{last_audit} = $i;
+    return;
+};
+
+sub error {
+
+    my $self = shift;
+    my $message = shift;
+    my %p = validate(
+        @_,
+        {   'location' => { type => SCALAR, optional => 1, },
+            'fatal'    => { type => BOOLEAN, optional => 1, default => 1 },
+            'debug'    => { type => BOOLEAN, optional => 1, default => 1 },
+        },
+    );
+
+    if ( $message ) {
+        push @{ $self->{audit} }, $message;
+
+        # append message to $self->error stack
+        push @{ $self->{errors} },
+            {
+            errmsg => "ERROR: $message",
+            errloc => $p{location} || join( ", ", caller ),
+            };
+    }
+    else {
+        $message = $self->get_last_error_message();
+    }
+
+    # print audit and error results to stderr
+    if ( $p{debug} ) {
+        $self->dump_audit();
+        warn Dumper( $self->{errors}[-1] );
+    }
+
+    if ( $p{fatal} ) {
+        $self->dump_audit();  # dump if err is fatal and debug is not set
+        croak "FATAL ERROR";
+    };
+    return;
 }
 
 sub find_config {
@@ -97,6 +166,11 @@ sub get_last_error_message {
     my $self = shift;
     return $self->{errors}[-1]->{errmsg};
 }
+
+sub get_version {
+    print "Provision::Unix version $VERSION\n";
+    return $VERSION;
+};
 
 sub progress {
     my $self = shift;
@@ -154,75 +228,6 @@ sub progress {
     return 1;
 }
 
-sub error {
-
-    my $self = shift;
-    my $message = shift;
-    my %p = validate(
-        @_,
-        {   'location' => { type => SCALAR, optional => 1, },
-            'fatal'    => { type => BOOLEAN, optional => 1, default => 1 },
-            'debug'    => { type => BOOLEAN, optional => 1, default => 1 },
-        },
-    );
-
-    if ( $message ) {
-        push @{ $self->{audit} }, $message;
-
-        # append message to $self->error stack
-        push @{ $self->{errors} },
-            {
-            errmsg => "ERROR: $message",
-            errloc => $p{location} || join( ", ", caller ),
-            };
-    }
-    else {
-        $message = $self->get_last_error_message();
-    }
-
-    # print audit and error results to stderr
-    if ( $p{debug} ) {
-        $self->dump_audit();
-        warn Dumper( $self->{errors}[-1] );
-    }
-
-    if ( $p{fatal} ) {
-        $self->dump_audit();  # dump if err is fatal and debug is not set
-        croak "FATAL ERROR";
-    };
-    return;
-}
-
-sub dump_audit {
-    my $self = shift;
-    my $last_line = $self->{last_audit};
-
-    # we already dumped everything
-    return if $last_line == scalar @{ $self->{audit} };
-
-    print STDERR "\n\t\t\tAudit & Error history Report \n\n";
-    my $i;
-    foreach ( @{ $self->{audit} } ) {
-        $i++;
-        next if $i < $last_line;
-        print STDERR "\t$_\n";
-    };
-    $self->{last_audit} = $i;
-    return;
-};
-
-sub audit {
-    my $self = shift;
-    my $mess = shift;
-
-    if ($mess) {
-        push @{ $self->{audit} }, $mess;
-        warn "$mess\n" if $self->{debug};
-    }
-
-    return $self->{audit};
-}
-
 sub _find_readable {
     my $self = shift;
     my $file = shift;
@@ -254,22 +259,6 @@ sub _find_readable {
     }
 
     return $self->_find_readable( $file, @_ );
-}
-
-sub _begin {
-    my ( $self, $phase ) = @_;
-    print {*STDERR} "$phase...";
-    return;
-}
-
-sub _continue {
-    print {*STDERR} '.';
-    return;
-}
-
-sub _end {
-    print {*STDERR} "done\n";
-    return;
 }
 
 

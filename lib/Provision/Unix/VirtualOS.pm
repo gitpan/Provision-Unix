@@ -3,13 +3,14 @@ package Provision::Unix::VirtualOS;
 use warnings;
 use strict;
 
-our $VERSION = '0.31';
+our $VERSION = '0.33';
 
 use Data::Dumper;
 use English qw( -no_match_vars );
-use Params::Validate qw(:all);
 use LWP::Simple;
 use LWP::UserAgent;
+use Params::Validate qw(:all);
+use Time::Local;
 
 use lib 'lib';
 use Provision::Unix::Utility;
@@ -539,8 +540,7 @@ sub get_template {
 
     my $self = shift;
 
-    my %p = validate(
-        @_,
+    my %p = validate( @_,
         {   v_type    => { type => SCALAR  },
             template  => { type => SCALAR  },
             repo      => { type => SCALAR  },
@@ -550,6 +550,8 @@ sub get_template {
     );
 
     my $v_type = $p{v_type};
+    my $template_name = $p{template};
+    $template_name =~ s/\.tar\.gz$//g;  # strip it suffix if passed in
 
     my $template_dir = $self->get_template_dir( v_type=> $v_type ) 
         or return $prov->error( 'unable to determine template directory',
@@ -557,12 +559,31 @@ sub get_template {
             debug  => $p{debug},
         );
 
-    my $url = "http://$p{repo}/$p{template}";
+    my $template_file = "$template_dir/$template_name.tar.gz";
+
+    if ( ! $util->is_writable( file => $template_file, fatal => 0, debug=>0 ) ) {
+        return $prov->error("insufficient permission to store template at $template_file",
+            fatal  => $p{fatal},
+            debug  => $p{debug},
+        );
+    };
+
+    my $url = "http://$p{repo}/$template_name.tar.gz";
+#warn "url: $url\n";
 
     $prov->audit("fetching template from $url");
-    my $response = LWP::Simple::getstore($url, "$template_dir/$p{template}");
-    $prov->audit("fetching result: $response ");
+    my $response = LWP::Simple::mirror($url, $template_file);
 
+    if ( ! -e $template_file ) {
+        return $prov->error( "received HTTP response $response but failed to fetch OS template from $url",
+            fatal  => $p{fatal},
+            debug  => $p{debug},
+        );
+    }
+
+    $prov->error( "OS template not found on template server! ($url)", fatal => $p{fatal} ) if $response == 404;
+    $prov->audit( "result 304: $template_file is up-to-date" ) if $response == 304;
+    $prov->audit( "result 200: cached template as $template_file" ) if $response == 200;
     return $response; 
 };
 
@@ -604,15 +625,40 @@ sub get_template_list {
     die $response->status_line if ! $response->is_success;
 
     my $content = $response->content;
-    #warn Dumper($content);
+#warn Dumper($content);
 
 #  >centos-5-i386-plesk-8.6.tar.gz<
-    my @templates = grep { /gz$/ } split /<\/a>/, $content;
-    foreach ( @templates ) {
-        $_ =~ s/\A.*gz">//xmsg;
+    my @templates;
+    my @fields = grep { /\-.*?\-/ } split /<.*?>/, $content;
+    while ( scalar @fields ) {
+        my $file = shift @fields or last;
+        next if $file !~ /tar.gz/;
+        my $date = shift @fields;
+        my $timestamp = $self->get_template_timestamp($date);
+        push @templates, { name => $file, date => $date, timestamp => $timestamp }; 
     };
-    #print join "\n", @templates;
+
     return \@templates;
+};
+
+sub get_template_timestamp {
+    my ( $self, $time ) = @_;
+    
+    my %months = (
+        'jan' => 1, 'feb' =>  2, 'mar' =>  3, 'apr' =>  4, 
+        'may' => 5, 'jun' =>  6, 'jul' =>  7, 'aug' =>  8,
+        'sep' => 9, 'oct' => 10, 'nov' => 11, 'dec' => 12,
+    );
+
+    my ( $Y, $M, $D, $h, $m, $s )
+        = ( $time =~ /^(\d{4})-(\w{3})-(\d{2})\s+(\d{2})?:?(\d{2})?:?(\d{2})?/ )
+        or die "invalid timestamp format: $time\n";
+
+    my $txt_m = lc($M);
+    $M = $months{$txt_m};  # convert to an integer
+    $M -= 1;
+    $Y -= 1900;
+    return timelocal( $s, $m, $h, $D, $M, $Y );
 };
 
 sub set_hostname {

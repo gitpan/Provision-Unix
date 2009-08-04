@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::Xen;
 
-our $VERSION = '0.23';
+our $VERSION = '0.24';
 
 use warnings;
 use strict;
@@ -262,13 +262,13 @@ sub disable_virtualos {
     # see if VE is running, and if so, stop it
     $self->stop_virtualos() if $self->is_running();
 
-    $prov->audit("\tdisabling $ctid.");
     move( $config, "$config.suspend" )
         or return $prov->error( "\tunable to move file '$config': $!",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
         );
 
+    $prov->audit("\tdisabled $ctid.");
     return 1;
 }
 
@@ -480,6 +480,8 @@ sub get_status {
     my ($ips, $disks, $disk_usage );
     my $config_file = $self->get_ve_config_path();
     if ( ! -e $config_file ) {
+        return { state => 'disabled' } if -e "$config_file.suspend";
+
         $prov->audit( "\tmissing config file $config_file" );
         return { state => 'broken' };
     };
@@ -599,14 +601,14 @@ sub is_present {
 
     my $ve_home = $self->get_ve_home();
 
-    $prov->audit("checking for presense of virtual container $name");
+    $prov->audit("checking for presense of VE $name");
 
     my @possible_paths = (
         $ve_home, "/dev/vol00/${name}_rootimg", "/dev/vol00/${name}_vmswap"
     );
 
     foreach my $path (@possible_paths) {
-        $prov->audit("\tchecking at $path");
+        $prov->audit("\tchecking at $path") if $vos->{debug};
         if ( -e $path ) {
             $prov->audit("\tfound $name at $path");
             return $path;
@@ -660,7 +662,7 @@ sub is_enabled {
     my $config_file = $self->get_ve_config_path();
 
     if ( -e $config_file ) {
-        $prov->audit("\tfound $name at $config_file");
+        $prov->audit("\tfound $name at $config_file") if $p{debug};
         return 1;
     }
 

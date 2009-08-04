@@ -40,6 +40,9 @@ Getopt::Long::GetOptions(
 
     'verbose'    => \my $debug,
 
+    'help'       => \my $help,
+    'version'    => \my $version,
+
 ) or die "error parsing command line options";
 
 my $questions = {
@@ -59,6 +62,9 @@ my $questions = {
     priority => "the zone record priority",
     port     => "the zone record port",
 };
+
+pod2usage( { -verbose => 3 } ) if $help;
+$prov->get_version() and exit if $version;
 
 $action ||= $util->ask( question=> $questions->{action}, default=>'create' );
 $action = lc($action);

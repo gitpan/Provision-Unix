@@ -7,17 +7,13 @@ use English;
 use Getopt::Long;
 use Pod::Usage;
 
-if ( $EFFECTIVE_USER_ID != 0 ) {
-    die "\n$0 must be run as root!\n\n";
-}
-
 use lib 'lib';
 use Provision::Unix;
-my $prov = Provision::Unix->new (debug=>0);
 use Provision::Unix::Web;
+
+my $prov = Provision::Unix->new (debug=>0);
 my $web = Provision::Unix::Web->new( prov=> $prov, debug=>0);
 
-###########    SITE CONFIGURATION    ###########
 my ( $action, $vals );
 
 # process command line options
@@ -51,7 +47,15 @@ GetOptions(
     "phpmyadmin"     => \$vals->{'phpmyadmin'},
     "verbose"        => \$vals->{'debug'},
 
+    "help"           => \my $help,
+    "version"        => \my $version,
+
 ) or die "erorr parsing command line options";
+
+pod2usage( { -verbose => 3 } ) if $help;
+$prov->get_version() and exit if $version;
+
+die "\n$0 must be run as root!\n\n" if $EFFECTIVE_USER_ID != 0;
 
   $action->{'create'}  ? $web->create( request => $vals, prompt => 1 )
 : $action->{'destroy'} ? $web->destroy( request => $vals, prompt => 1 )

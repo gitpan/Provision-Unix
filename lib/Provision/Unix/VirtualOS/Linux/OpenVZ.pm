@@ -101,8 +101,7 @@ sub create_virtualos {
     };
 
     if ( $vos->{template} ) {
-        my $template = $self->_is_valid_template( $vos->{template} )
-            or return;
+        my $template = $self->_is_valid_template( $vos->{template} ) or return;
         $cmd .= " --ostemplate $template";
     }
 
@@ -653,7 +652,7 @@ sub get_status {
     my $r = `$vzctl`;
     if ( $r =~ /deleted/i ) {
         my $config = $self->get_config();
-        if ( -e "$config.suspend" ) {
+        if ( -e "$config.suspend" || -e "$config.suspended" ) {
             $exists++;
             $ve_info{state} = 'suspended';
         }
@@ -928,23 +927,19 @@ sub _is_valid_template {
         my @path_bits = grep { /\w/ } @segments;
         my $file = $path_bits[-1];
 
-        return $file if -f "$template_dir/$file.tar.gz";
-
         $prov->audit("fetching $file from " . $uri->host);
 
-        $vos->get_template( 
-            v_type   => 'ovz',
-            template => "$file.tar.gz",
-            repo     => $uri->host,
-        )
-        or return $prov->error( 'template does not exist. The attempt to retrieve it failed.',
-            fatal => 0
+        my $http_response = $vos->get_template( 
+            v_type => 'ovz',
+            repo => $uri->host,
+            template => $file,
         );
+        if ( $http_response !~ /200|304/ ) {
+            $prov->error( "HTTP error $http_response: failed to retrieve $template.", fatal => 0 );
+        };
         return $file if -f "$template_dir/$file.tar.gz";
     }
-    else {
-        return $template if -f "$template_dir/$template.tar.gz";
-    }
+    return $template if -f "$template_dir/$template.tar.gz";
 
     return $prov->error( "template '$template' does not exist and is not a valid URL",
         debug => $vos->{debug},

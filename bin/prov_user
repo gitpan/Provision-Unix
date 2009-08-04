@@ -7,10 +7,6 @@ use English qw( -no_match_vars );
 use Getopt::Long;
 use Pod::Usage;
 
-if ( !$EFFECTIVE_USER_ID == 0 ) {
-    die "\n$0 must be run as root!\n\n";
-}
-
 use lib 'lib';
 use Provision::Unix;
 use Provision::Unix::User;
@@ -37,7 +33,13 @@ Getopt::Long::GetOptions(
     'username=s' => \$user->{username},
     'verbose'    => \$user->{debug},
 
+    'help'       => \my $help,
+    'version'    => \my $version,
 ) or die "error parsing command line options";
+
+pod2usage( { -verbose => 3 } ) if $help;
+$prov->get_version() and exit if $version;
+die "\n$0 must be run as root!\n\n" if !$EFFECTIVE_USER_ID == 0;
 
 my $conf = $prov->{config};
 $user->{debug} || 0;   # so it's not undef

@@ -1,9 +1,17 @@
 #!/usr/bin/perl
+use strict;
+#use warnings;
 # Skip to bottom for the (very short) main program
 
 package RemoteAgentPacked;
 
-use JSON::XS;
+my $xs = 1;
+eval { require JSON::XS; };
+if ( $@ ) {
+    require JSON;
+    $xs = 0;
+};
+#use Data::Dumper;
 use IO::File;
 use IO::Handle;
 use Getopt::Long 'GetOptionsFromArray';
@@ -15,8 +23,15 @@ use Provision::Unix;
 sub new {
     my ( $class, %args ) = @_;
     my $self = bless { %args }, $class;
-    $self->{in_json}  = JSON::XS->new();
-    $self->{out_json} = JSON::XS->new();
+    if ( $xs ) {
+        $self->{in_json}  = JSON::XS->new();
+        $self->{out_json} = JSON::XS->new();
+    }
+    else {
+        $self->{in_json}  = JSON->new();
+        $self->{in_json}->allow_nonref(1);
+        $self->{out_json} = JSON->new();
+    };
     $self->{ins}      = undef;
     $self->{outs}     = undef;
     $self->{buffer}   = [];
@@ -27,7 +42,7 @@ sub new {
 
 sub new_from_cl {
     my ( $class, %args ) = @_;
-    my $rv = GetOptionsFromArray(
+    GetOptionsFromArray(
         $args{ARGV},
         'pretty'         => \my $pretty,
         'timeout=i'      => \my $timeout,
@@ -100,12 +115,11 @@ sub receive {
         eval { @reqs = $in_json->incr_parse($i); };
         if ($@) {
             $in_json->incr_reset;
-            $self->send(
-                {   status  => 'error',
-                    type    => 'syntax',
-                    message => 'Malformed message: parse error'
-                }
-            );
+            $self->send( {
+                status  => 'error',
+                type    => 'syntax',
+                message => "Malformed message: parse error: $@",
+            });
         }
         elsif ( scalar @reqs ) {
             push @{ $self->{buffer} }, @reqs;
@@ -122,46 +136,42 @@ sub receive {
 }
 
 sub run {
-    my ($self) = @_;
+    my $self = shift;
 
     $self->{prov} = Provision::Unix->new( debug => 0 );
     $self->{running} = 1;
 
     while ( $self->{running} ) {
-
         my $o;
         eval { $o = $self->receive; };
         if ( ! defined $o ) { # Session terminated w/o saying goodbye
-            $self->send(
-                {   status  => 'error',
-                    type    => 'system',
-                    message => $@,
-                }
-            );
+            $self->send( {
+                status  => 'error',
+                type    => 'system',
+                message => $@,
+            });
             last;
         };
 
-        my $id;
         if ( ref $o ne 'HASH' ) {
-            $self->send( 
-                {   status  => 'error',
-                    type    => 'syntax',
-                    message => 'Malformed message: parse error'
-                }
-            );
+            $self->send( { 
+                status  => 'error',
+                type    => 'syntax',
+                message => 'Malformed message: parse error'
+            });
             next;
         };
 
-        $id = $o->{id};
+        my $id = $o->{id};
         my $action = $o->{action};
         if ( ! length($action) ) {
-            $self->send(
-                {   status  => 'error',
-                    type    => 'dispatch',
-                    message => 'Malformed message: no action',
-                    id      => $id
-                }
-            );
+            $self->send( {
+                status  => 'error',
+                type    => 'dispatch',
+                message => 'Malformed message: no action',
+                id      => $id,
+            });
+            next;
         };
 
         if ( $action eq 'close' ) {
@@ -169,13 +179,7 @@ sub run {
             last;
         }
         elsif ( $action eq 'echo' ) {
-            $self->send(
-                {   status  => 'ok',
-                    message => 'Echo',
-                    id      => $id,
-                    data    => $params,
-                }
-            );
+            $self->send( { status  => 'ok', message => 'Echo', id => $id });
             next;
         }
 
@@ -183,22 +187,22 @@ sub run {
         eval { $result = $self->do_prov_call( $o, $action ); };
         if ( $@ ) {
             $self->send( $@ );
+            warn "do_prov_call error: $@\n";
         };
 
-        $self->send(
-            {   status => 'ok',
-                id     => $id,
-                audit  => $self->{prov}->audit,
-                result => $result,
-            }
-        );
+        $self->send( {
+            status => 'ok',
+            id     => $id,
+            audit  => $self->{prov}->audit,
+            result => $result,
+        });
     }
 }
 
 sub do_prov_call {
     my ( $self, $req, $action ) = @_;
     $action = 'get_status' if $action eq 'probe';
-    my $pkg    = $req->{provisiontype};
+    my $pkg = $req->{provisiontype};
     my $suffix = '_' . lc($pkg);
     $pkg = 'Provision::Unix::' . $pkg;
 
@@ -206,9 +210,9 @@ sub do_prov_call {
     die {
         status  => 'error',
         type    => 'dispatch',
-        message => 'Error loading provisioning module',
+        message => "Error loading provisioning module $pkg",
         debug   => $@,
-        id      => $req->{id}
+        id      => $req->{id},
     } if $@;
 
     my $params = $req->{params} || {};
@@ -226,16 +230,16 @@ sub do_prov_call {
             status  => 'error',
             type    => 'dispatch',
             message => "Unknown action '$action$suffix'",
-            id      => $req->{id}
+            id      => $req->{id},
         };
     }
-    $self->send(
-        {   status  => 'debug',
-            message => "Calling '$pkg'::'$method'",
-            id      => $req->{id},
-            data    => $params
-        }
-    );
+
+    $self->send( {
+        status  => 'debug',
+        message => "Calling '$pkg'::'$method'",
+        id      => $req->{id},
+        data    => $params,
+    });
 
     my $rv;
     eval { $rv = $instance->$method( defined $params ? %$params : () ); };
@@ -245,9 +249,8 @@ sub do_prov_call {
         id        => $req->{id},
         message   => "Unable to $action",
         audit     => $self->{prov}->audit,
-        exception => $@
-    }
-    if ! $rv;
+        exception => $@,
+    } if ! $rv;
     return $rv;
 }
 

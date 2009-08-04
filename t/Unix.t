@@ -22,6 +22,9 @@ push @{ $prov->{error} }, { errmsg => 'test error' };
 
 #use Data::Dumper qw( Dumper ); warn Dumper ( $prov );
 
+# show_version
+ok( $prov->get_version(), 'get_version');
+
 # find_config
 ok( $prov->find_config( file => 'provision.conf', debug => 0, fatal => 0 ),
     'find_config valid' );
@@ -66,12 +69,6 @@ if ( 0 == 1 ) {
         err  => 'oh no, a catastrophe!'
     );
 }
-
-# very simple progress
-$prov->_begin('starting some progress');
-$prov->_continue();
-$prov->_continue();
-$prov->_end();
 
 # find_config
 if ( $OSNAME ne 'cygwin' ) {
