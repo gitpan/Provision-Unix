@@ -47,26 +47,27 @@ if ( $virt_type =~ /virtuozzo|ovz|openvz|xen|ezjail/ ) {
 
 # get_template_list
     my $templates = $vos->get_template_list(v_type => $virt_type );
-    ok( $templates, 'get_template_list' );
+    ok( scalar @$templates, 'get_template_list' );
 #warn Dumper($templates);
 
 # select a template for testing
     my @preferred;
-    @preferred = grep {/cpanel/} @$templates or
-    @preferred = grep {/debian/} @$templates or
-    @preferred = grep {/ubuntu/} @$templates or
-    @preferred = grep {/centos/} @$templates or
-        $template_that_exists = @$templates[0];
+    @preferred = grep { $_->{name} =~ /debian/} @$templates or
+    @preferred = grep { $_->{name} =~ /cpanel/} @$templates or
+    @preferred = grep { $_->{name} =~ /ubuntu/} @$templates or
+    @preferred = grep { $_->{name} =~ /centos/} @$templates or
+        $template_that_exists = @$templates[0]->{name};
+#warn Dumper(@preferred);
 
     if ( ! $template_that_exists ) {
-        my @list = grep {/default/} sort { $b cmp $a } @preferred;
+        my @list = grep { $_->{name} =~ /default/} sort { $b cmp $a } @preferred;
         if ( scalar @list > 0 ) {
             no warnings;
             my @sorted = sort { ( $b =~ /(\d\.\d)/)[0] <=> ($a =~ /(\d\.\d)/)[0] } @list;
             use warnings;
-            $template_that_exists = $sorted[0] if scalar @sorted > 0;
+            $template_that_exists = $sorted[0]->{name} if scalar @sorted > 0;
         };
-        $template_that_exists ||= $preferred[0];
+        $template_that_exists ||= $preferred[0]->{name};
     };
 
     ok( $template_that_exists, "template chosen: $template_that_exists") or exit;

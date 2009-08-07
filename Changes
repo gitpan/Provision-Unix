@@ -1,5 +1,9 @@
 Revision history for Provision-Unix
 
+0.64 Aug 07, 2009
+  - fixed bug in get_template_list. Local templates where returned as a scalar
+    list where remote templates were returned as a hash list. Return as hashes.
+
 0.63 Aug 04, 2009
   - report disabled xen VE as 'disabled' instead of 'broken'
   - report ovz state if config file renamed to .suspended (instead of .suspend)

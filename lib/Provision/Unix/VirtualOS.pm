@@ -3,7 +3,7 @@ package Provision::Unix::VirtualOS;
 use warnings;
 use strict;
 
-our $VERSION = '0.33';
+our $VERSION = '0.34';
 
 use Data::Dumper;
 use English qw( -no_match_vars );
@@ -601,6 +601,7 @@ sub get_template_list {
     );
 
     my $v_type = $p{v_type};
+    my @templates;
 
     if ( ! $p{url} ) {
         my $template_dir = $self->get_template_dir( v_type=> $v_type ) 
@@ -609,9 +610,10 @@ sub get_template_list {
                 debug  => $p{debug},
             );
 
-        my @templates = <$template_dir/*.tar.gz>;
-        foreach my $template ( @templates ) {
+        my @template_names = <$template_dir/*.tar.gz>;
+        foreach my $template ( @template_names ) {
             ($template) = $template =~ /\/([\w\.\-]+)\.tar\.gz$/;
+            push @templates, { name => $template };
         };
 
         return \@templates if scalar @templates;
@@ -628,7 +630,6 @@ sub get_template_list {
 #warn Dumper($content);
 
 #  >centos-5-i386-plesk-8.6.tar.gz<
-    my @templates;
     my @fields = grep { /\-.*?\-/ } split /<.*?>/, $content;
     while ( scalar @fields ) {
         my $file = shift @fields or last;
