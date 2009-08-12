@@ -662,6 +662,10 @@ sub get_template_timestamp {
     return timelocal( $s, $m, $h, $D, $M, $Y );
 };
 
+sub get_version {
+    return $prov->get_version();
+};
+
 sub set_hostname {
 
     my $self = shift;

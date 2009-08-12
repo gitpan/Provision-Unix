@@ -113,6 +113,9 @@ sub install_module {
             my $yum = '/usr/bin/yum';
             if ( -x $yum ) {
                 system "$yum -y install $portname";
+                if ( $portname eq 'perl-libwww' ) {
+                    system "$yum -y install $portname-perl";
+                };
             };
         }
     };

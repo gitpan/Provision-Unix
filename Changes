@@ -1,5 +1,14 @@
 Revision history for Provision-Unix
 
+0.65 Aug 11, 2009
+  - updated remoteagent, much simpler script now, and no longer requires a 
+    recent version of Getopt::Long (any version will do). 
+  - fixed test error in t/VirtualOS.t
+  - added more audit messages to virtualos->get_status requests
+  - on Linux, when install libwww, rename port from standard perl-libwww to
+    perl-libwww-perl (who thought that one up?)
+  - added get_version VirtualOS call, which returns the P:U version.
+
 0.64 Aug 07, 2009
   - fixed bug in get_template_list. Local templates where returned as a scalar
     list where remote templates were returned as a hash list. Return as hashes.

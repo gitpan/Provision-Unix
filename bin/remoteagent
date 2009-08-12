@@ -1,62 +1,53 @@
 #!/usr/bin/perl
+
+eval 'exec /usr/bin/perl  -S $0 ${1+"$@"}'
+    if 0; # not running under some shell
 use strict;
-#use warnings;
-# Skip to bottom for the (very short) main program
+use warnings;
 
-package RemoteAgentPacked;
-
-my $xs = 1;
-eval { require JSON::XS; };
-if ( $@ ) {
-    require JSON;
-    $xs = 0;
-};
 #use Data::Dumper;
 use IO::File;
 use IO::Handle;
-use Getopt::Long 'GetOptionsFromArray';
-Getopt::Long::Configure('pass_through');
+use Getopt::Long;
 
 use lib 'lib';
 use Provision::Unix;
+my $prov = Provision::Unix->new( debug => 0 );
 
-sub new {
-    my ( $class, %args ) = @_;
-    my $self = bless { %args }, $class;
-    if ( $xs ) {
-        $self->{in_json}  = JSON::XS->new();
-        $self->{out_json} = JSON::XS->new();
-    }
-    else {
-        $self->{in_json}  = JSON->new();
-        $self->{in_json}->allow_nonref(1);
-        $self->{out_json} = JSON->new();
-    };
-    $self->{ins}      = undef;
-    $self->{outs}     = undef;
-    $self->{buffer}   = [];
-    defined $self->{timeout} or $self->{timeout} = 0;
-    $self->{pretty} and $self->{out_json}->pretty;
-    return $self;
+my ( $in_json, $out_json );
+eval { require JSON::XS; };
+if ( $@ ) {
+    require JSON;
+    $in_json  = JSON->new();
+    $out_json = JSON->new();
+    $in_json->allow_nonref(1);
 }
+else {
+    $in_json  = JSON::XS->new();
+    $out_json = JSON::XS->new();
+};
 
-sub new_from_cl {
-    my ( $class, %args ) = @_;
-    GetOptionsFromArray(
-        $args{ARGV},
-        'pretty'         => \my $pretty,
-        'timeout=i'      => \my $timeout,
-    ) or die "Didn't understand command line parameters";
-    my $self = $class->new( pretty => $pretty, timeout => $timeout );
-    $self->{ins}  = IO::Handle->new_from_fd( fileno(STDIN),  'r' );
-    $self->{outs} = IO::Handle->new_from_fd( fileno(STDOUT), 'w' );
-    $self->{outs}->autoflush(1);
-    return $self;
-}
+Getopt::Long::GetOptions(
+    'pretty'    => \my $pretty,
+    'timeout=i' => \my $timeout,
+) 
+or die "Didn't understand command line parameters";
 
-sub send {
-    my ( $self, $obj ) = @_;
-    my $msg = $self->{out_json}->encode($obj);
+my $ins  = IO::Handle->new_from_fd( fileno(STDIN),  'r' );
+my $outs = IO::Handle->new_from_fd( fileno(STDOUT), 'w' );
+$outs->autoflush(1);
+
+$pretty and $out_json->pretty;
+$timeout ||= 0;
+my $buffer = [];
+
+run();
+exit 0;
+
+sub rpc_send {
+    my $obj = shift;
+    my $msg;
+    eval { $msg = $out_json->encode($obj) };
     local $SIG{PIPE} = sub {
         die {
             status  => 'error',
@@ -64,30 +55,23 @@ sub send {
             message => 'Remote unexpectedly closed pipe'
         };
     };
-    $self->{outs}->print("$msg\n");
+    $outs->print("$msg\n");
 }
 
-sub receive {
-    my ($self) = @_;
+sub rpc_receive {
 
-    return shift @{ $self->{buffer} } if scalar @{ $self->{buffer} };
-
-    my $ins     = $self->{ins};
-    my $outs    = $self->{outs};
-    my $timeout = $self->{timeout};
-    my $in_json = $self->{in_json};
+    return shift @{ $buffer } if scalar @{ $buffer };
 
     return if ! defined $ins;
 
-    my $run = 1;
-    while ( $run > 0 ) {
+    while ( 1 ) {
         my $i;
         if ($timeout) {
             eval {
                 local $SIG{ALRM} = sub { die "alarm\n" };
                 alarm $timeout;
                 $i = $ins->getline;
-                $timeout and alarm(0);
+                $timeout and alarm 0;
             };
         }
         else {
@@ -108,44 +92,34 @@ sub receive {
             };
         }
         if ( ! defined $i ) {
-            delete $self->{ins};
+            undef $ins;
             return;
         }
         my @reqs;
         eval { @reqs = $in_json->incr_parse($i); };
         if ($@) {
             $in_json->incr_reset;
-            $self->send( {
+            rpc_send( {
                 status  => 'error',
                 type    => 'syntax',
                 message => "Malformed message: parse error: $@",
             });
         }
         elsif ( scalar @reqs ) {
-            push @{ $self->{buffer} }, @reqs;
+            push @{ $buffer }, @reqs;
             $in_json->incr_reset;
-            return shift @{ $self->{buffer} };
+            return shift @{ $buffer };
         }
     }
-    die {
-        status  => 'error',
-        type    => 'protocol',
-        message => 'Remote terminated'
-    }
-    if $run < 0;
 }
 
 sub run {
-    my $self = shift;
 
-    $self->{prov} = Provision::Unix->new( debug => 0 );
-    $self->{running} = 1;
-
-    while ( $self->{running} ) {
+    while ( 1 ) {
         my $o;
-        eval { $o = $self->receive; };
+        eval { $o = rpc_receive(); };
         if ( ! defined $o ) { # Session terminated w/o saying goodbye
-            $self->send( {
+            rpc_send( {
                 status  => 'error',
                 type    => 'system',
                 message => $@,
@@ -154,7 +128,7 @@ sub run {
         };
 
         if ( ref $o ne 'HASH' ) {
-            $self->send( { 
+            rpc_send( { 
                 status  => 'error',
                 type    => 'syntax',
                 message => 'Malformed message: parse error'
@@ -165,7 +139,7 @@ sub run {
         my $id = $o->{id};
         my $action = $o->{action};
         if ( ! length($action) ) {
-            $self->send( {
+            rpc_send( {
                 status  => 'error',
                 type    => 'dispatch',
                 message => 'Malformed message: no action',
@@ -175,32 +149,32 @@ sub run {
         };
 
         if ( $action eq 'close' ) {
-            $self->send( { status => 'ok', message => 'Bye', id => $id } );
+            rpc_send( { status => 'ok', message => 'Bye', id => $id } );
             last;
         }
         elsif ( $action eq 'echo' ) {
-            $self->send( { status  => 'ok', message => 'Echo', id => $id });
+            rpc_send( { status  => 'ok', message => 'Echo', id => $id });
             next;
         }
 
         my $result;
-        eval { $result = $self->do_prov_call( $o, $action ); };
+        eval { $result = do_prov_call( $o, $action ); };
         if ( $@ ) {
-            $self->send( $@ );
-            warn "do_prov_call error: $@\n";
+            rpc_send( $@ );
+            last;
         };
 
-        $self->send( {
+        rpc_send( {
             status => 'ok',
             id     => $id,
-            audit  => $self->{prov}->audit,
+            audit  => $prov->audit,
             result => $result,
         });
     }
 }
 
 sub do_prov_call {
-    my ( $self, $req, $action ) = @_;
+    my ( $req, $action ) = @_;
     $action = 'get_status' if $action eq 'probe';
     my $pkg = $req->{provisiontype};
     my $suffix = '_' . lc($pkg);
@@ -216,7 +190,7 @@ sub do_prov_call {
     } if $@;
 
     my $params = $req->{params} || {};
-    my $instance = $pkg->new( prov => $self->{prov} );
+    my $instance = $pkg->new( prov => $prov );
 
     my $method;
     if ( $pkg->can( $action . $suffix ) ) {
@@ -229,12 +203,12 @@ sub do_prov_call {
         die {
             status  => 'error',
             type    => 'dispatch',
-            message => "Unknown action '$action$suffix'",
+            message => "Unknown action '$action'",
             id      => $req->{id},
         };
     }
 
-    $self->send( {
+    rpc_send( {
         status  => 'debug',
         message => "Calling '$pkg'::'$method'",
         id      => $req->{id},
@@ -248,11 +222,9 @@ sub do_prov_call {
         type      => 'operation',
         id        => $req->{id},
         message   => "Unable to $action",
-        audit     => $self->{prov}->audit,
+        audit     => $prov->audit,
         exception => $@,
     } if ! $rv;
     return $rv;
 }
 
-package main;
-exit( RemoteAgentPacked->new_from_cl( ARGV => \@ARGV )->run() );

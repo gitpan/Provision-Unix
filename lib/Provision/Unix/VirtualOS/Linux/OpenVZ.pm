@@ -582,10 +582,9 @@ sub get_disk_usage {
     my $self = shift;
 
     $EUID == 0
-        or return $prov->error( "Sorry, that requires root.",
+        or return $prov->error( "Sorry, getting disk usage requires root.",
         fatal   => 0,
         );
-
 
     my $name = $vos->{name};
     my $vzquota = $util->find_bin( bin => 'vzquota', debug => 0, fatal => 0 );
@@ -597,8 +596,12 @@ sub get_disk_usage {
 # VEID 1002362 exist unmounted down
     if ( $r =~ /usage/ ) {
         my ($usage) = $r =~ /1k-blocks\s+(\d+)\s+/;
-        return $usage if $usage;
+        if ( $usage ) {
+            $prov->audit("found disk usage of $usage 1k blocks");
+            return $usage;
+        };
     };
+    $prov->audit("encounted error while trying to get disk usage");
     return;
 
 #    my $homedir = $self->get_ve_home();
@@ -615,12 +618,9 @@ sub get_os_template {
     
     my $self = shift;
 
-    $EUID == 0 or return $prov->error( "Sorry, that requires root.",
-        fatal   => 0,
-    );
-
     my $config = $self->get_config();
-    my $grep = $util->find_bin(bin=>'grep', debug => 0);
+    return if ! -f $config;
+    my $grep = $util->find_bin(bin=>'grep', debug => 0, fatal => 0);
     my $r = `$grep OSTEMPLATE $config*`;
     my ($template) = $r =~ /OSTEMPLATE="(.+)"/i;
     return $template;
@@ -673,6 +673,7 @@ sub get_status {
     };
 
     return \%ve_info if ! $exists;
+    $prov->audit("found VE in state $ve_info{state}");
 
     if ( $ve_info{state} =~ /running|shutdown/ ) {
         my $vzlist = $util->find_bin( bin => 'vzlist', debug => 0, fatal => 0 );
@@ -681,8 +682,8 @@ sub get_status {
 
             if ( $vzs =~ /NPROC/ ) {
 
-            #       VEID      NPROC STATUS  IP_ADDR         HOSTNAME
-            #       10          - stopped 64.79.207.11    lbox-bll
+            # VEID      NPROC STATUS  IP_ADDR         HOSTNAME
+            # 10          -   stopped 64.79.207.11    lbox-bll
 
                 $self->{status} = {};
                 foreach my $line ( split /\n/, $vzs ) {
