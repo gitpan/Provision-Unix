@@ -119,6 +119,21 @@ ok(  $vos->is_valid_ip('2.1.1.1'),         'is_valid_ip +' );
 #ok( $vos->_check_template( 'non-existing' ), '_check_default' );
 #ok( $vos->_check_template( $template_that_exists), '_check_default' );
 
+my $fs_root = $vos->get_fs_root( $container_id_or_name );
+if ( -d "$fs_root/etc" ) {
+    print "\n$fs_root/etc/resolv.conf\n";
+    my $r = $vos->set_nameservers( 
+        name         => $container_id_or_name,
+        nameservers  => '67.223.251.133 64.79.200.113',  # nyc
+        #nameservers  => '64.79.200.111 64.79.200.113',  # tuk
+        #searchdomain => 'example.com',
+        test_mode    => 1,
+        debug        => 0,
+        fatal        => 0,
+
+    );
+    ok( $r, "set_nameservers" );
+};
 
 # these are expensive tests.
 SKIP: {
@@ -212,7 +227,7 @@ my $r;
             debug     => 0,
             fatal     => 0,
         ),
-        "create_virtualos, valid template ($template_that_exists)"
+        "create_virtualos, valid template ($template_that_exists), test mode"
     );
 
     ok( $vos->create_virtualos(

@@ -1,6 +1,6 @@
 package Provision::Unix::User::Linux;
 
-our $VERSION = '0.08';
+our $VERSION = '0.14';
 
 use warnings;
 use strict;
@@ -11,7 +11,6 @@ use Params::Validate qw( :all );
 
 use lib 'lib';
 use Provision::Unix;
-my $provision = Provision::Unix->new();
 my ( $prov, $user, $util );
 
 sub new {
@@ -52,8 +51,8 @@ sub create {
     my %p = validate(
         @_,
         {   'username' => { type => SCALAR },
-            'uid'      => { type => SCALAR },
-            'gid'      => { type => SCALAR },
+            'uid'      => { type => SCALAR, optional => 1 },
+            'gid'      => { type => SCALAR, optional => 1 },
             'shell'    => { type => SCALAR | UNDEF, optional => 1 },
             'password' => { type => SCALAR | UNDEF, optional => 1 },
             'homedir'  => { type => SCALAR | UNDEF, optional => 1 },
@@ -67,42 +66,42 @@ sub create {
     );
 
     my $debug = $p{'debug'};
-    $prov->audit("creating user '$p{username}' on $OSNAME");
+    my $username = $p{username};
+    my $password = $p{password};
+    $prov->audit("creating user '$username' on $OSNAME");
 
-    $user->_is_valid_username( $p{username} ) or return;
+    $user->_is_valid_username( $username ) or return;
+    my $group = $p{gid} || $self->exists_group( $username );
 
-    my $cmd = $util->find_bin( bin => 'useradd', debug => $p{debug} );
+    my $cmd = $util->find_bin( bin => 'useradd', debug => 0 );
     $cmd .= " -c $p{gecos}"   if $p{gecos};
     $cmd .= " -d $p{homedir}" if $p{homedir};
     $cmd .= " -e $p{expire}"  if $p{expire};
     $cmd .= " -u $p{uid}"     if $p{uid};
     $cmd .= " -s $p{shell}"   if $p{shell};
-    $cmd .= " -g $p{gid}"     if $p{gid};
+    $cmd .= " -g $group"      if $group;
+    $cmd .= " -m $username";
 
-    $cmd .= " -m $p{username}";
-
-    $prov->audit("\tcmd: $cmd");
     return $prov->audit("\ttest mode early exit") if $p{test_mode};
-    $util->syscmd( cmd => $cmd, debug => 0 );
+    $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 ) or return;
 
-    if ( $p{password} ) {
+    if ( $password ) {
         my $passwd = $util->find_bin( bin => 'passwd', debug => $p{debug} );
         ## no critic
         my $FH;
-        unless ( open $FH, "| $passwd --stdin" ) {
-            return $prov->error( "opening passwd failed for $p{username}" );
+        unless ( open $FH, "| $passwd --stdin $username" ) {
+            return $prov->error( "opening passwd failed for $username" );
         }
-        print $FH "$p{password}\n";
+        print $FH "$password\n";
         close $FH;
         ## use critic
     }
 
-    return $self->exists()
-        ? $prov->progress(
-        num  => 10,
-        desc => "created user $p{username} successfully"
-        )
-        : $prov->error( "create user $p{username} failed" );
+    $self->exists() or 
+        return $prov->error( "failed to create user $username", fatal => 0 );
+    
+    $prov->audit( "created user $username successfully");
+    return 1;
 }
 
 sub create_group {
@@ -136,7 +135,6 @@ sub create_group {
 sub destroy {
 
     my $self = shift;
-
     my %p = validate(
         @_,
         {   'username'  => { type => SCALAR, },
@@ -165,7 +163,7 @@ sub destroy {
     }
 
     my $cmd = $util->find_bin( bin => 'userdel', debug => $p{debug} );
-    $cmd .= " -r $p{username}";
+    $cmd .= " -f -r $p{username}";
 
     my $r = $util->syscmd( cmd => $cmd, debug => 0, fatal => $p{fatal} );
 
@@ -198,26 +196,25 @@ sub destroy_group {
         },
     );
 
-    $prov->audit("destroy group $p{group} on $OSNAME");
+    my $group = $p{group};
+    my $fatal = $p{fatal};
+    my $debug = $p{debug};
+    $prov->audit("destroy group $group on $OSNAME");
 
     $prov->progress( num => 1, desc => 'validating' );
 
-    # make sure group exists
-    if ( !$self->exists_group( $p{group} ) ) {
-        return $prov->progress(
-            num   => 10,
-            desc  => 'error',
-            'err' => "group $p{group} does not exist",
-        );
+    if ( !$self->exists_group( $group ) ) {
+        $prov->progress( num => 10, desc => "group $group does not exist" );
+        return 1;
     }
 
     my $cmd = $util->find_bin( bin => 'groupdel', debug => 0 );
-    $cmd .= " $p{group}";
+    $cmd .= " $group";
 
     return 1 if $p{test_mode};
     $prov->audit("destroy group cmd: $cmd");
 
-    $util->syscmd( cmd => $cmd, debug => $p{debug} )
+    $util->syscmd( cmd => $cmd, debug => $debug, fatal => $fatal )
         or return $prov->progress(
         num   => 10,
         desc  => 'error',
@@ -225,7 +222,7 @@ sub destroy_group {
         );
 
     # validate that the group was removed
-    if ( !$self->exists_group( $p{group} ) ) {
+    if ( !$self->exists_group( $group ) ) {
         return $prov->progress( num => 10, desc => 'completed' );
     }
 
@@ -238,39 +235,52 @@ sub exists {
 
     $user->_is_valid_username($username)
         or return $prov->error( "missing/invalid username param in request",
-            fatal => $user->{fatal},
+            fatal => 0,
         );
+
+    restart_nscd();
 
     $username = lc $username;
 
-    # double check
     if ( -f '/etc/passwd' ) {
-        my $exists = `grep '^$username:' /etc/passwd`;
+        my $exists = `grep '^$username:' /etc/passwd`; 
         if ($exists) {
+            chomp $exists;
             $prov->audit("\t'$username' exists (passwd: $exists)");
             return $exists;
         }
         return;
     }
 
-    my $uid = getpwnam $username;
-    $prov->audit("\t'$username' exists (uid: $uid)");
+    my $uid = getpwnam $username
+        or return $prov->error("could not find user $user", fatal => 0 );
+
+    $prov->audit("'$username' exists (uid: $uid)");
     $self->{uid} = $uid;
     return $uid;
 }
 
 sub exists_group {
+    my $self = shift;
+    my $group = shift || $user->{group} || $prov->error( "missing group" );
 
-    my ( $self, $group ) = @_;
-    $group ||= $user->{group} || $prov->error( "missing group" );
+    restart_nscd();
 
     if ( -f '/etc/group' ) {
         my $exists = `grep '^$group:' /etc/group`;
-        return $exists ? 1 : 0;
+        if ( $exists ) {
+            my $gid = getgrnam($group) || 1;
+            $prov->audit("found group $group at gid $gid");
+            return $gid;
+        };
     }
 
     my $gid = getgrnam($group);
-    return $gid ? 1 : 0;
+    if ( $gid ) {
+        $prov->audit("found group $group at gid $gid");
+        return $gid;
+    };
+    return;
 }
 
 sub modify {
@@ -299,45 +309,75 @@ sub modify {
 };
 
 sub set_password {
-
     my $self = shift;
     my %p = validate(
         @_,
         {   'username'  => { type => SCALAR },
             'password'  => { type => SCALAR, optional => 1 },
             'ssh_key'   => { type => SCALAR, optional => 1 },
+            ssh_restricted => { type => SCALAR, optional => 1 },
             'debug'     => { type => SCALAR, optional => 1, default => 1 },
             'fatal'     => { type => SCALAR, optional => 1, default => 1 },
             'test_mode' => { type => SCALAR, optional => 1 },
         }
     );
 
+    my $fatal = $p{fatal};
     my $username = $p{username};
-    $prov->error( "user '$username' not found", fatal => $p{fatal} ) 
+
+    $prov->error( "user '$username' not found", fatal => $fatal ) 
         if ! $self->exists( $username );
 
     my $pass_file = "/etc/shadow";  # SYS 5
     if ( ! -f $pass_file ) {
         $pass_file = "/etc/passwd";
-        -f $pass_file or die "could not find password file\n";
+        -f $pass_file or return $prov->error( "could not find password file", fatal => $fatal );
     };
 
-    my @lines = $util->file_read( file => $pass_file );
+    my @lines = $util->file_read( file => $pass_file, fatal => $fatal, debug => 0 );
     my $entry = grep { /^$username:/ } @lines;
-    $entry or die "could not find $username entry in $pass_file!";
+    $entry or return $prov->error( "could not find user '$username' in $pass_file!", fatal => $fatal);
 
     my $crypted = $user->get_crypted_password( $p{password} );
 
     foreach ( @lines ) {
         s/$username\:.*?\:/$username\:$crypted\:/ if m/^$username\:/;
     };
-    $util->file_write( file => $pass_file, lines => \@lines, debug => $user->{debug} );
+    $util->file_write( file => $pass_file, lines => \@lines, debug => 0, fatal => 0)
+        or $prov->error("failed to update password for $username", fatal => $fatal);
 
     if ( $p{ssh_key} ) {
-        my $homedir = (split(':', $entry))[7];
-        $user->install_ssh_key( homedir => $homedir, ssh_key => $p{ssh_key} );
+        @lines = $util->file_read( file => '/etc/passwd', debug => 1, fatal => $fatal );
+        ($entry) = grep { /^$username:/ } @lines;
+        my $homedir = (split(':', $entry))[5];
+        $homedir && -d $homedir or 
+            return $prov->error("unable to determine home directory for $username", fatal => 0);
+        $user->install_ssh_key( 
+            homedir => $homedir, 
+            ssh_key => $p{ssh_key}, 
+            ssh_restricted => $p{ssh_restricted},
+            fatal   => $fatal,
+        );
     };
     return 1;
+};
+
+sub restart_nscd {
+
+    my $nscd = '/var/run/nscd/nscd.pid';
+    return if ! -f $nscd;
+
+    my $pid = `cat $nscd`; chomp $pid;
+    return if ! $pid;
+
+    $nscd = $util->find_bin( bin => 'nscd', debug => 0 );
+    return if ! -x $nscd;
+
+    `kill $pid`;
+    `$nscd`;
+    sleep 1; # give the daemon a chance to get started
+
+    $prov->audit("restarted nscd caching daemon");
 };
 
 1;

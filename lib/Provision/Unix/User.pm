@@ -289,35 +289,39 @@ sub install_ssh_key {
     my %p = validate( @_, {
             homedir => { type => SCALAR },
             ssh_key => { type => SCALAR },
+            ssh_restricted => { type => SCALAR|UNDEF, optional => 1 },
             debug   => { type => BOOLEAN, optional => 1 },
+            fatal   => { type => BOOLEAN, optional => 1 },
         }
     );
 
     my $homedir = $p{homedir};
-    my $key = $p{ssh_key};
+    my $key   = $p{ssh_key};
+    my $restricted = $p{ssh_restricted};
     my $debug = defined $p{debug} ? $p{debug} : $self->{debug};
+    my $fatal = defined $p{fatal} ? $p{fatal} : $self->{fatal};
 
     if ( ! -d $homedir ) {
         return $prov->error( "dir '$homedir' does not exist!",
             debug => $debug,
-            fatal => $self->{fatal},
+            fatal => $fatal,
         );
     };
 
     my $ssh_dir = "$homedir/.ssh";
-    if ( ! -d $ssh_dir && ! -e $ssh_dir ) {
-        mkpath($ssh_dir, 0, 0700) or $prov->error( "unable to create $ssh_dir",
-            debug => $debug,
-            fatal => $self->{fatal},
-        );
-    };
+    mkpath($ssh_dir, 0, 0700) if ( ! -d $ssh_dir && ! -e $ssh_dir );
+    -d $ssh_dir or return $prov->error( "unable to create $ssh_dir", fatal => $fatal );
 
+    my $line;
+    $line .= "command=\"$restricted\",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty "
+        if $restricted;
+    $line .= "$key\n";
     return $util->file_write(
         file => "$ssh_dir/authorized_keys",
-        lines => [ "$key\n" ],
+        lines => [ $line ], 
         mode  => 0622,
-        debug => $debug,
-        fatal => $self->{fatal},
+        debug => 0,
+        fatal => 0,
     );
 };
 
@@ -539,7 +543,7 @@ sub _is_valid_username {
         debug    => 0,
         );
 
-    $prov->audit("checking validity of username $username");
+    #$prov->audit("checking validity of username $username");
     $self->{username} = $username;
 
     # min 2 characters

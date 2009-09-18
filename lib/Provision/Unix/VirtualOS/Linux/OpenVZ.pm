@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::OpenVZ;
 
-our $VERSION = '0.34';
+our $VERSION = '0.37';
 
 use warnings;
 use strict;
@@ -142,10 +142,18 @@ sub destroy_virtualos {
         debug   => $vos->{debug},
     ) if !$self->is_present();
 
-
     # if disabled, enable it, else vzctl pukes when it attempts to destroy
     my $config = $self->get_config();
-    if ( ! -e $config && -e "$config.suspend" ) {
+    if ( ! -e $config ) {
+        my $suspended_config = "$config.suspend";
+# humans often rename the config file to .suspended instead of our canonical '.suspend'
+        $suspended_config = "$config.suspended" if ! -e $suspended_config;
+        if ( -e $suspended_config ) {
+            return $prov->error( "config file for VE $name is missing",
+                fatal   => $vos->{fatal},
+                debug   => $vos->{debug},
+            );
+        };
         move( "$config.suspend", $config )
             or return $prov->error( "unable to move file '$config.suspend' to '$config': $!",
             fatal   => $vos->{fatal},
@@ -164,10 +172,10 @@ sub destroy_virtualos {
             );
     };
 
-# if VE is mounted, unmount it
+    # if VE is mounted, unmount it
     if ( $self->is_mounted( refresh => 0 ) ) {
         $prov->audit("\tcontainer '$name' is mounted, unmounting...");
-        $self->unmount_virtualos() 
+        $self->unmount_disk_image() 
             or return
             $prov->error( "unmount failed. I cannot continue.",
                 fatal   => $vos->{fatal},
@@ -203,6 +211,21 @@ sub destroy_virtualos {
 sub start_virtualos {
 
     my $self = shift;
+    my $ctid = $vos->{name};
+
+    $prov->audit("starting $ctid");
+
+    if ( !$self->is_present() ) {
+        return $prov->error( "container $ctid does not exist",
+            fatal   => $vos->{fatal},
+            debug   => $vos->{debug},
+        ) 
+    };
+
+    if ( $self->is_running() ) {
+        $prov->audit("$ctid is already running.");
+        return 1;
+    };
 
     my $cmd = $util->find_bin( bin => 'vzctl', debug => 0 );
 
@@ -214,8 +237,8 @@ sub start_virtualos {
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
     $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
 
-# the results of vzctl start are not reliable. Instead, use vzctl to
-# check the VE status and see if it started.
+# the results of vzctl start are not reliable. Use vzctl to
+# check the VE status and see if it actually started.
 
     foreach ( 1..8 ) {
         return 1 if $self->is_running();
@@ -234,21 +257,20 @@ sub stop_virtualos {
     my $self = shift;
 
     my $ctid = $vos->{name};
-    $prov->audit("stopping virtual $ctid");
+    
+    $prov->audit("stopping $ctid");
 
-    # make sure CTID exists
-    return $prov->error( "container $ctid does not exist",
-        fatal   => $vos->{fatal},
-        debug   => $vos->{debug},
-    ) if !$self->is_present();
-
-    # see if VE is running
-    if ( !$self->is_running( refresh => 0 ) ) {
-        return $prov->error( "container $ctid is not running",
+    if ( !$self->is_present() ) {
+        return $prov->error( "$ctid does not exist",
             fatal   => $vos->{fatal},
             debug   => $vos->{debug},
-        );
-    }
+        ) 
+    };
+
+    if ( ! $self->is_running( refresh => 0 ) ) {
+        $prov->audit("$ctid is already shutdown.");
+        return 1;
+    };
 
     my $cmd = $util->find_bin( bin => 'vzctl', debug => 0 );
     $cmd .= " stop $vos->{name}";
@@ -287,21 +309,22 @@ sub disable_virtualos {
     my $self = shift;
 
     my $ctid = $vos->{name};
-    $prov->audit("disabling virtual $ctid");
+    $prov->audit("disabling $ctid");
 
     # make sure CTID exists
-    return $prov->error( "container $ctid does not exist",
+    return $prov->error( "$ctid does not exist",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
     ) if !$self->is_present();
 
-    # make sure config file exists
+    # is it already disabled?
     my $config = $self->get_config();
-    if ( ! -e $config && -e "$config.suspend" ) {
+    if ( ! -e $config && ( -e "$config.suspend" || -e "$config.suspended" ) ) {
         $prov->audit( "container is already disabled." );
         return 1;
     };
 
+    # make sure config file exists
     if ( !-e $config ) {
         return $prov->error( "configuration file ($config) for $ctid does not exist.",
             fatal => $vos->{fatal},
@@ -314,7 +337,7 @@ sub disable_virtualos {
     # see if VE is running, and if so, stop it
     $self->stop_virtualos() if $self->is_running( refresh => 0 );
 
-    $self->unmount_virtualos() if $self->is_mounted( refresh => 0 );
+    $self->unmount_disk_image() if $self->is_mounted( refresh => 0 );
 
     move( $config, "$config.suspend" )
         or return $prov->error( "unable to move file '$config' to '$config.suspend': $!",
@@ -332,17 +355,25 @@ sub enable_virtualos {
     my $self = shift;
 
     my $ctid = $vos->{name};
-    $prov->audit("enabling virtual $ctid");
+    $prov->audit("enabling $ctid");
 
     # make sure CTID exists 
-    return $prov->error( "container $ctid does not exist",
+    return $prov->error( "$ctid does not exist",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
     ) if ! $self->is_present();
 
-    # make sure config file exists
+    # see if VE is currently enabled
     my $config = $self->get_config();
-    if ( !-e "$config.suspend" ) {
+    if ( -e $config ) {
+        $prov->audit("\t$ctid is already enabled");
+        return $self->start_virtualos();
+    };
+
+    # make sure config file exists
+    my $suspended_config = "$config.suspend";
+    $suspended_config = "$config.suspended" if ! -e $suspended_config;
+    if ( !-e $suspended_config ) {
         return $prov->error( "configuration file ($config.suspend) for $ctid does not exist",
             fatal => $vos->{fatal},
             debug => $vos->{debug},
@@ -360,7 +391,7 @@ sub enable_virtualos {
 
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
 
-    move( "$config.suspend", $config )
+    move( $suspended_config, $config )
         or return $prov->error( "unable to move file '$config': $!",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
@@ -438,7 +469,7 @@ sub upgrade_virtualos {
     return 1;
 };
 
-sub unmount_virtualos {
+sub unmount_disk_image {
 
     my $self = shift;
 
@@ -575,6 +606,13 @@ sub get_config {
     my $etc_dir = $prov->{etc_dir} || '/etc/vz/conf';
     my $config = "$etc_dir/$ctid.conf";
     return $config;
+};
+
+sub get_console {
+    my $self = shift;
+    my $ctid = $vos->{name};
+    my $cmd = $util->find_bin( bin => 'vzctl', debug => 0 );
+    exec "$cmd enter $ctid";
 };
 
 sub get_disk_usage {
@@ -716,7 +754,7 @@ sub get_status {
 
 sub get_ve_home {
     my $self = shift;
-    my $name = $vos->{name};
+    my $name = $vos->{name} || shift || die "missing VE name";
     my $disk_root = $vos->{disk_root} || '/vz';
     my $homedir = "$disk_root/private/$name";
     return $homedir;

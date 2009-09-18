@@ -221,7 +221,7 @@ sub do_prov_call {
         status    => 'error',
         type      => 'operation',
         id        => $req->{id},
-        message   => "Unable to $action",
+        message   => $prov->get_last_error_message(),
         audit     => $prov->audit,
         exception => $@,
     } if ! $rv;

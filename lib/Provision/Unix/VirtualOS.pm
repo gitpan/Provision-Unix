@@ -3,7 +3,7 @@ package Provision::Unix::VirtualOS;
 use warnings;
 use strict;
 
-our $VERSION = '0.34';
+our $VERSION = '0.36';
 
 use Data::Dumper;
 use English qw( -no_match_vars );
@@ -47,7 +47,7 @@ sub new {
     $prov = $p{prov};
     $prov->audit("loaded Provision::Unix::VirtualOS");
 
-    $util = Provision::Unix::Utility->new( prov=> $p{prov} )
+    $util = Provision::Unix::Utility->new( prov=> $prov )
         or die "unable to load P:U:Utility\n";
     $self->{vtype} = $self->_get_virt_type( fatal => $p{fatal}, debug => $p{debug} )
         or die $prov->{errors}[-1]{errmsg};
@@ -64,8 +64,8 @@ sub create_virtualos {
 #            : ip        - IP address(es), space delimited
 #   Optional : hostname  - the FQDN of the virtual OS
 #            : disk_root - the root directory of the virt os
-#            : disk_size - disk space allotment
-#            : ram
+#            : disk_size - disk space allotment in MB
+#            : ram       - in MB
 #            : config    - a config file with virtual specific settings
 #            : template  - a 'template' or tarball the OS is patterned after
 #            : password  - the root/admin password for the virtual
@@ -73,30 +73,31 @@ sub create_virtualos {
 #            : searchdomain -
 
     my $self = shift;
-
     my %p = validate(
         @_,
-        {   'name'         => { type => SCALAR },
-            'ip'           => { type => SCALAR },
-            'hostname'     => { type => SCALAR, optional => 1 },
-            'disk_root'    => { type => SCALAR, optional => 1 },
-            'disk_size'    => { type => SCALAR, optional => 1 },
-            'ram'          => { type => SCALAR, optional => 1 },
-            'config'       => { type => SCALAR, optional => 1 },
-            'template'     => { type => SCALAR, optional => 1 },
-            'password'     => { type => SCALAR, optional => 1 },
-            'ssh_key'      => { type => SCALAR, optional => 1 },
-            'nameservers'  => { type => SCALAR, optional => 1 },
-            'searchdomain' => { type => SCALAR, optional => 1 },
-            'test_mode'    => { type => BOOLEAN, optional => 1 },
-            'debug' => { type => BOOLEAN, optional => 1, default => 1 },
-            'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
+        {   name           => { type => SCALAR },
+            ip             => { type => SCALAR },
+            hostname       => { type => SCALAR, optional => 1 },
+            disk_root      => { type => SCALAR, optional => 1 },
+            disk_size      => { type => SCALAR, optional => 1 },
+            ram            => { type => SCALAR, optional => 1 },
+            config         => { type => SCALAR, optional => 1 },
+            template       => { type => SCALAR, optional => 1 },
+            password       => { type => SCALAR, optional => 1 },
+            ssh_key        => { type => SCALAR, optional => 1 },
+            nameservers    => { type => SCALAR, optional => 1 },
+            searchdomain   => { type => SCALAR, optional => 1 },
+            kernel_version => { type => SCALAR, optional => 1 },
+            mac_address    => { type => SCALAR, optional => 1 },
+            test_mode      => { type => BOOLEAN, optional => 1 },
+            debug          => { type => BOOLEAN, optional => 1, default => 1 },
+            fatal          => { type => BOOLEAN, optional => 1, default => 1 },
         }
     );
 
     $prov->audit( "initializing request to create virtual os '$p{name}'");
 
-    $self->{name}        = $p{name};
+    $self->{name}        = $self->set_name( $p{name} );
     $self->{ip}          = $self->get_ips( $p{ip} ) or return;
 
     if ( $p{nameservers} ) {
@@ -105,13 +106,14 @@ sub create_virtualos {
     };
 
     foreach ( qw/ hostname disk_root disk_size ram config
-                  template password ssh_key searchdomain
+                  template password ssh_key searchdomain 
+                  kernel_version mac_address
                   fatal debug test_mode / ) {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
     my ($delegate) = $self->{vtype} =~ m/^(.*)=HASH/;
-    $prov->audit("\tdelegating request to $delegate");
+    $prov->audit("\tdelegating create request to $delegate");
     $self->{vtype}->create_virtualos();
 }
 
@@ -136,9 +138,10 @@ sub destroy_virtualos {
         }
     );
 
-    $prov->audit("initializing request to destroy virtual os '$p{name}'");
+    my $name = $self->set_name( $p{name} );
+    $prov->audit("initializing request to destroy virtual os '$name'");
 
-    foreach ( qw/ name test_mode debug fatal / ) {
+    foreach ( qw/ test_mode debug fatal / ) {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
@@ -411,7 +414,28 @@ sub upgrade_virtualos {
     $self->{vtype}->upgrade_virtualos();
 };
 
-sub unmount_virtualos {
+sub mount_disk_image {
+    my $self = shift;
+    my %p = validate(
+        @_,
+        {   name      => { type => SCALAR },
+            refresh   => { type => BOOLEAN, optional => 1, default => 1 },
+            test_mode => { type => BOOLEAN, optional => 1 },
+            debug     => { type => BOOLEAN, optional => 1, default => 1 },
+            fatal     => { type => BOOLEAN, optional => 1, default => 1 },
+        }
+    );
+
+    $prov->audit( "initializing request to mount ve '$p{name}'");
+
+    foreach ( qw/ name refresh test_mode debug fatal / ) {
+        $self->{$_} = $p{$_} if defined $p{$_};
+    };
+
+    $self->{vtype}->mount_disk_image();
+};
+
+sub unmount_disk_image {
     my $self = shift;
     my %p = validate(
         @_,
@@ -429,7 +453,7 @@ sub unmount_virtualos {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
-    $self->{vtype}->unmount_virtualos();
+    $self->{vtype}->unmount_disk_image();
 };
 
 sub gen_config {
@@ -449,7 +473,7 @@ sub gen_config {
         }
     );
 
-    foreach ( qw/ ram disk_size name disk_root template config hostname
+    foreach ( qw/ name ram disk_size disk_root template config hostname
         debug fatal / ) 
     {
         $self->{$_} = $p{$_} if defined $p{$_};
@@ -458,6 +482,33 @@ sub gen_config {
     $self->{ip} = $self->get_ips( $p{ip} );
 
     $self->{vtype}->gen_config();
+};
+
+sub get_console {
+    my $self = shift;
+    my %p = validate( 
+        @_, 
+        {   name  => { type => SCALAR | UNDEF,  optional => 1 },
+            fatal => { type => BOOLEAN | UNDEF,  optional => 1 },
+            debug => { type => BOOLEAN | UNDEF,  optional => 1 },
+        }
+    );
+
+    foreach ( qw/ name fatal debug / ) {
+        $self->{$_} = $p{$_} if defined $p{$_};
+    };
+
+    $self->{vtype}->get_console();
+}
+
+sub get_fs_root {
+    my $self = shift;
+    my $name = shift || $self->{name};
+    my $fs_root;
+    if ( $self->{vtype}->can('get_fs_root') ) {
+        return $self->{vtype}->get_fs_root();
+    }
+    return $self->{vtype}->get_ve_home( $name );
 };
 
 sub get_ips {
@@ -486,9 +537,7 @@ sub get_ips {
 }
 
 sub get_status {
-
     my $self = shift;
-
     my %p = validate(
         @_,
         {   name      => { type => SCALAR | UNDEF,  optional => 1 },
@@ -537,9 +586,7 @@ sub get_template_dir {
 };
 
 sub get_template {
-
     my $self = shift;
-
     my %p = validate( @_,
         {   v_type    => { type => SCALAR  },
             template  => { type => SCALAR  },
@@ -588,9 +635,7 @@ sub get_template {
 };
 
 sub get_template_list {
-
     my $self = shift;
-
     my %p = validate(
         @_,
         {   'v_type'    => { type => SCALAR  },
@@ -667,9 +712,7 @@ sub get_version {
 };
 
 sub set_hostname {
-
     my $self = shift;
-
     my %p = validate(
         @_,
         {   'name'      => { type => SCALAR },
@@ -680,23 +723,26 @@ sub set_hostname {
         }
     );
 
-    $self->{name}      = $p{name};
-    $self->{hostname}  = $p{hostname};
-    $self->{test_mode} = $p{test_mode};
-    $self->{debug}     = $p{debug};
-    $self->{fatal}     = $p{fatal};
+    foreach ( qw/ name hostname test_mode fatal debug / ) {
+        $self->{$_} = $p{$_} if defined $p{$_};
+    };
 
     $self->{vtype}->set_hostname();
 }
 
-sub set_nameservers {
-
+sub set_name {
     my $self = shift;
+    my $name = shift || $self->{name} || die "unable to set VE name\n";
+    $self->{name} = $name;
+    return $name; 
+};
 
+sub set_nameservers {
+    my $self = shift;
     my %p = validate(
         @_,
-        {   'name'         => { type => SCALAR },
-            'nameservers'  => { type => SCALAR },
+        {   'name'         => { type => SCALAR, optional => 1 },
+            'nameservers'  => { type => SCALAR, optional => 1 },
             'searchdomain' => { type => SCALAR, optional => 1 },
             'test_mode'    => { type => BOOLEAN, optional => 1 },
             'debug' => { type => BOOLEAN, optional => 1, default => 1 },
@@ -704,14 +750,38 @@ sub set_nameservers {
         }
     );
 
-    $self->{name}         = $p{name};
-    $self->{nameservers}  = $self->get_ips( $p{nameservers} );
+    my $name              = $self->set_name( $p{name} ) if $p{name};
+    $self->{nameservers}  = $self->get_ips( $p{nameservers} ) if $p{nameservers};
+    $self->{nameservers}  or die 'missing nameservers';
     $self->{searchdomain} = $p{searchdomain};
     $self->{test_mode}    = $p{test_mode};
-    $self->{debug}        = $p{debug};
-    $self->{fatal}        = $p{fatal};
+    my $debug = $self->{debug} = $p{debug};
+    my $fatal = $self->{fatal} = $p{fatal};
 
-    $self->{vtype}->set_nameservers();
+    # if the virtualzation package has the method, call it. 
+    if ( $self->{vtype}->can( 'set_nameservers' ) ) {
+        return $self->{vtype}->set_nameservers();
+    };
+
+    # otherwise, use this default method
+    my $fs_root = $self->get_fs_root();
+    my $nameservers = $self->{nameservers};
+    my $resolv = "$fs_root/etc/resolv.conf";
+
+    my @new;
+    my @lines = $util->file_read( file => $resolv, fatal => $fatal );
+    foreach my $line ( @lines ) {
+        next if $line =~ /^nameserver\s/i;
+        push @new, $line;
+    };
+
+    foreach ( @$nameservers ) {
+        push @new, "nameserver $_";
+    };
+
+    return $util->file_write( 
+        file => $resolv, lines => \@new, fatal => $fatal,
+    );
 }
 
 sub set_password {
@@ -740,6 +810,38 @@ sub set_password {
     return $self->{vtype}->set_password();
 }
 
+sub setup_log_files {
+    my $self = shift;
+
+    my %p = validate( @_, { fs_root => { type => SCALAR }  } );
+
+    my $fs_root = $p{fs_root};
+
+    my @logfiles = `find $fs_root/var/log/ -maxdepth 1 -type f -print`;
+    foreach ( @logfiles ) {
+        chomp $_;
+        $util->file_write( file => $_, lines => [ '' ], fatal => 0, debug => 0 );
+    };
+};
+
+sub setup_ssh_host_keys {
+    my $self = shift;
+
+    my %p = validate( @_, { fs_root => { type => SCALAR }  } );
+
+    my $fs_root = $p{fs_root};
+
+    foreach my $type ( qw/ dsa rsa / ) {
+        my $file_path = "$fs_root/etc/ssh/ssh_host_${type}_key";
+
+        unlink "$file_path"     if -e "$file_path";
+        unlink "$file_path.pub" if -e "$file_path.pub";
+
+        my $cmd = "/usr/bin/ssh-keygen -q -t $type -f $file_path -N ''";
+        $util->syscmd( cmd => $cmd, debug => 0 );
+    };
+};
+
 sub is_mounted {
     my $self = shift;
 
@@ -761,9 +863,7 @@ sub is_mounted {
 }
 
 sub is_present {
-
     my $self = shift;
-
     my %p = validate(
         @_,
         {   'name'      => { type => SCALAR },
@@ -773,18 +873,15 @@ sub is_present {
         }
     );
 
-    $self->{name}      = $p{name};
-    $self->{test_mode} = $p{test_mode};
-    $self->{debug}     = $p{debug};
-    $self->{fatal}     = $p{fatal};
+    foreach ( qw/ name test_mode debug fatal / ) {
+        $self->{$_} = $p{$_} if defined $p{$_};
+    };
 
     $self->{vtype}->is_present();
 }
 
 sub is_running {
-
     my $self = shift;
-
     my %p = validate(
         @_,
         {   'name'      => { type => SCALAR },
@@ -804,7 +901,7 @@ sub is_running {
 sub is_valid_ip {
     my $self  = shift;
     my $ip    = shift;
-    my $error = "\t'$ip' is not a valid IPv4 address";
+    my $error = "'$ip' is not a valid IPv4 address";
 
     my $r = grep /\./, split( //, $ip );    # need 3 dots
     return $prov->error( $error, fatal => 0, debug => 0 )
@@ -833,9 +930,7 @@ sub is_valid_ip {
 }
 
 sub _get_virt_type {
-
     my $self = shift;
-
     my %p = validate(
         @_, { 
             'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
@@ -843,6 +938,8 @@ sub _get_virt_type {
         }
     );
 
+    my $debug = $p{debug};
+    my $fatal = $p{fatal};
     my $prov = $self->{prov};
 
     if ( lc($OSNAME) eq 'linux' ) {
@@ -877,8 +974,8 @@ sub _get_virt_type {
         else {
             $prov->error( 
                 "Unable to determine your virtualization method. You need one supported hypervisor (xen, openvz) installed.",
-                fatal => $p{fatal},
-                debug => $p{debug},
+                fatal => $fatal,
+                debug => $debug,
             );
         };
     }
@@ -897,11 +994,11 @@ sub _get_virt_type {
         return Provision::Unix::VirtualOS::FreeBSD::Jail->new( vos => $self );
     }
     else {
-        print "fatal: $p{fatal}\n";
+        print "fatal: $fatal\n";
         $prov->error( 
             "No virtualization methods for $OSNAME are supported yet",
-            fatal   => $p{fatal},
-            debug   => $p{debug},
+            fatal   => $fatal,
+            debug   => $debug,
         );
     };
 }

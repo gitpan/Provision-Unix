@@ -1,5 +1,72 @@
 Revision history for Provision-Unix
 
+0.66 Aug 26, 2009
+  - allow ovz suspended config file to be .suspended (as well as .suspend)
+  - when enabling, disabling, starting, and stopping a VE, succeed if the VE
+    is already in the target state. Previously, if a 'disable' request was 
+    issued on an already disabled VE, it would throw an error. Etc.
+  - for xen VE, check for alternate names of kernel and ramdisk, resorting to
+    a glob of /boot if none of the predefined names exist.
+  - try unmounting Xen disk images before start (start often fails b/c disk
+    image is already mounted. This works around that).
+  - when creating Xen accounts, add dom0 user for xen console
+  - added method P:U:V:L:Xen:create_console_user
+  - added method P:U:V:L:Xen:set_nameservers
+  - added method P:U:V:L:set_ips_debian
+  - added method P:U:V:L:set_hostname_debian
+  - added method P:U:V:L:set_hostname_redhat
+  - Xen create method now sets up console user, ips, and hostname
+  - Xen create now starts up the VE after creation
+  - fixed bug in P:U:U:Linux where the homedir was detected properly
+  - provided a better error message when a remoteagent request fails
+  - created a default set_nameservers method in P:U:VirtualOS. If the method
+    exists in the subclass, it gets called. Otherwise, use the default.
+  - added method P:U:V:L:install_kernel_modules
+  - added method P:U:V:L:set_ips_redhat
+  - added test for P:U:V:set_nameservers
+  - added method P:U:V:setup_log_files (zeroes out /var log files)
+  - added method P:U:V:setup_ssh_host_keys
+  - added method P:U:V:L:Xen::get_fs_root
+  - added method P:U:V:L:Xen::is_mounted
+  - added method P:U:V:L:Xen::set_libc
+  - removed method P:U:V:L:Xen::set_ips (moved into Linux.pm)
+  - added P:U:V:L:set_rc_local
+  - added P:U:V:L:setup_inittab
+  - modified P:U:U:file_write to write the file to a .tmp file first and then
+    move that onto the existing file to be created/updated. Safer in cases 
+    where a volume is [mostly] full and the write fails part way through.
+  - added P:U:V:mount_disk_image
+  - added better error handling when template extraction fails
+  - remoteagent returns the last error encountered instead of a generic error
+  - added method P:U:V:L:set_ips_gentoo
+  - added method P:U:V:L:set_hostname_gentoo
+  - modify upstart serial file and disable so console works properly
+  - added P:U:dump_errors
+  - added optional kernel_version parameter to create_virtualos method
+  - pass the kernel version in calls to P:U:V:L::install_kernel_modules
+  - added methods P:U:V:L:X:get_kernel_dir & get_kernel_version
+  - kernel modules tarballs are now relative, provide the full path to tar -C
+    when extracting.
+  - completed support for configuring networking on Gentoo
+  - updated the P:U error handling to provide more succint error messages
+  - allow passing in of MAC address to Xen creates
+  - if Xen volume destroy fails, wait 3 secs and try again
+  - cleaned up a bunch more errors there weren't properly handled
+  - added optional mac_address to P:U:V:create_virtualos method
+  - add all IPs to Xen vif config section (previously only added the first)
+  - added method P:U:V:L:setup_autologin 
+  - added ssh key restrictions for console logins
+  - finished setup of Xen console accounts
+  - cleanup Xen console accounts upon destruction of VE
+  - P:U:U:file_write safe mode additions weren't safe when append option
+    selected. fixed.
+  - P:U:User:Linux, restart nscd after altering passwd files
+  - P:U:U:L, create /etc/group account before user account
+  - added call to P:U:V:set_nameservers in P:U:V:L:X:create
+  - added symlink in /etc/xen/auto for new Xen VEs, and rm it after destroy
+  - always install custom /etc/rc.local upon VE creation
+  - added prov_virtual --action=console method (drops shell user into VE)
+
 0.65 Aug 11, 2009
   - updated remoteagent, much simpler script now, and no longer requires a 
     recent version of Getopt::Long (any version will do). 
@@ -29,7 +96,7 @@ Revision history for Provision-Unix
   - added OpenVZ gen_config method
   - added OpenVZ upgrade_virtualos method
   - worked around a bug where Proc::ProcessTable would load but not work
-  - added OpenVZ unmount_virtualos and is_mounted methods. Before a reinstall
+  - added OpenVZ unmount_disk_image and is_mounted methods. Before a reinstall
     and disable actions, check if disk is mounted and unmount it.
   - added a few conditionals to skip tests that fail on IRIX and cygwin
 

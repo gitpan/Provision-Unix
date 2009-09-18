@@ -1,6 +1,6 @@
 package Provision::Unix;
 
-our $VERSION = '0.65';
+our $VERSION = '0.66';
 
 use warnings;
 use strict;
@@ -67,14 +67,32 @@ sub dump_audit {
     # we already dumped everything
     return if $last_line == scalar @{ $self->{audit} };
 
-    print STDERR "\n\t\t\tAudit & Error history Report \n\n";
-    my $i;
+    print STDERR "\n\t\t\tAudit History Report \n\n";
+    my $i = 0;
     foreach ( @{ $self->{audit} } ) {
         $i++;
         next if $i < $last_line;
         print STDERR "\t$_\n";
     };
     $self->{last_audit} = $i;
+    return;
+};
+
+sub dump_errors {
+    my $self = shift;
+    my $last_line = $self->{last_error} || 0;
+
+    # we already dumped everything
+    return if $last_line == scalar @{ $self->{errors} };
+
+    print STDERR "\n\t\t\t Error History Report \n\n";
+    my $i = 0;
+    foreach ( @{ $self->{errors} } ) {
+        $i++;
+        next if $i < $last_line;
+        print STDERR "ERROR: '$_->{errmsg}' occurred at $_->{errloc}\n";
+    };
+    $self->{last_error} = $i;
     return;
 };
 
@@ -90,14 +108,17 @@ sub error {
         },
     );
 
+    my $debug = $p{debug};
+
     if ( $message ) {
+        my @caller = caller;
         push @{ $self->{audit} }, $message;
 
         # append message to $self->error stack
         push @{ $self->{errors} },
             {
-            errmsg => "ERROR: $message",
-            errloc => $p{location} || join( ", ", caller ),
+            errmsg => $message,
+            errloc => $p{location} || join( ", ", $caller[0], $caller[2] ),
             };
     }
     else {
@@ -105,13 +126,16 @@ sub error {
     }
 
     # print audit and error results to stderr
-    if ( $p{debug} ) {
+    if ( $debug ) {
         $self->dump_audit();
-        warn Dumper( $self->{errors}[-1] );
+        $self->dump_errors();
     }
 
     if ( $p{fatal} ) {
-        $self->dump_audit();  # dump if err is fatal and debug is not set
+        if ( ! $debug ) {
+            $self->dump_audit();  # dump if err is fatal and debug is not set
+            $self->dump_errors();
+        };
         croak "FATAL ERROR";
     };
     return;
@@ -233,7 +257,7 @@ sub _find_readable {
     my $file = shift;
     my $dir  = shift or return;    # breaks recursion at end of @_
 
-    $self->audit("looking for $file in $dir") if $self->{debug};
+    #$self->audit("looking for $file in $dir") if $self->{debug};
 
     if ( -r "$dir/$file" ) {
         no warnings;

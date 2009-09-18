@@ -21,19 +21,19 @@ sub new {
     my $class = shift;
     my %p     = validate(
         @_,
-        {   prov  => { type => OBJECT, optional => 1 },
+        {   prov  => { type => OBJECT,  optional => 1 },
             debug => { type => BOOLEAN, optional => 1, default => 1 },
             fatal => { type => BOOLEAN, optional => 1, default => 1 },
         }
     );
 
+    $prov = $p{prov};
     my $self = {
-        prov  => $p{prov},
+        prov  => $prov,
         debug => $p{debug},
         fatal => $p{fatal},
     };
-    bless( $self, $class );
-    $prov = $p{prov};
+    bless $self, $class;
     return $self;
 }
 
@@ -52,8 +52,6 @@ which uses those functions extensively for logging and error reporting.
 sub ask {
 
     my $self = shift;
-
-    # parameter validation here
     my %p = validate(
         @_,
         {   'question' => { type => SCALAR,  optional => 0 },
@@ -211,7 +209,6 @@ sub archive_expand {
 sub chmod {
 
     my $self = shift;
-
     my %p = validate(
         @_,
         {   'file'        => { type => SCALAR,  optional => 1, },
@@ -230,9 +227,8 @@ sub chmod {
     # look for file, but if missing, check file_or_dir and dir
     $file ||= $p{file_or_dir} ||= $p{dir};
 
-    if ( !$file ) {
-        return $prov->error( "invalid params, see perldoc Provision::Unix::Utility");
-    }
+    return $prov->error( "invalid params, see perldoc Provision::Unix::Utility")
+        if !$file;
 
     if ( $p{sudo} ) {
         my $chmod = $self->find_bin( bin => 'chmod', debug => $p{debug} );
@@ -247,7 +243,7 @@ sub chmod {
         }
     }
 
-    $prov->audit("chmod: chmod $mode $file.");
+    $prov->audit("chmod: chmod $mode $file");
 
     # note how we convert a string ($mode) to an octal value. Very Important!
     unless ( chmod oct($mode), $file ) {
@@ -352,8 +348,6 @@ sub chown {
 sub chown_system {
 
     my $self = shift;
-
-    # parameter validation here
     my %p = validate(
         @_,
         {   'file'        => { type => SCALAR,  optional => 1, },
@@ -408,8 +402,6 @@ sub chown_system {
 sub clean_tmp_dir {
 
     my $self = shift;
-
-    # parameter validation here
     my %p = validate(
         @_,
         {   'dir'   => { type => SCALAR,  optional => 0, },
@@ -457,8 +449,6 @@ sub clean_tmp_dir {
 sub cwd_source_dir {
 
     my $self = shift;
-
-    # parameter validation here
     my %p = validate(
         @_,
         {   'dir'   => { type => SCALAR,  optional => 0, },
@@ -513,8 +503,6 @@ sub _try_mkdir {
 sub file_archive {
 
     my $self = shift;
-
-    # parameter validation here
     my %p = validate(
         @_,
         {   'file'  => { type => SCALAR },
@@ -665,9 +653,7 @@ sub file_delete {
 }
 
 sub file_get {
-
     my $self = shift;
-
     my %p = validate(
         @_,
         {   'url'     => { type => SCALAR },
@@ -799,8 +785,6 @@ sub file_is_newer {
 sub file_read {
 
     my $self = shift;
-
-    # parameter validation here
     my %p = validate(
         @_,
         {   'file'       => { type => SCALAR },
@@ -867,8 +851,6 @@ sub file_read {
 sub file_mode {
 
     my $self = shift;
-
-    # parameter validation here
     my %p = validate(
         @_,
         {   'file'  => { type => SCALAR },
@@ -901,10 +883,7 @@ sub file_mode {
 }
 
 sub file_write {
-
     my $self = shift;
-
-    # parameter validation here
     my %p = validate(
         @_,
         {   'file'   => { type => SCALAR },
@@ -916,56 +895,50 @@ sub file_write {
         }
     );
 
-    my $file = $p{file};
+    my $file   = $p{file};
+    my $append = $p{append};
+    my ($debug, $fatal) = ($p{debug}, $p{fatal});
 
-    if ( -d $file ) {
-        carp "file_write FAILURE: $file is a directory!" if $p{debug};
-        croak if $p{fatal};
-        return;
-    }
-
-    if (-f $file
+    return $prov->error( "file_write FAILURE: $file is a directory!" ) if -d $file;
+    return $prov->error( "file_write FAILURE: $file is not writable!" ) if -f $file
         && !$self->is_writable(
             file  => $file,
-            debug => $p{debug},
+            debug => $debug,
             fatal => 0,
-        )
-        )
-    {
-        $err = "file_write FAILURE: $file is not writable!";
-        croak $err if $p{fatal};
-        carp $err  if $p{debug};
-        return;
-    }
-
-    my $write_mode = '>';    # (over)write
-    $write_mode = '>>' if $p{append};
-
-    open my $HANDLE, $write_mode, $file or $fatal_err++;
-
-    if ($fatal_err) {
-        carp "file_write: couldn't open $file: $!";
-        croak if $p{fatal};
-        return;
-    }
+        );
 
     my $m = "writing";
-    $m = "appending" if $p{append};
-    $self->_formatted( "file_write: opened $file for $m", "ok" ) if $p{debug};
+    my $write_mode = '>';    # (over)write
+
+    if ( $append ) {
+        $m = "appending";
+        $write_mode = '>>';
+        if ( -f $file ) {
+            copy $file, "$file.tmp" or return $prov->error(
+                "couldn't create $file.tmp for safe append operation", fatal => $fatal );
+        };
+    };
+
+    open my $HANDLE, $write_mode, "$file.tmp" 
+        or return $prov->error( "file_write: couldn't open $file: $!", fatal => $fatal );
+
+    $prov->audit( "opened $file for $m" ) if $debug;
 
     my $c = 0;
     for ( @{ $p{lines} } ) { chomp; print $HANDLE "$_\n"; $c++ }
     close $HANDLE or return;
 
-    $self->_formatted( "file_write: wrote $c lines to $file", "ok" )
-        if $p{debug};
+    move "$file.tmp", $file or return $prov->error("unable to update $file");
+
+    $prov->audit( "\twrote $c lines" ) if $debug;
 
     # set file permissions mode if requested
     if ( $p{mode} ) {
         $self->chmod(
             file  => $file,
             mode  => $p{mode},
-            debug => $p{debug},
+            debug => $debug,
+            fatal => $fatal,
         );
     }
 
@@ -975,8 +948,6 @@ sub file_write {
 sub files_diff {
 
     my $self = shift;
-
-    # parameter validation here
     my %p = validate(
         @_,
         {   'f1'    => { type => SCALAR },
@@ -1070,10 +1041,7 @@ FILE: foreach my $f ( $f1, $f2 ) {
 }
 
 sub find_bin {
-
     my $self = shift;
-
-    # parameter validation here
     my %p = validate(
         @_,
         {   'bin'   => { type => SCALAR, },
@@ -1083,45 +1051,41 @@ sub find_bin {
         },
     );
 
-    my ( $bin, $debug ) = ( $p{bin}, $p{debug} );
+    my ( $bin, $debug, $fatal ) = ( $p{bin}, $p{debug}, $p{fatal} );
 
-    print "find_bin: searching for $bin\n" if $debug;
+    $prov->audit( "find_bin: searching for $bin" ) if $debug;
 
     my $prefix = "/usr/local";
 
-    if ( $p{dir} && -x "$p{dir}/$bin" ) { return "$p{dir}/$bin"; }
-    if ( $bin =~ /^\// && -x $bin ) { return $bin }
-    ;    # we got a full path
+    return $bin if ( $bin =~ /^\// && -x $bin );  # we got a full path
 
-    my $found
-        = -x "$prefix/bin/$bin"       ? "/usr/local/bin/$bin"
-        : -x "$prefix/sbin/$bin"      ? "/usr/local/sbin/$bin"
-        : -x "$prefix/mysql/bin/$bin" ? "$prefix/mysql/bin/$bin"
-        : -x "/bin/$bin"              ? "/bin/$bin"
-        : -x "/usr/bin/$bin"          ? "/usr/bin/$bin"
-        : -x "/sbin/$bin"             ? "/sbin/$bin"
-        : -x "/usr/sbin/$bin"         ? "/usr/sbin/$bin"
-        : -x "/opt/local/bin/$bin"    ? "/opt/local/bin/$bin"
-        : -x "/opt/local/sbin/$bin"   ? "/opt/local/sbin/$bin"
-        : -x cwd . "/$bin"            ? cwd "/$bin"
-        :                               undef;
+    my @prefixes;
+    push @prefixes, $p{dir} if $p{dir};
+    push @prefixes, qw" 
+        /usr/local/bin /usr/local/sbin/ /opt/local/bin /opt/local/sbin
+        $prefix/mysql/bin /bin /usr/bin /sbin /usr/sbin 
+        ";
+    push @prefixes, cwd;
+
+    my $found;
+    foreach my $prefix ( @prefixes ) { 
+        if ( -x "$prefix/$bin" ) {
+            $found = "$prefix/$bin" and last;
+        };  
+    };
 
     if ($found) {
-        print "find_bin: found $found\n" if $debug;
+        $prov->audit( "find_bin: found $found") if $debug;
         return $found;
     }
 
-    $err = "find_bin: WARNING: could not find $bin";
-    croak $err if $p{fatal};
-    carp $err  if $debug;
+    $prov->error( "WARNING: could not find $bin", fatal => $fatal, debug => $debug );
     return;
 }
 
 sub fstab_list {
 
     my $self = shift;
-
-    # parameter validation here
     my %p = validate(
         @_,
         {   'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
@@ -1203,8 +1167,6 @@ sub get_cpan_config {
 sub get_dir_files {
 
     my $self = shift;
-
-    # parameter validation here
     my %p = validate(
         @_,
         {   'dir'   => { type => SCALAR,  optional => 0, },
@@ -1253,8 +1215,6 @@ sub get_my_ips {
     #              tested on Mac OS X and FreeBSD
 
     my $self = shift;
-
-    # parameter validation here
     my %p = validate(
         @_,
         {   'only' => { type => SCALAR, optional => 1, default => 0 },
@@ -1322,8 +1282,6 @@ TRY:
 sub get_the_date {
 
     my $self = shift;
-
-    # parameter validation here
     my %p = validate(
         @_,
         {   'bump'  => { type => SCALAR,  optional => 1, },
@@ -1380,8 +1338,6 @@ sub get_the_date {
 sub get_mounted_drives {
 
     my $self = shift;
-
-    # parameter validation here
     my %p = validate(
         @_,
         {   'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
@@ -1419,9 +1375,6 @@ sub get_mounted_drives {
 sub install_if_changed {
 
     my $self = shift;
-
-    # parameter validation here
-
     my %p = validate(
         @_,
         {   'newfile'  => { type => SCALAR, optional => 0, },
@@ -1658,8 +1611,6 @@ sub install_if_changed {
 sub install_from_source {
 
     my $self = shift;
-
-    # parameter validation here
     my %p = validate(
         @_,
         {   'conf'           => { type => HASHREF,  optional => 1, },
@@ -2053,9 +2004,7 @@ sub is_readable {
 }
 
 sub is_writable {
-
     my $self = shift;
-
     my %p = validate(
         @_,
         {   'file'  => SCALAR,
@@ -2069,54 +2018,31 @@ sub is_writable {
     my $nl = "\n";
     $nl = "<br>" if ( $ENV{GATEWAY_INTERFACE} );
 
-    #print "is_writable: checking $file..." if $debug;
-
     if ( !-e $file ) {
 
         use File::Basename;
         my ( $base, $path, $suffix ) = fileparse($file);
 
-        if ( !-w $path ) {
-
-            $err
-                = "\nWARNING: is_writable: $path not writable by "
-                . getpwuid($>)
-                . "!$nl$nl";
-            croak $err if $fatal;
-            carp $err  if $debug;
-            return 0;
-        }
+        return $prov->error( "WARNING: is_writable: $path not writable by "
+            . getpwuid($>)
+            . "!$nl$nl") if !-w $path;
         return 1;
     }
 
     # if we get this far, the file exists
-    unless ( -f $file ) {
-        $err = "is_writable: $file is not a file!\n";
-        croak $err if $fatal;
-        carp $err  if $debug;
-        return 0;
-    }
+    return $prov->error( "is_writable: $file is not a file!" ) unless -f $file;
 
-    unless ( -w $file ) {
-        $err
-            = "is_writable: WARNING: $file not writable by "
-            . getpwuid($>)
-            . "!$nl$nl>";
+    return $prov->error( "WARNING: $file not writable by "
+        . getpwuid($>)
+        . "!$nl$nl>" ) unless -w $file;
 
-        croak $err if $fatal;
-        carp $err  if $debug;
-        return 0;
-    }
-
-    $self->_formatted( "is_writable: checking $file.", "ok" ) if $debug;
+    $prov->audit( "$file is writable, ok" ) if $debug;
     return 1;
 }
 
 sub logfile_append {
 
     my $self = shift;
-
-    # parameter validation here
     my %p = validate(
         @_,
         {   'file'  => { type => SCALAR,   optional => 0, },
@@ -2177,8 +2103,6 @@ sub provision_unix {
 sub mkdir_system {
 
     my $self = shift;
-
-    # parameter validation here
     my %p = validate(
         @_,
         {   'dir'   => { type => SCALAR,  optional => 0, },
@@ -2280,8 +2204,6 @@ sub path_parse {
 sub pidfile_check {
 
     my $self = shift;
-
-    # parameter validation here
     my %p = validate(
         @_,
         {   'pidfile' => { type => SCALAR },
@@ -2364,8 +2286,6 @@ sub pidfile_check {
 sub regexp_test {
 
     my $self = shift;
-
-    # parameter validation here
     my %p = validate(
         @_,
         {   'exp'    => { type => SCALAR },
@@ -2401,8 +2321,6 @@ sub regexp_test {
 sub sources_get {
 
     my $self = shift;
-
-    # parameter validation here
     my %p = validate(
         @_,
         {   'package' => { type => SCALAR,  optional => 0 },
@@ -2482,8 +2400,6 @@ sub sources_get {
 sub source_warning {
 
     my $self = shift;
-
-    # parameter validation here
     my %p = validate(
         @_,
         {   'package' => { type => SCALAR, },
@@ -2538,8 +2454,6 @@ sub source_warning {
 sub sudo {
 
     my $self = shift;
-
-    # parameter validation here
     my %p = validate(
         @_,
         {   'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
@@ -2602,8 +2516,6 @@ sub sudo {
 sub syscmd {
 
     my $self = shift;
-
-    # parameter validation here
     my %p = validate(
         @_,
         {   'cmd'     => { type => SCALAR },
@@ -2616,7 +2528,7 @@ sub syscmd {
     my $cmd_request = $p{cmd};
     my $debug       = $p{debug};
 
-    $prov->audit("syscmd is preparing: $cmd_request") if ($prov && $debug);
+    $prov->audit("preparing sys cmd: $cmd_request") if $debug;
 
     my ( $is_safe, $tainted, $bin, @args );
 
@@ -2640,11 +2552,10 @@ sub syscmd {
     $status_message .= "syscmd: bin is <$bin>" if $bin;
     $status_message .= " (safe)" if $is_safe;
 
-    $self->_formatted($status_message) if $debug;
+    $prov->audit($status_message) if $debug;
 
     if ( $is_safe && !$bin ) {
-        $self->_formatted("\tcommand is not safe! BAILING OUT!");
-        return;
+        return $prov->error("command is not safe! BAILING OUT!");
     }
 
     if ( $bin && !-e $bin ) {  # $bin is set, but we have not found it
@@ -2666,17 +2577,14 @@ sub syscmd {
 
     $status_message = "checking for tainted data in string";
     require Scalar::Util;
-    if ( Scalar::Util::tainted($cmd_request) ) {
-        $tainted++;
-    }
+    $tainted++ if Scalar::Util::tainted($cmd_request);
 
     my $before_path = $ENV{PATH};
 
     if ( $tainted && !$is_safe ) {
 
         # instead of croaking, maybe try setting a
-        # very restrictive PATH?  I'll err on the side of
-        # safety for now.
+        # very restrictive PATH?  I'll err on the side of safety 
         # $ENV{PATH} = '';
 
         return $prov->error( "$status_message ...TAINTED!",
@@ -2686,13 +2594,12 @@ sub syscmd {
     }
 
     if ($is_safe) {
-        # restrict the path
-        my $prefix = "/usr/local";
-        if ( -d "/opt/local" ) { $prefix = "/opt/local"; }
+        my $prefix = "/usr/local";   # restrict the path
+        $prefix = "/opt/local" if -d "/opt/local";
         $ENV{PATH} = "/bin:/sbin:/usr/bin:/usr/sbin:$prefix/bin:$prefix/sbin";
     }
 
-    $prov->audit("syscmd: $cmd_request") if $prov;
+    $prov->audit($cmd_request);
 
     my $r;
     if ( $p{timeout} ) {
@@ -2706,7 +2613,7 @@ sub syscmd {
 
         if ($EVAL_ERROR) {
             if ( $EVAL_ERROR eq "alarm\n" ) {
-                $prov->audit("timed out '$cmd_request'");
+                $prov->audit("timed out running '$cmd_request'");
             }
             else {
                 return $prov->error( "unknown error '$EVAL_ERROR'",
@@ -2740,7 +2647,7 @@ sub syscmd {
             }
         }
 
-        return $prov->error( "syscmd tried to run $cmd_request but received the following error ($CHILD_ERROR): $r",
+        return $prov->error( "encountered the error ($CHILD_ERROR): $r",
             location => join( ", ", caller ),
             fatal    => $p{fatal},
             debug    => $p{debug},
@@ -2752,8 +2659,6 @@ sub syscmd {
 
 sub yes_or_no {
     my $self = shift;
-
-    # parameter validation here
     my %p = validate(
         @_,
         {   'question' => { type => SCALAR,  optional => 0 },

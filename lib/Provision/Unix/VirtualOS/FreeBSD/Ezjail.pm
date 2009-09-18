@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::FreeBSD::Ezjail;
 
-our $VERSION = '0.08';
+our $VERSION = '0.09';
 
 use warnings;
 use strict;
@@ -72,6 +72,13 @@ sub create_virtualos {
 }
 
 sub is_present {
+};
+
+sub get_console {
+    my $self = shift;
+    my $ctid = $vos->{name};
+    my $cmd = $util->find_bin( bin => 'ezjail-admin', debug => 0 );
+    exec "$cmd console $ctid";
 };
 
 sub _get_jails_root {
