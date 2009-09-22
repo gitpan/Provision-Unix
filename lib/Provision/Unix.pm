@@ -1,6 +1,6 @@
 package Provision::Unix;
 
-our $VERSION = '0.66';
+our $VERSION = '0.67';
 
 use warnings;
 use strict;
@@ -34,6 +34,7 @@ sub new {
         errors => [],          # runtime errors will get added to this array
         audit  => [],          # status messages accumulate here
         last_audit => 0,
+        last_error => 0,
     };
 
     bless( $self, $class );
@@ -80,10 +81,9 @@ sub dump_audit {
 
 sub dump_errors {
     my $self = shift;
-    my $last_line = $self->{last_error} || 0;
+    my $last_line = $self->{last_error};
 
-    # we already dumped everything
-    return if $last_line == scalar @{ $self->{errors} };
+    return if $last_line == scalar @{ $self->{errors} }; # everything dumped
 
     print STDERR "\n\t\t\t Error History Report \n\n";
     my $i = 0;
@@ -97,18 +97,19 @@ sub dump_errors {
 };
 
 sub error {
-
     my $self = shift;
     my $message = shift;
     my %p = validate(
         @_,
-        {   'location' => { type => SCALAR, optional => 1, },
+        {   'location' => { type => SCALAR,  optional => 1, },
             'fatal'    => { type => BOOLEAN, optional => 1, default => 1 },
             'debug'    => { type => BOOLEAN, optional => 1, default => 1 },
         },
     );
 
     my $debug = $p{debug};
+    my $fatal = $p{fatal};
+    my $location = $p{location};
 
     if ( $message ) {
         my @caller = caller;
@@ -118,11 +119,11 @@ sub error {
         push @{ $self->{errors} },
             {
             errmsg => $message,
-            errloc => $p{location} || join( ", ", $caller[0], $caller[2] ),
+            errloc => $location || join( ", ", $caller[0], $caller[2] ),
             };
     }
     else {
-        $message = $self->get_last_error_message();
+        $message = $self->get_last_error();
     }
 
     # print audit and error results to stderr
@@ -131,7 +132,7 @@ sub error {
         $self->dump_errors();
     }
 
-    if ( $p{fatal} ) {
+    if ( $fatal ) {
         if ( ! $debug ) {
             $self->dump_audit();  # dump if err is fatal and debug is not set
             $self->dump_errors();
@@ -142,9 +143,7 @@ sub error {
 }
 
 sub find_config {
-
     my $self = shift;
-
     my %p = validate(
         @_,
         {   'file'   => { type => SCALAR, },
@@ -154,12 +153,14 @@ sub find_config {
         }
     );
 
-    my $file = $p{'file'};
-    $self->{debug} = $p{debug};
+    my $file = $p{file};
+    my $etcdir = $p{etcdir};
+    my $fatal = $self->{fatal} = $p{fatal};
+    my $debug = $self->{debug} = $p{debug};
 
     $self->audit("find_config: searching for $file");
 
-    return $self->_find_readable( $file, $p{etcdir} ) if $p{etcdir};
+    return $self->_find_readable( $file, $etcdir ) if $etcdir;
 
     my @etc_dirs = qw{ /opt/local/etc /usr/local/etc /etc etc };
 
@@ -176,8 +177,8 @@ sub find_config {
     }
 
     return $self->error( "could not find $file",
-        fatal   => $p{fatal},
-        debug   => $p{debug},
+        fatal   => $fatal,
+        debug   => $debug,
     );
 }
 
@@ -186,7 +187,7 @@ sub get_errors {
     return $self->{errors};
 }
 
-sub get_last_error_message {
+sub get_last_error {
     my $self = shift;
     return $self->{errors}[-1]->{errmsg};
 }
@@ -198,7 +199,6 @@ sub get_version {
 
 sub progress {
     my $self = shift;
-
     my %p = validate(
         @_,
         {   'num'  => { type => SCALAR },
@@ -207,21 +207,25 @@ sub progress {
         },
     );
 
-    my $msg_length = length $p{desc};
+    my $num  = $p{num};
+    my $desc = $p{desc};
+    my $err  = $p{err};
+
+    my $msg_length = length $desc;
     my $to_print   = 10;
     my $max_print  = 70 - $msg_length;
 
     # if err, print and return
-    if ( $p{err} ) {
-        if ( length( $p{err} ) == 1 ) {
+    if ( $err ) {
+        if ( length( $err ) == 1 ) {
             foreach my $error ( @{ $self->{errors} } ) {
                 print {*STDERR} "\n$error->{errloc}\t$error->{errmsg}\n";
             }
         }
         else {
-            print {*STDERR} "\n\t$p{err}\n";
+            print {*STDERR} "\n\t$err\n";
         }
-        return $self->error( $p{err}, fatal => 0, debug => 0 );
+        return $self->error( $err, fatal => 0, debug => 0 );
     }
 
     if ( $msg_length > 54 ) {
@@ -229,7 +233,7 @@ sub progress {
     }
 
     print {*STDERR} "\r[";
-    foreach ( 1 .. $p{num} ) {
+    foreach ( 1 .. $num ) {
         print {*STDERR} "=";
         $to_print--;
         $max_print--;
@@ -241,13 +245,13 @@ sub progress {
         $max_print--;
     }
 
-    print {*STDERR} "] $p{desc}";
+    print {*STDERR} "] $desc";
     while ($max_print) {
         print {*STDERR} " ";
         $max_print--;
     }
 
-    if ( $p{num} == 10 ) { print {*STDERR} "\n" }
+    if ( $num == 10 ) { print {*STDERR} "\n" }
 
     return 1;
 }

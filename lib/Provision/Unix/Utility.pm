@@ -1,6 +1,6 @@
 package Provision::Unix::Utility;
 
-our $VERSION = '5.19';
+our $VERSION = '5.21';
 
 use strict;
 use warnings;
@@ -14,22 +14,29 @@ use File::Copy;
 use Params::Validate qw(:all);
 use Scalar::Util qw( openhandle );
 
-use vars qw($fatal_err $err $prov);
+use vars qw/ $fatal_err $err $log /;
 
 sub new {
-
     my $class = shift;
     my %p     = validate(
         @_,
-        {   prov  => { type => OBJECT,  optional => 1 },
+        {   'log' => { type => OBJECT,  optional => 1 },
+            prov  => { type => OBJECT,  optional => 1 },
             debug => { type => BOOLEAN, optional => 1, default => 1 },
             fatal => { type => BOOLEAN, optional => 1, default => 1 },
         }
     );
 
-    $prov = $p{prov};
+    $log = $p{'log'} || $p{prov};
+    if ( ! $log ) {
+        my @bits = split '::', $class; pop @bits;
+        my $parent_class = join '::', grep { defined $_ } @bits;
+        eval "require $parent_class";
+        $log = $parent_class->new();
+    };
+
     my $self = {
-        prov  => $prov,
+        'log' => $log,
         debug => $p{debug},
         fatal => $p{fatal},
     };
@@ -37,20 +44,7 @@ sub new {
     return $self;
 }
 
-=for TODO
-
-Go through this file and replace all the instances of carp and croak with calls
-to $prov->error.
-
-Replace all general logging with calls to $prov->status. 
-
-This will conform with the coding standards of the rest of Provision Unix,
-which uses those functions extensively for logging and error reporting.
-
-=cut
-
 sub ask {
-
     my $self = shift;
     my %p = validate(
         @_,
@@ -62,27 +56,28 @@ sub ask {
         }
     );
 
-    # only prompt if we are running interactively
-    unless ( $self->is_interactive() ) {
-        warn "\tnot interactive, can not prompt!\n";
-        return $p{default};
+    my $question = $p{question};
+    my $pass     = $p{password};
+    my $default  = $p{default};
+
+    if ( ! $self->is_interactive() ) {
+        $log->audit( "not running interactively, can not prompt!");
+        return $default;
     }
 
-    # basic input validation
-    if ( $p{question} !~ m{\A \p{Any}* \z}xms ) {
-        return $prov->error( "ask called with \'$p{question}\' which looks unsafe." );
-    }
+    return $log->error( "ask called with \'$question\' which looks unsafe." )
+        if $question !~ m{\A \p{Any}* \z}xms;
 
     my $response;
 
     return $p{test_ok} if defined $p{test_ok};
 
 PROMPT:
-    print "Please enter $p{question}";
-    print " [$p{default}]" if ( $p{default} && !$p{password} );
+    print "Please enter $question";
+    print " [$default]" if ( $default && !$pass );
     print ": ";
 
-    system "stty -echo" if $p{password};
+    system "stty -echo" if $pass;
 
     if ( $p{timeout} ) {
         eval {
@@ -99,8 +94,8 @@ PROMPT:
         $response = <STDIN>;
     }
 
-    if ( $p{password} ) {
-        print "Please enter $p{question} (confirm): ";
+    if ( $pass ) {
+        print "Please enter $question (confirm): ";
         my $response2 = <STDIN>;
         unless ( $response eq $response2 ) {
             print "\nPasswords don't match, try again.\n";
@@ -112,20 +107,13 @@ PROMPT:
 
     chomp $response;
 
-    # if they typed something, return it
-    return $response if $response;
-
-    # otherwise, return the default if available
-    return $p{default} if $p{default};
-
-    # and finally return empty handed
-    return "";
+    return $response if $response; # if they typed something, return it
+    return $default if $default;   # return the default, if available
+    return '';                     # return empty handed
 }
 
 sub archive_expand {
-
     my $self = shift;
-
     my %p = validate(
         @_,
         {   'archive' => { type => SCALAR,  optional => 0, },
@@ -135,7 +123,7 @@ sub archive_expand {
     );
 
     my $archive = $p{archive};
-    my $debug   = $p{debug};
+    my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
 
     my $r;
 
@@ -144,70 +132,47 @@ sub archive_expand {
         elsif ( -e "$archive.tgz" )     { $archive = "$archive.tgz" }
         elsif ( -e "$archive.tar.bz2" ) { $archive = "$archive.tar.bz2" }
         else {
-            return $prov->error( "file $archive is missing!",
-                fatal   => $p{fatal},
-            );
+            return $log->error( "file $archive is missing!", %std_args );
         }
     }
 
-    $prov->audit("archive_expand: found $archive");
+    $log->audit("found $archive");
 
     $ENV{PATH} = '/bin:/usr/bin'; # do this or taint checks will blow up on ``
 
-    if ( $archive !~ /[bz2|gz]$/ ) {
-        return $prov->error( "I don't know how to expand $archive!",
-            fatal => $p{fatal},
-        );
-    }
+    return $log->error( "unknown archive type: $archive", %std_args )
+        if $archive !~ /[bz2|gz]$/;
 
     # find these binaries, we need them to inspect and expand the archive
-    my $tar  = $self->find_bin( bin => 'tar',  debug => $debug );
-    my $file = $self->find_bin( bin => 'file', debug => $debug );
+    my $tar  = $self->find_bin( bin => 'tar',  %std_args);
+    my $file = $self->find_bin( bin => 'file', %std_args);
 
     my %types = (
-        gzip => {
-            content => 'gzip',
-            bin     => 'gunzip',
-        },
-        bzip => {
-            content => 'b(un)?zip2',    # on BSD bunzip2, on Linux bzip2
-            bin     => 'bunzip2',
-        },
+        gzip => { bin => 'gunzip',  content => 'gzip',       },
+        bzip => { bin => 'bunzip2', content => 'b(un)?zip2', }, 
+            # on BSD bunzip2, on Linux bzip2
     );
 
     my $type
         = $archive =~ /bz2$/ ? 'bzip'
         : $archive =~ /gz$/  ? 'gzip'
-        :                      die 'unknown archive type';
+        :  return $log->error( 'unknown archive type', %std_args);
 
-    # Check to make sure the archive contents match the file extension
-    # this shouldn't be necessary but the world isn't perfect. Sigh.
-    unless ( grep ( /$types{$type}{content}/, `$file $archive` ) ) {
-        return $prov->error( "$archive not a $type compressed file",
-            fatal   => $p{fatal},
-        );
-    }
+    # make sure the archive contents match the file extension
+    return $log->error( "$archive not a $type compressed file", %std_args)
+        unless grep ( /$types{$type}{content}/, `$file $archive` );
 
-    my $bin = $self->find_bin( bin => $types{$type}{bin}, debug => $debug );
+    my $bin = $self->find_bin( bin => $types{$type}{bin}, %std_args);
 
-    if ($self->syscmd(
-            cmd   => "$bin -c $archive | $tar -xf -",
-            debug => 0
-        )
-        )
-    {
-        print $self->_formatted( "archive_expand: extracting $archive", "ok" )
-            if $debug;
+    if ($self->syscmd( cmd => "$bin -c $archive | $tar -xf -", debug => 0)) {
+        $log->audit( "extracted $archive" );
         return 1;
     }
 
-    return $prov->error( "error extracting $archive",
-        fatal   => $p{fatal},
-    );
+    return $log->error( "error extracting $archive", %std_args );
 }
 
 sub chmod {
-
     my $self = shift;
     my %p = validate(
         @_,
@@ -222,42 +187,28 @@ sub chmod {
         }
     );
 
-    my ( $file, $mode, $debug ) = ( $p{file}, $p{mode}, $p{debug} );
+    my $mode = $p{mode};
+    my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
 
-    # look for file, but if missing, check file_or_dir and dir
-    $file ||= $p{file_or_dir} ||= $p{dir};
-
-    return $prov->error( "invalid params, see perldoc Provision::Unix::Utility")
-        if !$file;
+    my $file = $p{file} || $p{file_or_dir} || $p{dir}
+        or return $log->error( "invalid params to chmod in ". ref $self  );
 
     if ( $p{sudo} ) {
-        my $chmod = $self->find_bin( bin => 'chmod', debug => $p{debug} );
+        my $chmod = $self->find_bin( bin => 'chmod', debug => 0 );
         my $sudo  = $self->sudo();
-        my $cmd   = "$sudo $chmod $mode $file";
-        $prov->audit( "cmd: " . $cmd );
-        if ( !$self->syscmd( cmd => $cmd, debug => 0 ) ) {
-            return $prov->error( "couldn't chmod $file: $!",
-                fatal   => $p{fatal},
-                debug   => $p{debug},
-            );
-        }
+        $self->syscmd( cmd => "$sudo $chmod $mode $file", debug => 0 ) 
+            or return $log->error( "couldn't chmod $file: $!", %std_args );
     }
 
-    $prov->audit("chmod: chmod $mode $file");
+    # note the conversion of ($mode) to an octal value. Very important!
+    CORE::chmod( oct($mode), $file ) or
+        return $log->error( "couldn't chmod $file: $!", %std_args);
 
-    # note how we convert a string ($mode) to an octal value. Very Important!
-    unless ( chmod oct($mode), $file ) {
-        return $prov->error( "couldn't chmod $file: $!",
-            fatal   => $p{fatal},
-            debug   => $p{debug},
-        );
-    }
+    $log->audit("chmod $mode $file");
 }
 
 sub chown {
-
     my $self = shift;
-
     my %p = validate(
         @_,
         {   'file'        => { type => SCALAR, optional => 1, },
@@ -272,81 +223,54 @@ sub chown {
         }
     );
 
-    my ( $uid, $debug ) = ( $p{uid}, $p{debug} );
+    my $uid = $p{uid};
+    my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
 
-    # look for file, but if missing, check file_or_dir and dir
-    my $file = $p{file} || $p{file_or_dir} || $p{dir};
+    my $file = $p{file} || $p{file_or_dir} || $p{dir}
+        or return $log->error( "missing file or dir", %std_args );
 
-    if ( !$file ) {
-        return $prov->error( "you did not set a required parameter!",
-            fatal   => $p{fatal},
-        );
-    }
+    $log->audit("chown: preparing to chown $uid $file");
 
-    $prov->audit("chown: preparing to chown $uid $file");
-
-    if ( ! -e $file ) {
-        return $prov->error( "file $file does not exist!",
-            fatal   => $p{fatal},
-        );
-    }
+    return $log->error( "file $file does not exist!", %std_args ) 
+        if ! -e $file;
 
     # sudo forces us to use the system chown instead of the perl builtin
-    if ( $p{sudo} ) {
-        return $self->chown_system(
-            dir   => $file,
-            user  => $uid,
-            group => $p{gid},
-            fatal => $p{fatal},
-            debug => $debug,
-        );
-    }
+    return $self->chown_system( %std_args,
+        dir   => $file,
+        user  => $uid,
+        group => $p{gid},
+    ) if $p{sudo};
 
     # if uid or gid is not numeric, convert it
     my ( $nuid, $ngid );
 
     if ( $uid =~ /\A[0-9]+\z/ ) {
         $nuid = int($uid);
-        $prov->audit("using $nuid from int($uid)");
+        $log->audit("using $nuid from int($uid)");
     }
     else {
-        $nuid = getpwnam($uid);
-        if ( !defined $nuid ) {
-            return $prov->error( "failed to get uid for $uid. FATAL!",
-                fatal   => $p{fatal},
-                debug   => $debug,
-            );
-        }
-        $prov->audit("converting $uid to a number: $nuid");
+        $nuid = getpwnam($uid) 
+            or return $log->error( "failed to get uid for $uid", %std_args);
+        $log->audit("converted $uid to a number: $nuid");
     }
 
     if ( $p{gid} =~ /\A[0-9\-]+\z/ ) {
         $ngid = int( $p{gid} );
-        $prov->audit("using $ngid from int($p{gid})");
+        $log->audit("using $ngid from int($p{gid})");
     }
     else {
-        $ngid = getgrnam( $p{gid} );
-        if ( !defined $ngid ) {
-            return $prov->error( "failed to get gid for $p{gid}. FATAL!",
-                fatal   => $p{fatal},
-                debug   => $p{debug},
-            );
-        }
-        $prov->audit("converting $p{gid} to a number: $ngid");
+        $ngid = getgrnam( $p{gid} ) 
+            or return $log->error( "failed to get gid for $p{gid}", %std_args);
+        $log->audit("converted $p{gid} to numeric: $ngid");
     }
 
-    if ( !chown $nuid, $ngid, $file ) {
-        return $prov->error( "couldn't chown $file: $!",
-            fatal   => $p{fatal},
-            debug   => $p{debug},
-        );
-    }
+    chown( $nuid, $ngid, $file )
+        or return $log->error( "couldn't chown $file: $!",%std_args);
 
     return 1;
 }
 
 sub chown_system {
-
     my $self = shift;
     my %p = validate(
         @_,
@@ -361,46 +285,33 @@ sub chown_system {
         }
     );
 
-    my ( $dir, $user, $group, $recurse, $fatal, $debug )
-        = ( $p{dir}, $p{user}, $p{group}, $p{recurse}, $p{fatal}, $p{debug} );
+    my ( $user, $group, $recurse ) = ( $p{user}, $p{group}, $p{recurse} );
+    my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
 
-    # look for file, but if missing, check file_or_dir and dir
-    $dir ||= $p{file_or_dir} ||= $p{file};
+    my $dir = $p{dir} || $p{file_or_dir} || $p{file} or
+        return $log->error( "missing file or dir", %std_args ); 
 
-    if ( !$dir ) {
-        print "\tchown_system was passed an invalid argument(s).\n" if $debug;
-        croak if $p{fatal};
-    }
+    my $cmd = $self->find_bin( bin => 'chown', %std_args );
 
-    my $chown = $self->find_bin(
-        bin   => 'chown',
-        fatal => $fatal,
-        debug => $debug,
-    );
-
-    my $cmd = $chown;
     $cmd .= " -R"     if $recurse;
     $cmd .= " $user";
     $cmd .= ":$group" if $group;
     $cmd .= " $dir";
 
-    print "chown_system: cmd: $cmd\n" if $debug;
+    $log->audit( "cmd: $cmd" );
 
-    if ( !$self->syscmd( cmd => $cmd, fatal => 0, debug => 0 ) ) {
-        return $prov->error( "couldn't chown with $cmd: $!",
-            fatal   => $p{fatal},
-        );
-    }
+    $self->syscmd( cmd => $cmd, fatal => 0, debug => 0 ) or 
+        return $log->error( "couldn't chown with $cmd: $!", %std_args);
 
-    if ($debug) {
-        print "Recursively " if $recurse;
-        print "changed $dir to be owned by $user\n\n";
-    }
+    my $mess;
+    $mess .= "Recursively " if $recurse;
+    $mess .= "changed $dir to be owned by $user";
+    $log->audit( $mess );
+
     return 1;
 }
 
 sub clean_tmp_dir {
-
     my $self = shift;
     my %p = validate(
         @_,
@@ -411,43 +322,38 @@ sub clean_tmp_dir {
     );
 
     my $dir = $p{dir};
+    my ($debug, $fatal) = ($p{debug}, $p{fatal});
 
-    # remember where we started
-    my $before = cwd;
+    my $before = cwd;   # remember where we started
 
-    if ( !chdir $dir ) {
-        return $prov->error( "couldn't chdir to $dir: $!",
-            fatal => $p{fatal},
-        );
-    }
+    return $log->error( "couldn't chdir to $dir: $!", fatal => $fatal )
+        if !chdir $dir;
 
     foreach ( $self->get_dir_files( dir => $dir ) ) {
         next unless $_;
 
         my ($file) = $_ =~ /^(.*)$/;
 
-        print "\tdeleting file: $file\n" if $p{debug};
+        $log->audit( "deleting file $file" );
 
         if ( -f $file ) {
-            unless ( unlink $file ) {
-                $self->file_delete( file => $file, debug => $p{debug} );
-            }
+            unlink $file or
+                $self->file_delete( file => $file, debug => $debug );
         }
         elsif ( -d $file ) {
             use File::Path;
-            rmtree $file or croak "clean_tmp_dir: couldn't delete $file\n";
+            rmtree $file or return $log->error( "couldn't delete $file");
         }
         else {
-            print "Cannot delete unknown entity: $file?\n";
+            $log->audit( "Cannot delete unknown entity: $file" );
         }
     }
 
-    chdir($before);
+    chdir $before;
     return 1;
 }
 
 sub cwd_source_dir {
-
     my $self = shift;
     my %p = validate(
         @_,
@@ -459,49 +365,43 @@ sub cwd_source_dir {
         }
     );
 
-    my ( $dir, $src, $sudo, $fatal, $debug )
-        = ( $p{dir}, $p{src}, $p{sudo}, $p{fatal}, $p{debug} );
+    my ( $dir, $src, $sudo, ) = ( $p{dir}, $p{src}, $p{sudo}, );
 
-    if ( -e $dir && !-d $dir ) {
-        croak
-            "Something (other than a directory) is at $dir and that's my build directory. Please remove it and try again!\n";
-    }
+    my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
+
+    return $log->error( "Something (other than a directory) is at $dir and " . 
+        "that's my build directory. Please remove it and try again!" )
+        if ( -e $dir && !-d $dir );
 
     if ( !-d $dir ) {
 
-        # use the perl builtin mkdir
-        _try_mkdir( $dir, $debug );
+        _try_mkdir( $dir ); # use the perl builtin mkdir
 
         if ( !-d $dir ) {
-            print "cwd_source_dir: trying again with system mkdir...\n";
-            $self->mkdir_system( dir => $dir, debug => $debug );
+            $log->audit( "trying again with system mkdir...");
+            $self->mkdir_system( dir => $dir, %std_args);
 
             if ( !-d $dir ) {
-                print
-                    "cwd_source_dir: trying one last time with $sudo mkdir -p....\n";
-                $self->mkdir_system(
-                    dir   => $dir,
-                    sudo  => 1,
-                    debug => $debug
-                );
-                croak "Couldn't create $dir.\n";
+                $log->audit( "trying one last time with $sudo mkdir -p....");
+                $self->mkdir_system( dir  => $dir, sudo => 1, %std_args) 
+                    or return $log->error("Couldn't create $dir.");
             }
         }
     }
 
-    chdir($dir) or croak "cwd_source_dir: FAILED to cd to $dir: $!\n";
+    chdir $dir or return $log->error( "FAILED to cd to $dir: $!");
     return 1;
 }
 
 sub _try_mkdir {
-    my ( $foo, $debug ) = @_;
-    print "_try_mkdir: trying to create $foo\n" if $debug;
-    mkdir( $foo, oct("0755") )
-        or warn "cwd_source_dir: mkdir $foo failed: $!";
+    my ( $dir ) = @_;
+    mkdir $dir, oct('0755') 
+        or return $log->error( "mkdir $dir failed: $!");
+    $log->audit( "created $dir");
+    return 1;
 }
 
 sub file_archive {
-
     my $self = shift;
     my %p = validate(
         @_,
@@ -512,58 +412,36 @@ sub file_archive {
         }
     );
 
+    my $date = time;
+    my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
+
     my $file = $p{file};
 
-    my $date = time;
-
-    if ( !-e $file ) {
-        return $prov->error( "file ($file) is missing!",
-            debug   => $p{debug},
-            fatal   => $p{fatal},
-        );
-    }
+    return $log->error( "file ($file) is missing!", %std_args )
+        if !-e $file;
 
     # see if we can write to both files (new & archive) with current user
-    if ($self->is_writable(
-            file  => $file,
-            debug => $p{debug},
-            fatal => $p{fatal},
-        )
-        && $self->is_writable(
-            file  => "$file.$date",
-            debug => $p{debug},
-            fatal => $p{fatal},
-        )
-        )
-    {
+    if (    $self->is_writable( file => $file, %std_args )
+         && $self->is_writable( file => "$file.$date", %std_args ) ) {
 
         # we have permission, use perl's native copy
         if ( copy( $file, "$file.$date" ) ) {
-            $prov->audit("file_archive: $file backed up to $file.$date");
+            $log->audit("file_archive: $file backed up to $file.$date");
             return "$file.$date" if -e "$file.$date";
         }
     }
 
     # we failed with existing permissions, try to escalate
-    if ( $< != 0 )    # we're not root
-    {
+    if ( $< != 0 ) {   # we're not root
         if ( $p{sudo} ) {
-            my $sudo = $self->sudo( debug => $p{debug}, fatal => $p{fatal} );
-            my $cp = $self->find_bin(
-                bin   => 'cp',
-                debug => $p{debug},
-                fatal => $p{fatal},
-            );
+            my $sudo = $self->sudo( %std_args );
+            my $cp = $self->find_bin( bin => 'cp', %std_args );
 
             if ( $sudo && $cp && -x $cp ) {
-                $self->syscmd(
-                    cmd   => "$sudo $cp $file $file.$date",
-                    debug => $p{debug},
-                    fatal => $p{fatal},
-                );
+                $self->syscmd( cmd => "$sudo $cp $file $file.$date", %std_args);
             }
             else {
-                $prov->audit(
+                $log->audit(
                     "file_archive: sudo or cp was missing, could not escalate."
                 );
             }
@@ -571,20 +449,15 @@ sub file_archive {
     }
 
     if ( -e "$file.$date" ) {
-        $prov->audit("file_archive: $file backed up to $file.$date");
+        $log->audit("$file backed up to $file.$date");
         return "$file.$date";
     }
 
-    return $prov->error( "backup of $file to $file.$date failed: $!",
-        fatal   => $p{fatal},
-        debug   => $p{debug},
-    );
+    return $log->error( "backup of $file to $file.$date failed: $!", %std_args);
 }
 
 sub file_delete {
-
     my $self = shift;
-
     my %p = validate(
         @_,
         {   'file'  => { type => SCALAR },
@@ -594,60 +467,36 @@ sub file_delete {
         }
     );
 
-    my ( $file, $fatal, $debug ) = ( $p{file}, $p{fatal}, $p{debug} );
+    my $file = $p{file};
+    my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
 
-    if ( !-e $file ) {
-        return $prov->error(  "checking $file existence", fatal => $p{fatal} );
-    }
-    $self->_formatted( $err, "ok" ) if $debug;
+    return $log->error( "$file does not exist", %std_args ) if !-e $file;
 
-    $err = "file_delete: checking write permissions";
-    if ( !-w $file ) {
-        $self->_formatted( $err, "NO" ) if $debug;
-    }
-    else {
-        $self->_formatted( $err, "ok" ) if $debug;
+    if ( -w $file ) {
+        $log->audit( "write permission to $file: ok" );
 
-        $err = "file_delete: deleting file $file";
-        if ( unlink $file ) {
-            $self->_formatted( $err, "ok" ) if $debug;
-            return 1;
-        }
+        unlink $file or return $log->error( "failed to delete $file", %std_args );
 
-        $self->_formatted( $err, "FAILED" ) if $debug;
-        croak "\t\t $!" if $fatal;
-        warn "\t\t $!";
+        $log->audit( "deleted: $file" );
+        return 1;
     }
 
     if ( !$p{sudo} ) {    # all done
         return -e $file ? undef : 1;
     }
 
-    $err = "file_delete: trying with system rm";
-    my $rm = $self->find_bin( bin => "rm", debug => $debug );
-
-    my $rm_command = "$rm -f $file";
+    $err = "trying with system rm";
+    my $rm_command = $self->find_bin( bin => "rm", %std_args );
+    $rm_command .= " -f $file";
 
     if ( $< != 0 ) {      # we're not running as root
-        my $sudo = $self->sudo( debug => $debug );
+        my $sudo = $self->sudo( %std_args );
         $rm_command = "$sudo $rm_command";
         $err .= " (sudo)";
     }
 
-    if ($self->syscmd(
-            cmd   => $rm_command,
-            fatal => $fatal,
-            debug => $debug,
-        )
-        )
-    {
-        $self->_formatted( $err, "ok" ) if $debug;
-    }
-    else {
-        $self->_formatted( $err, "FAILED" ) if $debug;
-        croak "\t\t $!" if $fatal;
-        warn "\t\t $!";
-    }
+    $self->syscmd( cmd => $rm_command, %std_args ) 
+        or return $log->error( $err, %std_args );
 
     return -e $file ? undef : 1;
 }
@@ -663,36 +512,31 @@ sub file_get {
         }
     );
 
-    my ( $url, $debug ) = ( $p{url}, $p{debug} );
+    my $url = $p{url};
+    my $debug = $p{debug};
+    my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
 
     my $found;
 
-    print "file_get: fetching $url\n" if $debug;
+    $log->audit( "fetching $url" );
 
     my ($ua, $response);
-    eval "require LWP::Simple";
-    if ( ! $EVAL_ERROR ) {
+# TODO: should use LWP here if available
+#    eval "require LWP::Simple";
+#    if ( ! $EVAL_ERROR ) {
 #        $response = LWP::Simple::getstore($url);
-    };
+#    };
 
     my $fetchbin;
     if ( $OSNAME eq "freebsd" ) {
-        $fetchbin = $self->find_bin(
-            bin   => 'fetch',
-            debug => $debug,
-            fatal => 0,
-        );
+        $fetchbin = $self->find_bin( bin => 'fetch', %std_args);
         if ( $fetchbin && -x $fetchbin ) {
             $found = $fetchbin;
             $found .= " -q" unless $debug;
         }
     }
     elsif ( $OSNAME eq "darwin" ) {
-        $fetchbin = $self->find_bin(
-            bin   => 'curl',
-            debug => $debug,
-            fatal => 0
-        );
+        $fetchbin = $self->find_bin( bin => 'curl', %std_args );
         if ( $fetchbin && -x $fetchbin ) {
             $found = "$fetchbin -O";
             $found .= " -s " if !$debug;
@@ -700,61 +544,44 @@ sub file_get {
     }
 
     if ( !$found ) {
-        $fetchbin = $self->find_bin(
-            bin   => 'wget',
-            debug => $debug,
-            fatal => $p{fatal},
-        );
-        if ( $fetchbin && -x $fetchbin ) { $found = $fetchbin; }
+        $fetchbin = $self->find_bin( bin => 'wget', %std_args);
+        $found = $fetchbin if $fetchbin && -x $fetchbin;
     }
 
-    if ( !$found ) {
-
-        # TODO: should use LWP here if available
-        return $prov->error( "couldn't find wget. Please install it.",
-            fatal => $p{fatal},
-        );
-    }
+    return $log->error( "couldn't find wget. Please install it.", %std_args )
+        if !$found;
 
     my $fetchcmd = "$found $url";
-    print "fetchcmd: $fetchcmd\n" if $debug;
+    $log->audit( ": $fetchcmd" );
+
+    return $self->syscmd( cmd => $fetchcmd, %std_args ) 
+        if ! $p{timeout};
 
     my $r;
-
-    # timeout stuff goes here.
-    if ( $p{timeout} ) {
-        eval {
-            local $SIG{ALRM} = sub { die "alarm\n" };
-            alarm $p{timeout};
-            $r = $self->syscmd( cmd => $fetchcmd, debug => $debug );
-            alarm 0;
-        };
-    }
-    else {
-        $r = $self->syscmd( cmd => $fetchcmd, debug => $debug );
-    }
+    eval {
+        local $SIG{ALRM} = sub { die "alarm\n" };
+        alarm $p{timeout};
+        $r = $self->syscmd( cmd => $fetchcmd, %std_args );
+        alarm 0;
+    };
 
     if ($EVAL_ERROR) {    # propagate unexpected errors
         print "timed out!\n" if $EVAL_ERROR eq "alarm\n";
-        $prov->error( $EVAL_ERROR, fatal => $p{fatal} );
+        return $log->error( $EVAL_ERROR, %std_args );
     }
 
-    if ( !$r ) {
-        return $prov->error( "error executing $fetchcmd", fatal => $p{fatal} );
-    }
-
+    return $log->error( "error executing $fetchcmd", %std_args) if !$r;
     return 1;
 }
 
 sub file_is_newer {
-
     my $self = shift;
-
     my %p = validate(
         @_,
         {   f1    => { type => SCALAR },
             f2    => { type => SCALAR },
             debug => { type => SCALAR, optional => 1, default => 1 },
+            fatal => { type => SCALAR, optional => 1, default => 1 },
         }
     );
 
@@ -763,13 +590,13 @@ sub file_is_newer {
     # get file attributes via stat
     # (dev,ino,mode,nlink,uid,gid,rdev,size,atime,mtime,ctime,blksize,blocks)
 
-    print "file_is_newer: checking age of $file1 and $file2\n" if $p{debug};
+    $log->audit( "checking age of $file1 and $file2");
 
     use File::stat;
     my $stat1 = stat($file1)->mtime;
     my $stat2 = stat($file2)->mtime;
 
-    print "\t timestamps are $stat1 and $stat2\n" if $p{debug};
+    $log->audit( "timestamps are $stat1 and $stat2");
 
     return 1 if ( $stat2 > $stat1 );
     return;
@@ -783,7 +610,6 @@ sub file_is_newer {
 }
 
 sub file_read {
-
     my $self = shift;
     my %p = validate(
         @_,
@@ -795,61 +621,38 @@ sub file_read {
         }
     );
 
-    my ( $filename, $max_lines, $max_length, $debug )
-        = ( $p{file}, $p{max_lines}, $p{max_length}, $p{debug} );
+    my ( $file, $max_lines, $max_length )
+        = ( $p{file}, $p{max_lines}, $p{max_length} );
+    my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
 
-    if ( !-e $filename ) {
-        return $prov->error( "$filename does not exist!",
-            fatal   => $p{fatal},
-            debug   => $p{debug},
-        );
-    }
+    return $log->error( "$file does not exist!", %std_args) if !-e $file;
+    return $log->error( "$file is not readable", %std_args ) if !-r $file;
 
-    if ( !-r $filename ) {
-        $err = "file_read: $filename is not readable!";
-        croak $err if $p{fatal};
-        carp $err  if $p{debug};
-        return;
-    }
-
-    open my $FILE, '<', $filename or $fatal_err++;
-
-    if ($fatal_err) {
-        $err = "file_read: could not open $filename: $OS_ERROR";
-        croak $err if $p{fatal};
-        carp $err  if $p{debug};
-        return;
-    }
+    open my $FILE, '<', $file or 
+        return $log->error( "could not open $file: $OS_ERROR", %std_args );
 
     my ( $line, @lines );
 
-    if ($max_lines) {
-        while ( my $i < $max_lines ) {
-            if ($max_length) {
-                $line = substr <$FILE>, 0, $max_length;
-            }
-            else {
-                $line = <$FILE>;
-            }
-            push @lines, $line;
-            $i++;
-        }
-        chomp @lines;
+    if ( ! $max_lines) {
+        chomp( @lines = <$FILE> );
         close $FILE;
         return @lines;
-    }
-
-#TODO, make max_length work with slurp mode, without doing something ugly like
+# TODO: make max_length work with slurp mode, without doing something ugly like
 # reading in the entire line and then truncating it.
+    };
 
-    chomp( @lines = <$FILE> );
+    while ( my $i < $max_lines ) {
+        if ($max_length) { $line = substr <$FILE>, 0, $max_length; }
+        else             { $line = <$FILE>; };
+        push @lines, $line;
+        $i++;
+    }
+    chomp @lines;
     close $FILE;
-
     return @lines;
 }
 
 sub file_mode {
-
     my $self = shift;
     my %p = validate(
         @_,
@@ -859,14 +662,11 @@ sub file_mode {
         }
     );
 
-    if ( !-e $p{file} ) {
-        $err = "argument file to sub file_mode does not exist!\n";
-        die $err if $p{fatal};
-        warn $err;
-    }
-
     my $file = $p{file};
-    warn "file is: $file \n" if $p{debug};
+    my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
+
+    return $log->error( "file '$file' does not exist!", %std_args)
+        if !-e $file;
 
     # one way to get file mode
     #    my $raw_mode = stat($file)->[2];
@@ -877,8 +677,7 @@ sub file_mode {
     #    my $st = stat($file);
     #    my $mode = sprintf "%lo", $st->mode & 07777;
 
-    warn "file $file has mode: $mode \n" if $p{debug};
-
+    $log->audit( "file $file has mode: $mode" );
     return $mode;
 }
 
@@ -898,14 +697,11 @@ sub file_write {
     my $file   = $p{file};
     my $append = $p{append};
     my ($debug, $fatal) = ($p{debug}, $p{fatal});
+    my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
 
-    return $prov->error( "file_write FAILURE: $file is a directory!" ) if -d $file;
-    return $prov->error( "file_write FAILURE: $file is not writable!" ) if -f $file
-        && !$self->is_writable(
-            file  => $file,
-            debug => $debug,
-            fatal => 0,
-        );
+    return $log->error( "oops, $file is a directory", %std_args) if -d $file;
+    return $log->error( "oops, $file is not writable", %std_args ) 
+        if ( -f $file && ! $self->is_writable( file => $file, %std_args) );
 
     my $m = "writing";
     my $write_mode = '>';    # (over)write
@@ -914,39 +710,31 @@ sub file_write {
         $m = "appending";
         $write_mode = '>>';
         if ( -f $file ) {
-            copy $file, "$file.tmp" or return $prov->error(
-                "couldn't create $file.tmp for safe append operation", fatal => $fatal );
+            copy $file, "$file.tmp" or return $log->error(
+                "couldn't create $file.tmp for safe append operation", %std_args );
         };
     };
 
     open my $HANDLE, $write_mode, "$file.tmp" 
-        or return $prov->error( "file_write: couldn't open $file: $!", fatal => $fatal );
+        or return $log->error( "file_write: couldn't open $file: $!", %std_args );
 
-    $prov->audit( "opened $file for $m" ) if $debug;
+    $log->audit( "opened $file for $m" ) if $debug;
 
     my $c = 0;
     for ( @{ $p{lines} } ) { chomp; print $HANDLE "$_\n"; $c++ }
     close $HANDLE or return;
 
-    move "$file.tmp", $file or return $prov->error("unable to update $file");
+    move "$file.tmp", $file or return $log->error("unable to update $file");
 
-    $prov->audit( "\twrote $c lines" ) if $debug;
+    $log->audit( "\twrote $c lines" ) if $debug;
 
     # set file permissions mode if requested
-    if ( $p{mode} ) {
-        $self->chmod(
-            file  => $file,
-            mode  => $p{mode},
-            debug => $debug,
-            fatal => $fatal,
-        );
-    }
+    $self->chmod( file => $file, mode => $p{mode}, %std_args ) if $p{mode};
 
     return 1;
 }
 
 sub files_diff {
-
     my $self = shift;
     my %p = validate(
         @_,
@@ -959,12 +747,12 @@ sub files_diff {
     );
 
     my ( $f1, $f2, $type, $debug ) = ( $p{f1}, $p{f2}, $p{type}, $p{debug} );
+    my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
 
     if ( !-e $f1 || !-e $f2 ) {
-        print "files_diff: $f1 or $f2 does not exist!\n";
-        croak if $p{fatal};
+        $log->error( "$f1 or $f2 does not exist!", %std_args );
         return -1;
-    }
+    };
 
     my $FILE;
 
@@ -972,46 +760,40 @@ sub files_diff {
 ### TODO
         # use file here to make sure files are ASCII
         #
-        $self->_formatted("files_diff: comparing $f1 and $f2 using diff")
-            if $debug;
+        $log->audit("comparing ascii files $f1 and $f2 using diff") if $debug;
 
-        my $diff = $self->find_bin( bin => 'diff', debug => $debug );
-
+        my $diff = $self->find_bin( bin => 'diff', %std_args );
         my $r = `$diff $f1 $f2`;
         chomp $r;
         return $r;
     }
 
-    $self->_formatted("files_diff: comparing $f1 and $f2 using md5")
-        if $debug;
+    $log->audit("comparing $f1 and $f2 using md5") if $debug;
 
     eval { require Digest::MD5 };
-    if ($EVAL_ERROR) {
-        carp "couldn't load Digest::MD5!";
-        croak if $p{fatal};
-        return;
-    }
+    return $log->error( "couldn't load Digest::MD5!", %std_args )
+        if $EVAL_ERROR;
 
-    $self->_formatted( "\t Digest::MD5 loaded", "ok" ) if $debug;
+    $log->audit( "\t Digest::MD5 loaded" ) if $debug;
 
     my @md5sums;
 
 FILE: foreach my $f ( $f1, $f2 ) {
         my ( $sum, $changed );
 
-        $self->_formatted("$f: checking md5") if $debug;
+        $log->audit("$f: checking md5") if $debug;
 
         # if the file is already there, read it in.
         if ( -f "$f.md5" ) {
-            $sum = $self->file_read( file => "$f.md5" );
-            $self->_formatted( "\t md5 file exists", "ok" ) if $debug;
+            $sum = $self->file_read( file => "$f.md5", %std_args );
+            $log->audit( "\t md5 file exists" ) if $debug;
         }
 
    # if the md5 file is missing, invalid, or older than the file, recompute it
-        if (   !-f "$f.md5"
+        if ( ! -f "$f.md5"
             or $sum !~ /[0-9a-f]+/i
             or
-            $self->file_is_newer( f1 => "$f.md5", f2 => $f, debug => $debug )
+            $self->file_is_newer( f1 => "$f.md5", f2 => $f, %std_args )
             )
         {
             my $ctx = Digest::MD5->new;
@@ -1020,19 +802,13 @@ FILE: foreach my $f ( $f1, $f2 ) {
             $sum = $ctx->hexdigest;
             close($FILE);
             $changed++;
-            $self->_formatted("\t created md5: $sum") if $debug;
+            $log->audit("\t created md5: $sum") if $debug;
         }
 
         push( @md5sums, $sum );
 
         # update the md5 file
-        if ($changed) {
-            $self->file_write(
-                file  => "$f.md5",
-                lines => [$sum],
-                debug => $debug
-            );
-        }
+        $self->file_write( file => "$f.md5", lines => [$sum], %std_args ) if $changed;
     }
 
     # compare the two md5 sums
@@ -1052,8 +828,9 @@ sub find_bin {
     );
 
     my ( $bin, $debug, $fatal ) = ( $p{bin}, $p{debug}, $p{fatal} );
+    my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
 
-    $prov->audit( "find_bin: searching for $bin" ) if $debug;
+    $log->audit( "find_bin: searching for $bin" ) if $debug;
 
     my $prefix = "/usr/local";
 
@@ -1075,16 +852,14 @@ sub find_bin {
     };
 
     if ($found) {
-        $prov->audit( "find_bin: found $found") if $debug;
+        $log->audit( "find_bin: found $found") if $debug;
         return $found;
     }
 
-    $prov->error( "WARNING: could not find $bin", fatal => $fatal, debug => $debug );
-    return;
+    return $log->error( "WARNING: could not find $bin", %std_args);
 }
 
 sub fstab_list {
-
     my $self = shift;
     my %p = validate(
         @_,
@@ -1165,7 +940,6 @@ sub get_cpan_config {
 }
 
 sub get_dir_files {
-
     my $self = shift;
     my %p = validate(
         @_,
@@ -1176,20 +950,14 @@ sub get_dir_files {
     );
 
     my ( $dir, $fatal, $debug ) = ( $p{dir}, $p{fatal}, $p{debug} );
+    my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
 
     my @files;
 
-    unless ( -d $dir ) {
-        carp "get_dir_files: dir $dir is not a directory!";
-        return;
-    }
+    return $log->error( "dir $dir is not a directory!", %std_args)
+        if ! -d $dir;
 
-    unless ( opendir D, $dir ) {
-        $err = "get_dir_files: couldn't open $dir: $!";
-        croak $err if $fatal;
-        carp $err  if $debug;
-        return;
-    }
+    opendir D, $dir or return $log->error( "couldn't open $dir: $!", %std_args );
 
     while ( defined( my $f = readdir(D) ) ) {
         next if $f =~ /^\.\.?$/;
@@ -1230,6 +998,7 @@ sub get_my_ips {
     );
 
     my $debug = $p{debug};
+    my $only  = $p{only};
 
     my $ifconfig = $self->find_bin( bin => "ifconfig", debug => 0 );
     my $grep     = $self->find_bin( bin => "grep",     debug => 0 );
@@ -1240,35 +1009,28 @@ sub get_my_ips {
 TRY:
     my $cmd = "$ifconfig | $grep inet ";
 
-    if ( $p{exclude_ipv6} ) {
-        $cmd .= "| $grep -v inet6 ";
-    }
-
+    $cmd .= "| $grep -v inet6 " if $p{exclude_ipv6};
     $cmd .= "| $cut -d' ' -f2 ";
-
-    if ( $p{exclude_localhost} ) {
-        $cmd .= "| $grep -v '^127.0.0' ";
-    }
+    $cmd .= "| $grep -v '^127.0.0' " if $p{exclude_localhost};
 
     if ( $p{exclude_internals} ) {
         $cmd .= "| $grep -v '^192.168.' | $grep -v '^10.' "
             . "| $grep -v '^172.16.'  | $grep -v '^169.254.' ";
     }
 
-    if ( $p{only} eq "first" ) {
+    if ( $only eq "first" ) {
         my $head = $self->find_bin( bin => "head", debug => 0 );
         $cmd .= "| $head -n1 ";
     }
-    elsif ( $p{only} eq "last" ) {
+    elsif ( $only eq "last" ) {
         my $tail = $self->find_bin( bin => "tail", debug => 0 );
         $cmd .= "| $tail -n1 ";
     }
 
-    #carp "get_my_ips command: $cmd" if $debug;
     my @ips = `$cmd`;
     chomp @ips;
 
-    # this keeps us from failing if the box has only internal IP space
+    # this keeps us from failing if the box has only internal IPs 
     if ( @ips < 1 || $ips[0] eq "" ) {
         carp "yikes, you really don't have any public IPs?!" if $debug;
         $p{exclude_internals} = 0;
@@ -1280,7 +1042,6 @@ TRY:
 }
 
 sub get_the_date {
-
     my $self = shift;
     my %p = validate(
         @_,
@@ -1290,14 +1051,16 @@ sub get_the_date {
         }
     );
 
-    my ( $bump, $fatal, $debug ) = ( $p{bump}, $p{fatal}, $p{debug} );
+    my $bump  = $p{bump};
+    my $debug = $p{debug};
+    my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
 
     my $time = time;
-    print "time: " . time . "\n" if $debug;
+    $log->audit( "time: " . time . "\n" ) if $debug;
 
     $bump = $bump ? $bump * 86400 : 0;
     my $offset_time = time - $bump;
-    print "selected time: $offset_time\n" if $debug;
+    $log->audit( "selected time: $offset_time" ) if $debug;
 
     # load Date::Format to get the time2str function
     eval { require Date::Format };
@@ -1311,7 +1074,7 @@ sub get_the_date {
         my $yy = Date::Format::time2str( "%Y", ($offset_time) );
         my $lm = Date::Format::time2str( "%m", ( $offset_time - 2592000 ) );
 
-        print "get_the_date: $yy/$mm/$dd $hh:$mn\n" if $debug;
+        $log->audit( "get_the_date: $yy/$mm/$dd $hh:$mn") if $debug;
         return $dd, $mm, $yy, $lm, $hh, $mn, $ss;
     }
 
@@ -1331,12 +1094,11 @@ sub get_the_date {
     my $mm = sprintf( "%02i", $fields[4] + 1 );    # month
     my $yy = ( $fields[5] + 1900 );                # year
 
-    print "get_the_date: $yy/$mm/$dd $hh:$mn\n" if $debug;
+    $log->audit( "get_the_date: $yy/$mm/$dd $hh:$mn" ) if $debug;
     return $dd, $mm, $yy, undef, $hh, $mn, $ss;
 }
 
 sub get_mounted_drives {
-
     my $self = shift;
     my %p = validate(
         @_,
@@ -1345,27 +1107,20 @@ sub get_mounted_drives {
         }
     );
 
-    my $mount = $self->find_bin(
-        bin   => 'mount',
-        debug => $p{debug},
-        fatal => 0
-    );
+    my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
 
-    unless ( -x $mount ) {
-        carp "get_mounted_drives: I couldn't find mount!";
-        croak if $p{fatal};
-        return 0;
-    }
+    my $mount = $self->find_bin( bin => 'mount', %std_args );
+
+    -x $mount or return $log->error( "I couldn't find mount!", %std_args );
 
     $ENV{PATH} = "";
     my %hash;
     foreach (`$mount`) {
         my ( $d, $m ) = $_ =~ /^(.*) on (.*) \(/;
 
-        #		if ( $m =~ /^\// && $d =~ /^\// )  # mount drives that begin with /
-        if ( $m && $m =~ /^\// )    # only mounts that begin with /
-        {
-            print "adding: $m \t $d\n" if $p{debug};
+        #if ( $m =~ /^\// && $d =~ /^\// )  # mount drives that begin with /
+        if ( $m && $m =~ /^\// ) {   # only mounts that begin with /
+            $log->audit( "adding: $m \t $d" ) if $p{debug};
             $hash{$m} = $d;
         }
     }
@@ -1373,7 +1128,6 @@ sub get_mounted_drives {
 }
 
 sub install_if_changed {
-
     my $self = shift;
     my %p = validate(
         @_,
@@ -1393,103 +1147,72 @@ sub install_if_changed {
         },
     );
 
-    my ( $newfile, $existing, $mode, $uid, $gid, $email, $debug ) = (
-        $p{newfile}, $p{existing}, $p{mode}, $p{uid}, $p{gid}, $p{email},
-        $p{debug}
-    );
+    my ( $newfile, $existing, $mode, $uid, $gid, $email) = (
+        $p{newfile}, $p{existing}, $p{mode}, $p{uid}, $p{gid}, $p{email} );
+    my ($debug, $sudo, $notify ) = ($p{sudo}, $p{debug}, $p{notify} );
+    my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
 
     if ( $newfile !~ /\// ) {
-
         # relative filename given
-        carp "relative filename given, use complete paths "
-            . "for more predicatable results!";
-
-        carp "working directory is " . cwd();
+        $log->audit( "relative filename given, use complete paths "
+            . "for more predicatable results!\n"
+            . "working directory is " . cwd() );
     }
 
-    # make sure the new file exists
-    if ( !-e $newfile ) {
-        $err = "the file to install ($newfile) does not exist, ERROR!\n";
-        croak $err if $p{fatal};
-        carp $err  if $debug;
-        return;
-    }
+    return $log->error( "the file to install ($newfile) does not exist" )
+        if !-e $newfile;
 
-    # make sure new file is a normal file
-    if ( !-f $newfile ) {
-        $err = "the file to install ($newfile) is not a file, ERROR!\n";
-        croak $err if $p{fatal};
-        carp $err  if $debug;
-        return;
-    }
-
-    my $sudo = $p{sudo};
+    return $log->error( "the file to install ($newfile) is not a file" )
+        if !-f $newfile;
 
     # make sure existing and new are writable
-    if (!$self->is_writable(
-            file  => $existing,
+    if (!$self->is_writable( file => $existing,
             debug => $debug,
             fatal => 0,
         )
-        || !$self->is_writable(
-            file  => $newfile,
+        || !$self->is_writable( file => $newfile,
             debug => $debug,
             fatal => 0,
         )
         )
     {
 
-        # if we are root and did not have permissions
-        if ( $UID == 0 ) {
-
-            # sudo won't do us any good!
-            croak if $p{fatal};
-            return;
-        }
+        # if root does not have permission, sudo won't any good
+        return $log->error("missing write permission", %std_args)
+            if $UID == 0;
 
         if ( $p{sudo} ) {
-            $sudo = $self->find_bin(
-                bin   => 'sudo',
-                fatal => 0,
-                debug => 0
-            );
-            if ( !-x $sudo ) {
-                carp "FAILED: you are not root, sudo is not installed,"
+            $sudo = $self->find_bin( bin => 'sudo', %std_args );
+            return $log->error( "you are not root, sudo is not installed,"
                     . " and you don't have permission to write to "
-                    . " $newfile and $existing. Sorry, I can't go on!\n";
-                croak if $p{fatal};
-                return;
-            }
+                    . " $newfile and $existing. Sorry, I can't proceed!" )
+            if !-x $sudo;
         }
     }
 
-    my $diffie = $self->files_diff(
+    my $diffie = $self->files_diff( %std_args,
         f1    => $newfile,
         f2    => $existing,
         type  => "text",
-        debug => $debug
     );
 
     # if the target file exists, get the differences
-    if ( -e $existing ) {
-        if ( !$diffie ) {
-            print "install_if_changed: $existing is already up-to-date.\n"
-                if $debug;
-            unlink $newfile if $p{clean};
-            return 2;
-        }
+    if ( -e $existing && ! $diffie ) {
+        $log->audit( "$existing is already up-to-date.") if $debug;
+        unlink $newfile if $p{clean};
+        return 2;
     }
 
-    $self->_formatted("install_if_changed: checking $existing") if $debug;
+    $log->audit("checking $existing") if $debug;
 
     # set file ownership on the new file
     if ( $uid && $gid ) {
-        $self->chown(
+        $self->chown( 
             file_or_dir => $newfile,
-            uid         => $uid,
-            gid         => $gid,
-            sudo        => $sudo,
-            debug       => $debug,
+            uid => $uid,
+            gid => $gid,
+            sudo => $sudo,
+            %std_args
         );
     }
 
@@ -1499,87 +1222,63 @@ sub install_if_changed {
             file_or_dir => $existing,
             mode        => $mode,
             sudo        => $sudo,
-            debug       => $debug,
+            %std_args
         );
     }
 
     # email diffs to admin
-    if ( $p{notify} && -f $existing ) {
+    if ( $notify && -f $existing ) {
 
         eval { require Mail::Send; };
 
         if ($EVAL_ERROR) {
-            carp "ERROR: could not send notice, Mail::Send is not installed!";
-            goto EMAIL_SKIPPED;
+            $log->error( "could not send notice, Mail::Send is not installed!", fatal => 0);
         }
+        else {
+            my $msg = Mail::Send->new;
+            $msg->subject("$existing updated by $0");
+            $msg->to($email);
+            my $email_message = $msg->open;
 
-        my $msg = Mail::Send->new;
-        $msg->subject("$existing updated by $0");
-        $msg->to($email);
-        my $email_message = $msg->open;
-
-        print $email_message
-            "This message is to notify you that $existing has been altered. The difference between the new file and the old one is:\n\n";
-
-        print $email_message $diffie;
-        $email_message->close;
-
-    EMAIL_SKIPPED:
+            print $email_message "This message is to notify you that $existing has been altered." 
+                . " The difference between the new file and the old one is:\n\n"
+                .  $diffie;
+            $email_message->close;
+        };
     }
 
     # archive the existing file
-    if ( -e $existing && $p{archive} ) {
-        $self->file_archive( file => $existing, debug => $debug );
-    }
+    $self->file_archive( file => $existing, %std_args)
+        if ( -e $existing && $p{archive} );
 
     # install the new file
     if ($sudo) {
-        my $cp = $self->find_bin( bin => 'cp', debug => $debug );
+        my $cp = $self->find_bin( bin => 'cp', %std_args);
 
-        # make a backup of the existing file
-        $self->syscmd(
-            cmd   => "$sudo $cp $existing $existing.bak",
-            debug => $debug
-        ) if ( -e $existing );
+        # back up the existing file
+        $self->syscmd( cmd => "$sudo $cp $existing $existing.bak", %std_args)
+            if -e $existing;
 
         # install the new one
         if ( $p{clean} ) {
-            $self->syscmd(
-                cmd   => "$sudo  mv $newfile $existing",
-                debug => $debug
-            );
+            $self->syscmd( cmd => "$sudo  mv $newfile $existing", %std_args);
         }
         else {
-            $self->syscmd(
-                cmd   => "$sudo $cp $newfile $existing",
-                debug => $debug
-            );
+            $self->syscmd( cmd => "$sudo $cp $newfile $existing",%std_args);
         }
     }
     else {
 
         # back up the existing file
-        if ( -e $existing ) {
-            copy( $existing, "$existing.bak" );
-        }
+        copy( $existing, "$existing.bak" ) if -e $existing;
 
         if ( $p{clean} ) {
-            unless ( move( $newfile, $existing ) ) {
-                $err = "install_if_changed: copy $newfile to $existing";
-                $self->_formatted( $err, "FAILED" );
-                croak "$err: $!" if $p{fatal};
-                carp "$err: $!";
-                return;
-            }
+            move( $newfile, $existing ) or
+                return $log->error( "failed copy $newfile to $existing", %std_args);
         }
         else {
-            unless ( copy( $newfile, $existing ) ) {
-                $err = "install_if_changed: copy $newfile to $existing";
-                $self->_formatted( $err, "FAILED" );
-                croak "$err: $!" if $p{fatal};
-                carp "$err: $!";
-                return;
-            }
+            copy( $newfile, $existing ) or
+                return $log->error( "failed copy $newfile to $existing", %std_args );
         }
     }
 
@@ -1590,7 +1289,7 @@ sub install_if_changed {
             uid         => $uid,
             gid         => $gid,
             sudo        => $sudo,
-            debug       => 0
+            %std_args
         );
     }
 
@@ -1600,16 +1299,15 @@ sub install_if_changed {
             file_or_dir => $existing,
             mode        => $mode,
             sudo        => $sudo,
-            debug       => 0
+            %std_args
         );
     }
 
-    $self->_formatted( "install_if_changed: updating $existing", "ok" );
+    $log->audit( "updated $existing" );
     return 1;
 }
 
 sub install_from_source {
-
     my $self = shift;
     my %p = validate(
         @_,
@@ -1629,31 +1327,27 @@ sub install_from_source {
         },
     );
 
-    my ( $conf, $site, $url, $package, $targets, $patches, $debug ) = (
-        $p{conf},    $p{site},    $p{url}, $p{package},
-        $p{targets}, $p{patches}, $p{debug}
-    );
+    return $p{test_ok} if defined $p{test_ok};
 
-    if ( defined $p{test_ok} ) { return $p{test_ok}; }
-
-    my $original_directory = cwd;
+    my ( $conf, $site, $url, $package, $targets, $patches, $debug, $bintest ) =
+        ( $p{conf},    $p{site},    $p{url}, $p{package},
+          $p{targets}, $p{patches}, $p{debug}, $p{bintest} );
 
     my $src = $conf->{toaster_src_dir} || "/usr/local/src";
     $src .= "/$p{source_sub_dir}" if $p{source_sub_dir};
 
+    my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
+
+    my $original_directory = cwd;
+
     $self->cwd_source_dir( dir => $src, debug => $debug );
 
-    if ( $p{bintest} ) {
-        if ( $self->find_bin( bin => $p{bintest}, fatal => 0, debug => 0 ) ) {
-            return
-                if (
-                !$self->yes_or_no(
-                    timeout  => 60,
-                    question => "$p{bintest} exists, suggesting that"
-                        . "$package is installed. Do you want to reinstall?",
-                )
-                );
-        }
+    if ( $bintest && $self->find_bin( bin => $bintest, fatal => 0, debug => 0 ) ) {
+        return if ! $self->yes_or_no(
+            timeout  => 60,
+            question => "$bintest exists, suggesting that"
+                . "$package is installed. Do you want to reinstall?",
+        );
     }
 
     print "install_from_source: building $package in $src\n" if $debug;
@@ -1673,7 +1367,7 @@ sub install_from_source {
         }
 
         print "install_from_source: removing previous build sources.\n";
-        $self->syscmd( cmd => "rm -rf $package-*", debug => $debug );
+        $self->syscmd( cmd => "rm -rf $package-*", %std_args);
     }
 
     #print "install_from_source: looking for existing sources...";
@@ -1682,7 +1376,7 @@ sub install_from_source {
         package => $package,
         site    => $site,
         url     => $url,
-        debug   => $debug,
+        %std_args
     );
 
     if ( $patches && @$patches[0] ) {
@@ -1691,18 +1385,13 @@ sub install_from_source {
 
     PATCH:
         foreach my $patch (@$patches) {
-            next PATCH if ( -e $patch );
+            next PATCH if -e $patch;
 
-            unless (
-                $self->file_get(
-                    url   => "$p{patch_url}/$patch",
-                    debug => $debug,
-                )
-                )
-            {
-                croak
-                    "install_from_source: could not fetch $p{patch_url}/$patch\n";
-            }
+            my $url = "$p{patch_url}/$patch",
+            $self->file_get(
+                url   => $url,
+                debug => $debug,
+            ) or return $log->error( "could not fetch $url", %std_args);
         }
     }
     else {
@@ -1711,31 +1400,25 @@ sub install_from_source {
 
     # expand the tarball
     $self->archive_expand( archive => $package, debug => $debug )
-        or croak "Couldn't expand $package: $!\n";
+        or return $log->error( "Couldn't expand $package: $!", %std_args );
 
     # cd into the package directory
     my $sub_path;
     if ( -d $package ) {
-        unless ( chdir $package ) {
-            $err = "FAILED to chdir $package!";
-            croak $err if $p{fatal};
-            carp $err;
-            return;
-        }
+        chdir $package or 
+            return $log->error( "FAILED to chdir $package!", %std_args ); 
     }
     else {
 
        # some packages (like daemontools) unpack within an enclosing directory
-        $sub_path = `find ./ -name $package`;    # tainted data
+        $sub_path = `find ./ -name $package`;       # tainted data
         chomp $sub_path;
+        ($sub_path) = $sub_path =~ /^([-\w\/.]+)$/; # untaint it
 
-        # untaint it
-        ($sub_path) = $sub_path =~ /^([-\w\/.]+)$/;
-
-        print "found sources in $sub_path\n" if $sub_path;
+        $log->audit( "found sources in $sub_path" ) if $sub_path;
         unless ( -d $sub_path && chdir($sub_path) ) {
             print "FAILED to find $package sources!\n";
-            return 0;
+            return;
         }
     }
 
@@ -1744,65 +1427,48 @@ sub install_from_source {
 
         foreach my $patch (@$patches) {
 
-            my $patchbin = $self->find_bin( bin => "patch", debug => $debug );
-            unless ( -x $patchbin ) {
-                print "install_from_sources: FAILED, could not find patch!\n";
-                return 0;
-            }
+            my $patchbin = $self->find_bin( bin => "patch", %std_args );
+            -x $patchbin or return $log->error( "could not find 'patch'!", %std_args);
 
-            croak "install_from_source: patch failed: $!\n"
-                if (
-                !$self->syscmd(
-                    cmd   => "$patchbin $p{patch_args} < $src/$patch",
-                    debug => $debug,
-                )
-                );
+            $self->syscmd(
+                cmd   => "$patchbin $p{patch_args} < $src/$patch",
+                debug => $debug
+            );
         }
     }
 
     # set default targets if none are provided
     if ( !@$targets[0] ) {
-        print "\tusing default targets (./configure, make, make install).\n";
+        $log->audit( "\tusing default targets (./configure, make, make install)" );
         @$targets = ( "./configure", "make", "make install" );
     }
 
-    if ($debug) {
-        print "install_from_source: using targets \n";
-        foreach (@$targets) { print "\t$_\n " }
-        print "\n";
-    }
+    my $msg = "install_from_source: using targets\n";
+    foreach (@$targets) { $msg .= "\t$_\n" };
+    $log->audit( $msg ) if $debug;
 
     # build the program
 TARGET:
     foreach my $target (@$targets) {
 
-        print "\t pwd: " . cwd . "\n";
+        $log->audit( "pwd: " . cwd );
         if ( $target =~ /^cd (.*)$/ ) {
-            chdir($1) or croak "couldn't chdir $1: $!\n";
+            chdir($1) or return $log->error( "couldn't chdir $1: $!", %std_args);
             next TARGET;
         }
 
-        if ( !$self->syscmd( cmd => $target, debug => $debug ) ) {
-            print "\t pwd: " . cwd . "\n";
-            croak "install_from_source: $target failed: $!\n" if $p{fatal};
-            return;
-        }
+        $self->syscmd( cmd => $target, debug => $debug ) or
+            return $log->error( "pwd: " . cwd .  "\n$target failed: $!", %std_args );
     }
 
     # clean up the build sources
-    chdir($src);
-    if ( -d $package ) {
-        $self->syscmd( cmd => "rm -rf $package", debug => $debug );
-    }
+    chdir $src;
+    $self->syscmd( cmd => "rm -rf $package", debug => $debug ) if -d $package;
 
-    if ( defined $sub_path && -d "$package/$sub_path" ) {
-        $self->syscmd(
-            cmd   => "rm -rf $package/$sub_path",
-            debug => $debug
-        );
-    }
+    $self->syscmd( cmd => "rm -rf $package/$sub_path", %std_args )
+        if defined $sub_path && -d "$package/$sub_path";
 
-    chdir($original_directory);
+    chdir $original_directory;
     return 1;
 }
 
@@ -1812,52 +1478,46 @@ sub install_package {
     if ( lc($OSNAME) eq 'freebsd' ) {
 
         my $portname = $info->{port}
-            or warn "skipping install of $app b/c port dir not set.";
+            or return $log->error( "skipping install of $app b/c port dir not set.", fatal => 0);
 
-        if ( $portname ) {
-            if (`/usr/sbin/pkg_info | /usr/bin/grep $app`) {
-                return print "$app is installed.\n";
-            }
+        if (`/usr/sbin/pkg_info | /usr/bin/grep $app`) {
+            print "$app is installed.\n";
+            return 1;
+        }
 
-            print "installing $app\n";
-            my $portdir = </usr/ports/*/$portname>;
+        print "installing $app\n";
+        my $portdir = </usr/ports/*/$portname>;
 
-            if ( -d $portdir && chdir $portdir ) {
-                system "make install clean"
-                    or warn "'make install clean' failed for port $app\n";
-            }
-            else {
-                print "oops, couldn't find port $app at ($portname)\n";
-            }
-        };
+        if ( ! -d $portdir || ! chdir $portdir ) {
+            print "oops, couldn't find port $app at '$portname'\n";
+            return;
+        }
+
+        system "make install clean"
+            or return $log->error( "'make install clean' failed for port $app", fatal => 0);
+        return 1;
     };
 
     if ( lc($OSNAME) eq 'linux' ) {
-        my $rpm = $info->{rpm} or return;
+        my $rpm = $info->{rpm} or return $log->error("skipping install of $app b/c rpm not set", fatal => 0);
         my $yum = '/usr/bin/yum';
-        if ( ! -x $yum ) {
-            print "couldn't find yum, skipping install.\n";
-            return;
-        };
-        system "$yum install $rpm";
+        return $log->error( "couldn't find yum, skipping install.", fatal => 0)
+            if ! -x $yum;
+        return system "$yum install $rpm";
     };
 }
 
 sub install_module {
-
     my ($self, $module, $info) = @_;
 
     if ( lc($OSNAME) eq 'darwin' ) {
         my $dport = '/opt/local/bin/port';
-        if ( ! -x $dport ) {
-            print "Darwin ports is not installed!\n";
-        } 
-        else {
-            my $port = "p5-$module";
-            $port =~ s/::/-/g;
-            my $cmd = "sudo $dport install $port";
-            $self->syscmd( cmd => $cmd, debug => 0 );
-        }
+        return $log->error( "Darwin ports is not installed!", fatal => 0)
+            if ! -x $dport;
+
+        my $port = "p5-$module";
+        $port =~ s/::/-/g;
+        system "sudo $dport install $port";
     }
 
     if ( lc($OSNAME) eq 'freebsd' ) {
@@ -1866,7 +1526,8 @@ sub install_module {
         $portname =~ s/::/-/g;
 
         if (`/usr/sbin/pkg_info | /usr/bin/grep $portname`) {
-            return print "$module is installed.\n";
+            print "$module is installed.\n";
+            return 1;
         }
 
         print "installing $module";
@@ -1886,9 +1547,7 @@ sub install_module {
             my $portname = "perl-$rpm";
             $portname =~ s/::/-/g;
             my $yum = '/usr/bin/yum';
-            if ( -x $yum ) {
-                system "$yum -y install $portname";
-            };
+            system "$yum -y install $portname" if -x $yum;
         }
     };
 
@@ -1936,7 +1595,6 @@ sub is_interactive {
 }
 
 sub is_process_running {
-
     my ( $self, $process ) = @_;
 
     eval "require Proc::ProcessTable";
@@ -1954,27 +1612,17 @@ sub is_process_running {
     my $ps   = $self->find_bin( bin => 'ps',   debug => 0 );
     my $grep = $self->find_bin( bin => 'grep', debug => 0 );
 
-    if ( lc($OSNAME) =~ /solaris/i ) {
-        $ps .= " -ef";
-    }
-    elsif ( lc($OSNAME) =~ /linux/i ) {
-        $ps .= " -efw";
-    }
-    else {
-        $ps .= " axw";
-    };
+    if    ( lc($OSNAME) =~ /solaris/i ) { $ps .= " -ef";  }
+    elsif ( lc($OSNAME) =~ /linux/i   ) { $ps .= " -efw"; }
+    else                                { $ps .= " axw";  };
 
     my $is_running = `$ps | $grep $process | $grep -v grep` ? 1 : 0;
-    if ( ! $is_running ) {
-        #warn "$ps | $grep $process | $grep -v grep\n";
-    };
+    #warn "$ps | $grep $process | $grep -v grep\n" if ! $is_running;
     return $is_running;
 }
 
 sub is_readable {
-
     my $self = shift;
-
     my %p = validate(
         @_,
         {   'file'  => { type => SCALAR },
@@ -1984,21 +1632,12 @@ sub is_readable {
     );
 
     my ( $file, $fatal, $debug ) = ( $p{file}, $p{fatal}, $p{debug} );
+    my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
 
-    unless ( -e $file ) {
-        $err = "\nis_readable: ERROR: The file $file does not exist.";
-        croak $err if $fatal;
-        carp $err  if $debug;
-        return 0;
-    }
-
-    unless ( -r $file ) {
-        carp "\nis_readable: ERROR: The file $file is not readable by you ("
+    -e $file or return $log->error( "file $file does not exist.", %std_args);
+    -r $file or return $log->error( "file $file is not readable by you ("
             . getpwuid($>)
-            . "). You need to fix this, using chown or chmod.\n";
-        croak if $fatal;
-        return;
-    }
+            . "). You need to fix this, using chown or chmod.", %std_args);
 
     return 1;
 }
@@ -2023,25 +1662,24 @@ sub is_writable {
         use File::Basename;
         my ( $base, $path, $suffix ) = fileparse($file);
 
-        return $prov->error( "WARNING: is_writable: $path not writable by "
+        return $log->error( "WARNING: is_writable: $path not writable by "
             . getpwuid($>)
             . "!$nl$nl") if !-w $path;
         return 1;
     }
 
     # if we get this far, the file exists
-    return $prov->error( "is_writable: $file is not a file!" ) unless -f $file;
+    return $log->error( "is_writable: $file is not a file!" ) if ! -f $file;
 
-    return $prov->error( "WARNING: $file not writable by "
+    return $log->error( "WARNING: $file not writable by "
         . getpwuid($>)
-        . "!$nl$nl>" ) unless -w $file;
+        . "!$nl$nl>" ) if ! -w $file;
 
-    $prov->audit( "$file is writable, ok" ) if $debug;
+    $log->audit( "$file is writable" ) if $debug;
     return 1;
 }
 
 sub logfile_append {
-
     my $self = shift;
     my %p = validate(
         @_,
@@ -2054,20 +1692,14 @@ sub logfile_append {
     );
 
     my ( $file, $lines ) = ( $p{file}, $p{lines} );
+    my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
 
-    my ( $dd, $mm, $yy, $lm, $hh, $mn, $ss )
-        = $self->get_the_date( debug => $p{debug} );
+    my ( $dd, $mm, $yy, $lm, $hh, $mn, $ss ) = $self->get_the_date( %std_args );
 
-    open my $LOG_FILE, '>>', $file or $fatal_err++;
+    open my $LOG_FILE, '>>', $file 
+        or return $log->error( "couldn't open $file: $OS_ERROR", %std_args);
 
-    if ($fatal_err) {
-        carp "logfile_append: couldn't open $file: $OS_ERROR";
-        croak if $p{fatal};
-        return;
-    }
-
-    $self->_formatted( "logfile_append: opened $file for writing", "ok" )
-        if $p{debug};
+    $log->audit( "opened $file for writing" ) if $p{debug};
 
     print $LOG_FILE "$yy-$mm-$dd $hh:$mn:$ss $p{prog} ";
 
@@ -2077,12 +1709,11 @@ sub logfile_append {
     print $LOG_FILE "\n";
     close $LOG_FILE;
 
-    $self->_formatted( "    wrote $i lines", "ok" ) if $p{debug};
+    $log->audit( "    wrote $i lines" ) if $p{debug};
     return 1;
 }
 
 sub provision_unix {
-
     my ( $self, $debug ) = @_;
     my ( $conf, $ver );
 
@@ -2092,8 +1723,8 @@ sub provision_unix {
 
         $conf = $self->parse_config(
             file   => "provision.conf",
-            debug  => 0,
             etcdir => "/usr/local/etc",
+            debug  => 0,
         );
     }
 
@@ -2101,7 +1732,6 @@ sub provision_unix {
 }
 
 sub mkdir_system {
-
     my $self = shift;
     my %p = validate(
         @_,
@@ -2114,6 +1744,7 @@ sub mkdir_system {
     );
 
     my ( $dir, $mode, $debug ) = ( $p{dir}, $p{mode}, $p{debug} );
+    my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
 
     if ( -d $dir ) {
         print "mkdir_system: $dir already exists.\n" if $debug;
@@ -2121,68 +1752,50 @@ sub mkdir_system {
     }
 
     # can't do anything without mkdir
-    my $mkdir = $self->find_bin( bin => 'mkdir', debug => $debug );
+    my $mkdir = $self->find_bin( bin => 'mkdir', %std_args);
 
     # if we are root, just do it (no sudo nonsense)
     if ( $< == 0 ) {
+        $self->syscmd( cmd => "$mkdir -p $dir", %std_args);
 
-        print "mkdir_system: trying mkdir -p $dir..\n" if $debug;
-        $self->syscmd( cmd => "$mkdir -p $dir", debug => $debug );
-
-        if ($mode) {
-            $self->chmod( dir => $dir, mode => $mode, debug => $debug );
-        }
+        $self->chmod( dir => $dir, mode => $mode, debug => $debug ) if $mode;
 
         return 1 if -d $dir;
-        croak "failed to create $dir" if $p{fatal};
-        return;
+        return $log->error( "failed to create $dir", %std_args);
     }
 
     if ( $p{sudo} ) {
 
         my $sudo = $self->sudo();
 
-        print "mkdir_system: trying $sudo mkdir -p....\n" if $debug;
-        $mkdir = $self->find_bin( bin => 'mkdir', debug => $debug );
-        $self->syscmd( cmd => "$sudo $mkdir -p $dir", debug => $debug );
+        $log->audit( "trying $sudo mkdir -p") if $debug;
+        $mkdir = $self->find_bin( bin => 'mkdir', %std_args);
+        $self->syscmd( cmd => "$sudo $mkdir -p $dir", %std_args);
 
-        print "mkdir_system: setting ownership to $<.\n" if $debug;
-        my $chown = $self->find_bin( bin => 'chown', debug => $debug );
-        $self->syscmd( cmd => "$sudo $chown $< $dir", debug => $debug );
+        $log->audit( "setting ownership to $<.") if $debug;
+        my $chown = $self->find_bin( bin => 'chown', %std_args);
+        $self->syscmd( cmd => "$sudo $chown $< $dir", %std_args);
 
-        if ($mode) {
-            $self->chmod(
-                dir   => $dir,
-                mode  => $mode,
-                sudo  => $sudo,
-                debug => $debug
-            );
-        }
+        $self->chmod( dir => $dir, mode => $mode, sudo => $sudo, %std_args)
+             if $mode;
 
         return -d $dir ? 1 : 0;
     }
 
-    print "mkdir_system: trying mkdir -p $dir....." if $debug;
+    $log->audit( "trying mkdir -p $dir" ) if $debug;
 
     # no root and no sudo, just try and see what happens
-    $self->syscmd( cmd => "$mkdir -p $dir", debug => 0 );
+    $self->syscmd( cmd => "$mkdir -p $dir", %std_args );
 
-    if ($mode) {
-        $self->chmod( dir => $dir, mode => $mode, debug => $debug );
-    }
+    $self->chmod( dir => $dir, mode => $mode, %std_args) if $mode;
 
-    if ( -d $dir ) {
-        print "done... (ok)\n" if $debug;
-        return 1;
-    }
-
-    croak if $p{fatal};
-    return;
+    return $log->audit( "mkdir_system created $dir" ) if -d $dir;
+    return $log->error( '', %std_args );
 }
 
 sub path_parse {
 
-    # code left her for reference, use File::Basename instead
+    # code left here for reference, use File::Basename instead
     my ( $self, $dir ) = @_;
 
     # if it ends with a /, chop if off
@@ -2202,7 +1815,6 @@ sub path_parse {
 }
 
 sub pidfile_check {
-
     my $self = shift;
     my %p = validate(
         @_,
@@ -2213,47 +1825,30 @@ sub pidfile_check {
     );
 
     my ( $pidfile, $debug ) = ( $p{pidfile}, $p{debug} );
+    my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
 
-    # if $pidfile exists, verify that it is a file
-    if ( -e $pidfile && !-f $pidfile ) {
-        $err = "pidfile_check: $pidfile is not a regular file!";
-        croak $err if $p{fatal};
-        carp $err  if $debug;
-        return;
-    }
+    return $log->error( "$pidfile is not a regular file", %std_args)
+        if -e $pidfile && !-f $pidfile;
 
     # test if file & enclosing directory is writable, revert to /tmp if not
-    if (!$self->is_writable(
-            file  => $pidfile,
-            debug => $debug,
-            fatal => $p{fatal}
-        )
-        )
-    {
-        use File::Basename;
-        my ( $base, $path, $suffix ) = fileparse($pidfile);
-        carp "NOTICE: using /tmp for pidfile, $path is not writable!"
-            if $debug;
-        $pidfile = "/tmp/$base";
-    }
+    $self->is_writable( file  => $pidfile, %std_args) 
+        or do {
+            use File::Basename;
+            my ( $base, $path, $suffix ) = fileparse($pidfile);
+            $log->audit( "NOTICE: using /tmp for pidfile, $path is not writable!")
+                if $debug;
+            $pidfile = "/tmp/$base";
+        };
 
     # if it does not exist
     if ( !-e $pidfile ) {
-        print "pidfile_check: writing process id ", $PROCESS_ID,
-            " to $pidfile..."
-            if $debug;
-
-        if ($self->file_write(
-                file  => $pidfile,
-                lines => [$PROCESS_ID],
-                debug => $debug,
-            )
-            )
-        {
-            print "done.\n" if $debug;
-            return $pidfile;
-        }
-    }
+        $log->audit( "writing process id $PROCESS_ID to $pidfile...") if $debug;
+        $self->file_write( file  => $pidfile, lines => [$PROCESS_ID], %std_args)
+            and do {
+                print "done.\n" if $debug;
+                return $pidfile;
+            };
+    };
 
     use File::stat;
     my $age = time() - stat($pidfile)->mtime;
@@ -2284,7 +1879,6 @@ sub pidfile_check {
 }
 
 sub regexp_test {
-
     my $self = shift;
     my %p = validate(
         @_,
@@ -2319,46 +1913,44 @@ sub regexp_test {
 }
 
 sub sources_get {
-
     my $self = shift;
     my %p = validate(
         @_,
         {   'package' => { type => SCALAR,  optional => 0 },
-            'site'    => { type => SCALAR,  optional => 0 },
-            'url'     => { type => SCALAR,  optional => 1 },
-            'debug'   => { type => BOOLEAN, optional => 1, default => 1 },
+            site      => { type => SCALAR,  optional => 0 },
+            url       => { type => SCALAR,  optional => 1 },
+            debug     => { type => BOOLEAN, optional => 1, default => 1 },
+            fatal     => { type => BOOLEAN, optional => 1, default => 1 },
         },
     );
 
     my ( $conf, $package, $site, $url, $debug )
         = ( $p{conf}, $p{package}, $p{site}, $p{url}, $p{debug} );
 
-    print "sources_get: fetching $package from site $site\n" if $debug;
-    print "\t url: $url\n"                                   if $debug;
+    my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
+
+    print "sources_get: fetching $package from site $site\n\t url: $url\n" if $debug;
 
     my @extensions = qw/ tar.gz tgz tar.bz2 tbz2 /;
 
-    my $filet = $self->find_bin( bin => 'file', debug => $debug );
-    my $grep  = $self->find_bin( bin => 'grep', debug => $debug );
+    my $filet = $self->find_bin( bin => 'file', %std_args);
+    my $grep  = $self->find_bin( bin => 'grep', %std_args);
 
     foreach my $ext (@extensions) {
 
         my $tarball = "$package.$ext";
         next if !-e $tarball;
-        print "\t found $tarball!\n" if -e $tarball;
+        $log->audit( " found $tarball!") if -e $tarball;
 
         if (`$filet $tarball | $grep compress`) {
-            if ($self->yes_or_no(
-                    question => "$tarball exists, shall I use it?: "
-                )
-                )
-            {
-                print "\n\t ok, using existing archive: $tarball\n";
-                return 1;
-            }
+            $self->yes_or_no( question => "$tarball exists, shall I use it?: ")
+                and do {
+                    print "\n\t ok, using existing archive: $tarball\n";
+                    return 1;
+                }
         }
 
-        $self->file_delete( file => $tarball, debug => $debug );
+        $self->file_delete( file => $tarball, %std_args );
     }
 
     foreach my $ext (@extensions) {
@@ -2366,31 +1958,23 @@ sub sources_get {
 
         print "sources_get: fetching $site$url/$tarball...";
 
-        if ($self->file_get(
-                url   => "$site$url/$tarball",
-                debug => 0,
-                fatal => 0
-            )
-            )
-        {
-            print "done.\n";
-        }
-        else {
-            carp "sources_get: couldn't fetch $site$url/$tarball";
-        }
+        $self->file_get(
+            url   => "$site$url/$tarball",
+            debug => 0,
+            fatal => 0
+        ) or carp "sources_get: couldn't fetch $site$url/$tarball";
 
-        if ( -e $tarball ) {
-            print "sources_get: testing $tarball ...";
+        next if ! -e $tarball;
 
-            if (`$filet $tarball | $grep zip`) {
-                print "sources_get: looks good!\n";
-                return 1;
-            }
-            else {
-                print "YUCK, is not [b|g]zipped data!\n";
-                $self->file_delete( file => $tarball, debug => $debug );
-            }
-        }
+        print "sources_get: testing $tarball ...";
+
+        if (`$filet $tarball | $grep zip`) {
+            print "sources_get: looks good!\n";
+            return 1;
+        };
+
+        print "YUCK, is not [b|g]zipped data!\n";
+        $self->file_delete( file => $tarball, %std_args);
     }
 
     print "sources_get: FAILED, I am giving up!\n";
@@ -2398,7 +1982,6 @@ sub sources_get {
 }
 
 sub source_warning {
-
     my $self = shift;
     my %p = validate(
         @_,
@@ -2416,6 +1999,7 @@ sub source_warning {
     );
 
     my ( $package, $src, $debug ) = ( $p{package}, $p{src}, $p{debug} );
+    my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
 
     if ( !-d $package ) {
         print "source_warning: $package sources not present.\n" if $debug;
@@ -2430,29 +2014,21 @@ sub source_warning {
         return if !$p{clean};
     }
 
-    return
-        if (
-        !$self->yes_or_no(
-            question => "\n\tMay I remove the sources for you?",
-            timeout  => $p{timeout},
-        )
-        );
+    return if !$self->yes_or_no(
+        question => "\n\tMay I remove the sources for you?",
+        timeout  => $p{timeout},
+    );
 
     print "wd: " . cwd . "\n";
     print "Deleting $src/$package...";
 
-    if ( !rmtree "$src/$package" ) {
-        print "FAILED to delete $package: $OS_ERROR";
-        croak if $p{fatal};
-        return;
-    }
+    return $log->error( "FAILED to delete $package: $OS_ERROR", %std_args )
+        if !rmtree "$src/$package";
     print "done.\n";
-
     return 1;
 }
 
 sub sudo {
-
     my $self = shift;
     my %p = validate(
         @_,
@@ -2462,11 +2038,12 @@ sub sudo {
     );
 
     my $debug = $p{debug};
+    my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
 
     # if we are running as root via $<
     if ( $REAL_USER_ID == 0 ) {
         print "sudo: you are root, sudo isn't necessary.\n" if $debug;
-        return "";    # return an empty string for $sudo
+        return '';    # return an empty string, purposefully
     }
 
     my $sudo;
@@ -2486,12 +2063,12 @@ sub sudo {
         "\n\n\tWARNING: Couldn't find sudo. This may not be a problem but some features require root permissions and will not work without them. Having sudo can allow legitimate and limited root permission to non-root users. Some features of Provision::Unix may not work as expected without it.\n\n";
 
     # try installing sudo
-    if ( !$self->yes_or_no( question => "may I try to install sudo?" ) ) {
+    $self->yes_or_no( question => "may I try to install sudo?", timeout => 20 ) or do {
         print "very well then, skipping along.\n";
         return "";
-    }
+    };
 
-    if ( !-x $self->find_bin( bin => "sudo", debug => $debug, fatal => 0 ) ) {
+    -x $self->find_bin( bin => "sudo", debug => $debug, fatal => 0 ) or
         $self->install_from_source(
             package => 'sudo-1.6.9p17',
             site    => 'http://www.courtesan.com',
@@ -2500,21 +2077,19 @@ sub sudo {
             patches => '',
             debug   => 1,
         );
-    }
 
     # can we find it now?
-    $path_to_sudo = $self->find_bin( bin => "sudo", debug => $debug );
+    $path_to_sudo = $self->find_bin( bin => "sudo", %std_args);
 
     if ( !-x $path_to_sudo ) {
         carp "sudo install failed!";
-        return "";
+        return '';
     }
 
     return "$path_to_sudo -p 'Password for %u@%h:'";
 }
 
 sub syscmd {
-
     my $self = shift;
     my %p = validate(
         @_,
@@ -2527,8 +2102,9 @@ sub syscmd {
 
     my $cmd_request = $p{cmd};
     my $debug       = $p{debug};
+    my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
 
-    $prov->audit("preparing sys cmd: $cmd_request") if $debug;
+    $log->audit("preparing sys cmd: $cmd_request") if $debug;
 
     my ( $is_safe, $tainted, $bin, @args );
 
@@ -2538,7 +2114,7 @@ sub syscmd {
         $bin = shift @args;
         $is_safe++;
         my $arg_string = join ' ', @args;
-        $prov->audit("\tprogram is: $bin, args are: $arg_string") if $debug;
+        $log->audit("\tprogram is: $bin, args are: $arg_string") if $debug;
     }
     else {
         # make sure it does not not contain a ./ pattern
@@ -2552,26 +2128,20 @@ sub syscmd {
     $status_message .= "syscmd: bin is <$bin>" if $bin;
     $status_message .= " (safe)" if $is_safe;
 
-    $prov->audit($status_message) if $debug;
+    $log->audit($status_message) if $debug;
 
     if ( $is_safe && !$bin ) {
-        return $prov->error("command is not safe! BAILING OUT!");
+        return $log->error("command is not safe! BAILING OUT!", %std_args);
     }
 
     if ( $bin && !-e $bin ) {  # $bin is set, but we have not found it
 
         # check the normal places
         my $found_bin = $self->find_bin( bin => $bin, fatal => 0, debug => 0 );
-        if ( $found_bin && -x $found_bin ) {
-            $bin = $found_bin;
-        }
+        $bin = $found_bin if $found_bin && -x $found_bin;
 
-        if ( !-x $bin ) {
-            return $prov->error( "cmd: $cmd_request \t bin: $bin is not found",
-                fatal => $p{fatal},
-                debug => $p{debug},
-            );
-        }
+        return $log->error( "cmd: $cmd_request \t bin: $bin is not found", %std_args)
+            if !-x $bin;
     }
     unshift @args, $bin;
 
@@ -2581,17 +2151,11 @@ sub syscmd {
 
     my $before_path = $ENV{PATH};
 
-    if ( $tainted && !$is_safe ) {
-
-        # instead of croaking, maybe try setting a
-        # very restrictive PATH?  I'll err on the side of safety 
-        # $ENV{PATH} = '';
-
-        return $prov->error( "$status_message ...TAINTED!",
-            fatal   => $p{fatal},
-            debug   => $p{debug},
-        );
-    }
+    # instead of croaking, maybe try setting a
+    # very restrictive PATH?  I'll err on the side of safety 
+    # $ENV{PATH} = '';
+    return $log->error( "$status_message ...TAINTED!", %std_args)
+        if ( $tainted && !$is_safe );
 
     if ($is_safe) {
         my $prefix = "/usr/local";   # restrict the path
@@ -2599,7 +2163,7 @@ sub syscmd {
         $ENV{PATH} = "/bin:/sbin:/usr/bin:/usr/sbin:$prefix/bin:$prefix/sbin";
     }
 
-    $prov->audit($cmd_request);
+    $log->audit($cmd_request);
 
     my $r;
     if ( $p{timeout} ) {
@@ -2613,13 +2177,10 @@ sub syscmd {
 
         if ($EVAL_ERROR) {
             if ( $EVAL_ERROR eq "alarm\n" ) {
-                $prov->audit("timed out running '$cmd_request'");
+                $log->audit("timed out running '$cmd_request'");
             }
             else {
-                return $prov->error( "unknown error '$EVAL_ERROR'",
-                    fatal => $p{fatal},
-                    debug => $p{fatal},
-                );
+                return $log->error( "unknown error '$EVAL_ERROR'", %std_args);
             }
         }
     }
@@ -2647,10 +2208,8 @@ sub syscmd {
             }
         }
 
-        return $prov->error( "encountered the error ($CHILD_ERROR): $r",
-            location => join( ", ", caller ),
-            fatal    => $p{fatal},
-            debug    => $p{debug},
+        return $log->error( "encountered the error ($CHILD_ERROR): $r",
+            location => join( ", ", caller ), %std_args
         );
     }
 
@@ -2724,62 +2283,6 @@ sub yes_or_no {
     } until ( $response eq "n" || $response eq "y" );
 
     return ($response eq "y") ? 1 : 0;
-}
-
-sub _formatted {
-
-    ############################################
-    # Usage      : $utility->_formatted( "tried this", "ok");
-    # Purpose    : print nicely formatted status messages
-    # Returns    : tried this...............................ok
-    # Parameters : message - what your are reporting on
-    #              result  - the status to report
-    # See Also   : n/a
-
-    my ( $self, $mess, $result ) = @_;
-
-    my $dots           = '...';
-    my $length_of_mess = length($mess);
-
-    if ( $length_of_mess < 65 ) {
-        until ( $length_of_mess == 65 ) { $dots .= "."; $length_of_mess++ }
-    }
-
-    print $mess if $mess;
-    if ($result) {
-        print $dots . $result;
-    }
-    print "\n";
-
-    #print "$mess $dots $result\n";
-}
-
-sub _progress {
-    my ( $self, $mess ) = @_;
-    print {*STDERR} "$mess.\n";
-    return;
-}
-
-sub _progress_begin {
-    my ( $self, $phase ) = @_;
-    print {*STDERR} "$phase...";
-    return;
-}
-
-sub _progress_continue {
-    print {*STDERR} '.';
-    return;
-}
-
-sub _progress_end {
-    my ( $self, $mess ) = @_;
-    if ($mess) {
-        print {*STDERR} "$mess\n";
-    }
-    else {
-        print {*STDERR} "done\n";
-    }
-    return;
 }
 
 1;

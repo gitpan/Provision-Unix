@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::OpenVZ;
 
-our $VERSION = '0.37';
+our $VERSION = '0.38';
 
 use warnings;
 use strict;
@@ -148,14 +148,14 @@ sub destroy_virtualos {
         my $suspended_config = "$config.suspend";
 # humans often rename the config file to .suspended instead of our canonical '.suspend'
         $suspended_config = "$config.suspended" if ! -e $suspended_config;
-        if ( -e $suspended_config ) {
+        if ( ! -e $suspended_config ) {
             return $prov->error( "config file for VE $name is missing",
                 fatal   => $vos->{fatal},
                 debug   => $vos->{debug},
             );
         };
-        move( "$config.suspend", $config )
-            or return $prov->error( "unable to move file '$config.suspend' to '$config': $!",
+        move( $suspended_config, $config )
+            or return $prov->error( "unable to move file '$suspended_config' to '$config': $!",
             fatal   => $vos->{fatal},
             debug   => $vos->{debug},
             );

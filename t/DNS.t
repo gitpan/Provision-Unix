@@ -62,7 +62,7 @@ if ( $server eq 'tinydns' ) {
 }
 elsif ( $server =~ /nictool/i ) {
     $dns->connect() or 
-        warn $prov->get_last_error_message() and exit;
+        warn $prov->get_last_error() and exit;
 };
 
 my @zones = qw/ example.com 2.2.2.in-addr.arpa /;

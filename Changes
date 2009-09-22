@@ -1,6 +1,11 @@
 Revision history for Provision-Unix
 
-0.66 Aug 26, 2009
+0.67 
+  - clean up coding style.
+  - whittled out 500 lines of code from P:U:Utility
+  - fixed bug in OpenVZ destroy, wasn't detecting suspended config files
+
+0.66 Sep 18, 2009
   - allow ovz suspended config file to be .suspended (as well as .suspend)
   - when enabling, disabling, starting, and stopping a VE, succeed if the VE
     is already in the target state. Previously, if a 'disable' request was 

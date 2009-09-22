@@ -165,7 +165,7 @@ sub _get_server {
         );
 #warn Data::Dumper::Dumper($r);
         if ( ! $r ) {
-            return $prov->error( $prov->get_last_error_message(),
+            return $prov->error( $prov->get_last_error(),
                 debug => $debug,
                 fatal => $fatal,
             );    
