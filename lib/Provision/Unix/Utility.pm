@@ -1,6 +1,6 @@
 package Provision::Unix::Utility;
 
-our $VERSION = '5.21';
+our $VERSION = '5.23';
 
 use strict;
 use warnings;
@@ -13,6 +13,7 @@ use English qw( -no_match_vars );
 use File::Copy;
 use Params::Validate qw(:all);
 use Scalar::Util qw( openhandle );
+use URI;
 
 use vars qw/ $fatal_err $err $log /;
 
@@ -249,8 +250,8 @@ sub chown {
         $log->audit("using $nuid from int($uid)");
     }
     else {
-        $nuid = getpwnam($uid) 
-            or return $log->error( "failed to get uid for $uid", %std_args);
+        $nuid = getpwnam($uid);
+        return $log->error( "failed to get uid for $uid", %std_args) if ! defined $nuid;
         $log->audit("converted $uid to a number: $nuid");
     }
 
@@ -259,8 +260,8 @@ sub chown {
         $log->audit("using $ngid from int($p{gid})");
     }
     else {
-        $ngid = getgrnam( $p{gid} ) 
-            or return $log->error( "failed to get gid for $p{gid}", %std_args);
+        $ngid = getgrnam( $p{gid} );
+        return $log->error( "failed to get gid for $p{gid}", %std_args) if ! defined $ngid;
         $log->audit("converted $p{gid} to numeric: $ngid");
     }
 
@@ -505,29 +506,65 @@ sub file_get {
     my $self = shift;
     my %p = validate(
         @_,
-        {   'url'     => { type => SCALAR },
-            'timeout' => { type => SCALAR, optional => 1, },
-            'fatal'   => { type => BOOLEAN, optional => 1, default => 1 },
-            'debug'   => { type => BOOLEAN, optional => 1, default => 1 },
+        {   url     => { type => SCALAR },
+            dir     => { type => SCALAR, optional => 1 },
+            timeout => { type => SCALAR, optional => 1 },
+            fatal   => { type => BOOLEAN, optional => 1, default => 1 },
+            debug   => { type => BOOLEAN, optional => 1, default => 1 },
         }
     );
 
     my $url = $p{url};
+    my $dir = $p{dir};
     my $debug = $p{debug};
-    my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
-
-    my $found;
-
-    $log->audit( "fetching $url" );
+    my $fatal = $p{fatal};
 
     my ($ua, $response);
-# TODO: should use LWP here if available
-#    eval "require LWP::Simple";
-#    if ( ! $EVAL_ERROR ) {
-#        $response = LWP::Simple::getstore($url);
-#    };
+    eval "require LWP::Simple";
+    return $self->file_get_system( %p ) if $EVAL_ERROR;
 
-    my $fetchbin;
+    my $uri = URI->new($url);
+    my @parts = $uri->path_segments;
+    my $file = $parts[-1];  # everything after the last / in the URL
+    my $file_path = $file;
+    $file_path = "$dir/$file" if $dir;
+
+    $log->audit( "fetching $url" );
+    eval { $response = LWP::Simple::mirror($url, $file_path ); };
+
+    if ( $response == 404 ) {
+        return $log->error( "file not found ($url)", fatal => $fatal );
+    }
+    elsif ($response == 304 ) {
+        $log->audit( "result 304: file is up-to-date" );
+    }
+    elsif ( $response == 200 ) {
+        $log->audit( "result 200: file download ok" );
+    };
+
+    return if ! -e $file_path;
+
+    return $response;
+}
+
+sub file_get_system {
+    my $self = shift;
+    my %p = validate(
+        @_,
+        {   url     => { type => SCALAR },
+            dir     => { type => SCALAR,  optional => 1 },
+            timeout => { type => SCALAR,  optional => 1, },
+            fatal   => { type => BOOLEAN, optional => 1, default => 1 },
+            debug   => { type => BOOLEAN, optional => 1, default => 1 },
+        }
+    );
+
+    my $dir      = $p{dir};
+    my $url      = $p{url};
+    my $debug    = $p{debug};
+    my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
+
+    my ($fetchbin, $found);
     if ( $OSNAME eq "freebsd" ) {
         $fetchbin = $self->find_bin( bin => 'fetch', %std_args);
         if ( $fetchbin && -x $fetchbin ) {
@@ -548,14 +585,22 @@ sub file_get {
         $found = $fetchbin if $fetchbin && -x $fetchbin;
     }
 
-    return $log->error( "couldn't find wget. Please install it.", %std_args )
+    return $log->error( "Failed to fetch $url.\n\tCouldn't find wget. Please install it.", %std_args )
         if !$found;
 
     my $fetchcmd = "$found $url";
-    $log->audit( ": $fetchcmd" );
 
-    return $self->syscmd( cmd => $fetchcmd, %std_args ) 
-        if ! $p{timeout};
+    if ( ! $p{timeout} ) {
+        $self->syscmd( cmd => $fetchcmd, %std_args ) or return;
+        my $uri = URI->new($url);
+        my @parts = $uri->path_segments;
+        my $file = $parts[-1];  # everything after the last / in the URL
+        if ( -e $file && $dir && -d $dir ) {
+            $log->audit("moving file $file to $dir" );
+            move $file, "$dir/$file";
+            return 1;
+        };
+    };
 
     my $r;
     eval {

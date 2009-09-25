@@ -264,6 +264,14 @@ SKIP: {
         'file_get'
     );
 
+    ok( $util->file_get(
+            url   => "http://mail-toaster.org/etc/maildrop-qmail-domain",
+            dir   => $tmp,
+            debug => 0,
+        ),
+        'file_get'
+    );
+
     #    print getcwd . "\n";
     #    ok( $util->file_get(
     #            url   => "http://mail-toaster.org/Mail-Toaster.tar.gz",
@@ -294,7 +302,7 @@ my $wheel = `$grep wheel /etc/group` ? 'wheel' : 'root';
 SKIP: {
     skip "the temp file for file_ch* is missing!", 4 if ( !-f $rwtest );
 
-    # try one that should work
+    # this one should work
     ok( $util->chown(
             file  => $rwtest,
             uid   => $uid,

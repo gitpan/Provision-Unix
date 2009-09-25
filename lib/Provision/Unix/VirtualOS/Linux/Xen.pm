@@ -422,14 +422,16 @@ sub create_console_user {
     my $username = $self->get_console_username();
     my $ve_home = $self->get_ve_home();
     my $ve_name = $self->get_ve_name();
+    my $debug   = $vos->{debug};
 
     if ( ! $user->exists( $username ) ) { # see if user exists
-        $user->create_group( group => $username );
+        $user->create_group( group => $username, debug => $debug );
         $user->create(
             username => $username,
             password => $vos->{password},
             homedir  => $ve_home,
             shell    => '',
+            debug    => $debug,
         )
         or return $prov->error( "unable to create console user $username", fatal => 0 ); 
         $prov->audit("created console user account");
@@ -528,11 +530,12 @@ sub destroy_console_user {
         $user->destroy(
             username => $username,
             homedir  => $ve_home,
+            debug    => 0,
         )
         or return $prov->error( "unable to destroy console user $username", fatal => 0 ); 
         $prov->audit( "deleted system user $username" );
 
-        $user->destroy_group( group => $username, fatal => 0 );
+        $user->destroy_group( group => $username, fatal => 0, debug => 0 );
     };   
 
     $prov->audit( "deleted system user $username" );
@@ -787,22 +790,28 @@ sub get_ve_config_path {
 
 sub get_fs_root {
     my $self = shift;
-    my $ve_home = $self->get_ve_home( shift );
+    my @caller = caller;
+    my $ve_home = $self->get_ve_home( shift )
+        or return $prov->error( "VE name unset when called by $caller[0] at $caller[2]");
     my $fs_root = "$ve_home/mnt";
     return $fs_root;
 };
 
 sub get_ve_home {
     my $self = shift;
-    my $ve_name = $self->get_ve_name( shift );
+    my @caller = caller;
+    my $ve_name = $self->get_ve_name( shift )
+        or return $prov->error( "VE name unset when called by $caller[0] at $caller[2]");
     my $homedir = "$vos->{disk_root}/$ve_name";
     return $homedir;
 };
 
 sub get_ve_name {
     my $self = shift;
-    my $ctid = $vos->{name} || shift or return $prov->error( "missing VE name");
-       $ctid .= '.vm';  # TODO: make this a config file option
+    my @caller = caller;
+    my $ctid = shift || $vos->{name}
+        or return $prov->error( "missing VE name when called by $caller[0] at $caller[2]");
+    $ctid .= '.vm';  # TODO: make this a config file option
     return $ctid;
 };
 
@@ -1162,23 +1171,21 @@ sub is_valid_template {
     my $template = shift || $vos->{template} or return;
 
     my $template_dir = $self->get_template_dir();
-    if ( -f "$template_dir/$template.tar.gz" ) {
-        return $template;
-    }
+    return $template if -f "$template_dir/$template.tar.gz";
 
     # is $template a URL?
-    my ( $protocol, $host, $path, $file )
-        = $template
-        =~ /^((http[s]?|rsync):\/)?\/?([^:\/\s]+)((\/\w+)*\/)([\w\-\.]+[^#?\s]+)(.*)?(#[\w\-]+)?$/;
-    if ( $protocol && $protocol =~ /http|rsync/ ) {
-        $prov->audit("fetching $file with $protocol");
+    if ( $template =~ /http|rsync/ ) {
+        $prov->audit("fetching $template");
+        my $uri = URI->new($template);
+        my @segments = $uri->path_segments;
+        my @path_bits = grep { /\w/ } @segments;  # ignore empty fields
+        my $file = $segments[-1];
 
-        # TODO
-
-        return $prov->error( 'template does not exist and programmers have not yet written the code to retrieve templates via URL',
-            fatal => 0,
-        );
+        $util->file_get( url => $template, dir => $template_dir, fatal => 0, debug => 0 );
+        return $file if -f "$template_dir/$file";
     }
+
+    return $template if -f "$template_dir/$template.tar.gz";
 
     return $prov->error( "template '$template' does not exist and is not a valid URL",
         debug => $vos->{debug},

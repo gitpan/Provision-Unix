@@ -1,6 +1,6 @@
 package Provision::Unix::User::Linux;
 
-our $VERSION = '0.14';
+our $VERSION = '0.17';
 
 use warnings;
 use strict;
@@ -45,9 +45,7 @@ sub new {
 }
 
 sub create {
-
     my $self = shift;
-
     my %p = validate(
         @_,
         {   'username' => { type => SCALAR },
@@ -65,7 +63,7 @@ sub create {
         }
     );
 
-    my $debug = $p{'debug'};
+    my $debug    = $p{debug};
     my $username = $p{username};
     my $password = $p{password};
     $prov->audit("creating user '$username' on $OSNAME");
@@ -238,22 +236,20 @@ sub exists {
             fatal => 0,
         );
 
-    restart_nscd();
-
     $username = lc $username;
 
     if ( -f '/etc/passwd' ) {
         my $exists = `grep '^$username:' /etc/passwd`; 
-        if ($exists) {
-            chomp $exists;
-            $prov->audit("\t'$username' exists (passwd: $exists)");
-            return $exists;
-        }
-        return;
+        return if ! $exists;
+        chomp $exists;
+        $prov->audit("\t'$username' exists (passwd: $exists)");
+        return $exists;
     }
 
-    my $uid = getpwnam $username
-        or return $prov->error("could not find user $user", fatal => 0 );
+    restart_nscd();
+
+    my $uid = getpwnam $username;
+    return $prov->error("could not find user $user", fatal => 0 ) if ! defined $uid;
 
     $prov->audit("'$username' exists (uid: $uid)");
     $self->{uid} = $uid;
@@ -264,23 +260,22 @@ sub exists_group {
     my $self = shift;
     my $group = shift || $user->{group} || $prov->error( "missing group" );
 
-    restart_nscd();
-
     if ( -f '/etc/group' ) {
         my $exists = `grep '^$group:' /etc/group`;
-        if ( $exists ) {
-            my $gid = getgrnam($group) || 1;
-            $prov->audit("found group $group at gid $gid");
-            return $gid;
-        };
-    }
+        return if ! $exists;
 
-    my $gid = getgrnam($group);
-    if ( $gid ) {
+        my (undef, undef, $gid) = split /:/, $exists;
         $prov->audit("found group $group at gid $gid");
         return $gid;
     };
-    return;
+
+    restart_nscd();
+
+    my $gid = getgrnam($group);
+    if ( defined $gid ) {
+        $prov->audit("found group $group at gid $gid");
+        return $gid;
+    };
 }
 
 sub modify {
@@ -373,7 +368,7 @@ sub restart_nscd {
     $nscd = $util->find_bin( bin => 'nscd', debug => 0 );
     return if ! -x $nscd;
 
-    `kill $pid`;
+    `killall -w nscd`;
     `$nscd`;
     sleep 1; # give the daemon a chance to get started
 

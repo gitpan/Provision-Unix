@@ -1,6 +1,17 @@
 Revision history for Provision-Unix
 
-0.67 
+0.68 Sep 24, 2009
+  - Xen get_fs_root method failed to pass $name argument
+  - report errors in P:U:V:L:X:get_fs_* methods
+  - P:U:User:Linux::exists* methods failed for and uig/gid of zero
+  - P:U:V, added @std_opts and %std_opts, removing 75 lines of redundant code
+  - replace curl with $util->file_get to fetch kernel modules in P:U:V:L.
+  - added dir param to $util->file_get, moves d/l file to that dir
+  - use killall to kill nscd, the pid in the pidfile is oft stale
+  - added LWP method in $util->file_get if LWP::Simple and URI are installed
+  - reworked the template fetching logic to be simpler
+
+0.67 Sep 19, 2009
   - clean up coding style.
   - whittled out 500 lines of code from P:U:Utility
   - fixed bug in OpenVZ destroy, wasn't detecting suspended config files

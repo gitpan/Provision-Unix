@@ -16,6 +16,7 @@ requires         'Getopt::Long'      => 2.37;
 requires         'Params::Validate'  => .8;
 requires         'Digest::MD5'       => 1;
 requires         'LWP::UserAgent'    => 0;
+requires         'URI'               => 0;
 
 test_requires    'Test::More'        => 0;
 
@@ -31,7 +32,6 @@ recommends        'Proc::ProcessTable'  => 1;
 recommends        'Apache::Admin::Config' => .9;
 recommends        'JSON::XS'            => 0;
 recommends        'NicTool'             => 0;
-recommends        'URI'                 => 0;
 
 feature             'JSON Provisioning Agent',
                         -default          => 1,

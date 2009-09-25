@@ -1,6 +1,6 @@
 package Provision::Unix;
 
-our $VERSION = '0.67';
+our $VERSION = '0.68';
 
 use warnings;
 use strict;
@@ -90,7 +90,7 @@ sub dump_errors {
     foreach ( @{ $self->{errors} } ) {
         $i++;
         next if $i < $last_line;
-        print STDERR "ERROR: '$_->{errmsg}' occurred at $_->{errloc}\n";
+        print STDERR "ERROR: '$_->{errmsg}' \t\t at $_->{errloc}\n";
     };
     $self->{last_error} = $i;
     return;

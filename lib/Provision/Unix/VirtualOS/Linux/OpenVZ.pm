@@ -959,26 +959,26 @@ sub _is_valid_template {
 
     my $template_dir = $self->{prov}{config}{ovz_template_dir} || '/vz/template/cache';
 
-    if ( $template =~ /http/ ) {
+    if ( $template =~ /^http/ ) {
 
         my $uri = URI->new($template);
         my @segments = $uri->path_segments;
-        my @path_bits = grep { /\w/ } @segments;
-        my $file = $path_bits[-1];
+        my @path_bits = grep { /\w/ } @segments;  # ignore empty fields
+        my $file = $segments[-1];
 
         $prov->audit("fetching $file from " . $uri->host);
 
-        my $http_response = $vos->get_template( 
-            v_type => 'ovz',
-            repo => $uri->host,
-            template => $file,
+        $util->file_get(
+            url   => $template,
+            dir   => $template_dir,
+            fatal => 0,
+            debug => 0,
         );
-        if ( $http_response !~ /200|304/ ) {
-            $prov->error( "HTTP error $http_response: failed to retrieve $template.", fatal => 0 );
-        };
-        return $file if -f "$template_dir/$file.tar.gz";
+        return $file if -f "$template_dir/$file";
     }
-    return $template if -f "$template_dir/$template.tar.gz";
+    else {
+        return $template if -f "$template_dir/$template.tar.gz";
+    }
 
     return $prov->error( "template '$template' does not exist and is not a valid URL",
         debug => $vos->{debug},

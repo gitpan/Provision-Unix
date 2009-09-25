@@ -8,6 +8,7 @@ use Test::More;
 
 use lib "lib";
 use Provision::Unix;
+use Provision::Unix::User;
 use Provision::Unix::VirtualOS;
 
 my $prov = Provision::Unix->new( debug => 0 );
@@ -68,15 +69,6 @@ if ( $virt_type =~ /virtuozzo|ovz|openvz|xen|ezjail/ ) {
             $template_that_exists = $sorted[0]->{name} if scalar @sorted > 0;
         };
         $template_that_exists ||= $preferred[0]->{name};
-    };
-
-    ok( $template_that_exists, "template chosen: $template_that_exists") or exit;
-    if ( ! -e "$template_dir/$template_that_exists.tar.gz" ) {
-        $vos->get_template( 
-            template => $template_that_exists, 
-            repo     => 'spry-ovz.templates.int.spry.com',
-            v_type   => 'openvz',
-        );
     };
 };
 

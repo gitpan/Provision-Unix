@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux;
 
-our $VERSION = '0.22';
+our $VERSION = '0.23';
 
 use File::Copy;
 use File::Path;
@@ -82,9 +82,13 @@ sub install_kernel_modules {
 # fuse modules not yet available by sysadmin team, 2009.08.20 - mps
 #    foreach my $mod ( qw/ modules module-fuse headers / ) {
             next if $mod eq 'headers' && ! "$fs_root/usr/src";
-            my $cmd = "curl -s $url/xen-$mod-$version.tar.gz | tar -zxf - -C $fs_root";
-            print "cmd: $cmd\n" and next if $p{test_mode};
-            $util->syscmd( cmd => $cmd, fatal => 0, debug => 0 );
+            my $file = "xen-$mod-$version.tar.gz";
+            $util->file_get( url => "$url/$file", debug => 0 ) or return;
+            $util->syscmd( cmd => "tar -zxpf $file -C $fs_root" , debug => 0 );
+            unlink $file;
+            #my $cmd = "curl -s $url/xen-$mod-$version.tar.gz | tar -zxf - -C $fs_root";
+            #print "cmd: $cmd\n" and next if $p{test_mode};
+            #$util->syscmd( cmd => $cmd, fatal => 0, debug => 0 );
         };
         chdir "/home/xen";
     };
@@ -93,8 +97,6 @@ sub install_kernel_modules {
     unlink "$fs_root/.bash_history" if -e "$fs_root/.bash_history";
     unlink "$fs_root/root/.bash_history" if -e "$fs_root/root/.bash_history";
     return 1;
-
-#   $util->syscmd( cmd => "depmod -a -b $fs_root $version" );
 };
 
 sub set_rc_local {

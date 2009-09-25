@@ -3,7 +3,7 @@ package Provision::Unix::VirtualOS;
 use warnings;
 use strict;
 
-our $VERSION = '0.36';
+our $VERSION = '0.37';
 
 use Data::Dumper;
 use English qw( -no_match_vars );
@@ -16,6 +16,13 @@ use lib 'lib';
 use Provision::Unix::Utility;
 
 my ($prov, $util);
+my @std_opts = qw/ test_mode debug fatal /;
+my %std_opts = (
+    test_mode => { type => BOOLEAN, optional => 1 },
+    debug     => { type => BOOLEAN, optional => 1, default => 1 },
+    fatal     => { type => BOOLEAN, optional => 1, default => 1 },
+);
+
 
 sub new {
 
@@ -73,43 +80,32 @@ sub create_virtualos {
 #            : searchdomain -
 
     my $self = shift;
+    my @opt_scalars = qw/ hostname disk_root disk_size ram config 
+                    template password nameservers searchdomain ssh_key
+                    kernel_version mac_address /;
+    my %opt_scalars = map { $_ => { type => SCALAR, optional => 1 } } @opt_scalars;
+
     my %p = validate(
         @_,
-        {   name           => { type => SCALAR },
-            ip             => { type => SCALAR },
-            hostname       => { type => SCALAR, optional => 1 },
-            disk_root      => { type => SCALAR, optional => 1 },
-            disk_size      => { type => SCALAR, optional => 1 },
-            ram            => { type => SCALAR, optional => 1 },
-            config         => { type => SCALAR, optional => 1 },
-            template       => { type => SCALAR, optional => 1 },
-            password       => { type => SCALAR, optional => 1 },
-            ssh_key        => { type => SCALAR, optional => 1 },
-            nameservers    => { type => SCALAR, optional => 1 },
-            searchdomain   => { type => SCALAR, optional => 1 },
-            kernel_version => { type => SCALAR, optional => 1 },
-            mac_address    => { type => SCALAR, optional => 1 },
-            test_mode      => { type => BOOLEAN, optional => 1 },
-            debug          => { type => BOOLEAN, optional => 1, default => 1 },
-            fatal          => { type => BOOLEAN, optional => 1, default => 1 },
+        {   name   => { type => SCALAR },
+            ip     => { type => SCALAR },
+            %opt_scalars,
+            %std_opts,
         }
     );
 
     $prov->audit( "initializing request to create virtual os '$p{name}'");
 
-    $self->{name}        = $self->set_name( $p{name} );
-    $self->{ip}          = $self->get_ips( $p{ip} ) or return;
+    $self->{name} = $self->set_name( $p{name} );
+    $self->{ip}   = $self->get_ips( $p{ip} ) or return;
+
+    foreach ( @opt_scalars, @std_opts ) {
+        $self->{$_} = $p{$_} if defined $p{$_};
+    };
 
     if ( $p{nameservers} ) {
         $prov->audit( "getting nameserver IP list");
         $self->{nameservers} = $self->get_ips( $p{nameservers} );
-    };
-
-    foreach ( qw/ hostname disk_root disk_size ram config
-                  template password ssh_key searchdomain 
-                  kernel_version mac_address
-                  fatal debug test_mode / ) {
-        $self->{$_} = $p{$_} if defined $p{$_};
     };
 
     my ($delegate) = $self->{vtype} =~ m/^(.*)=HASH/;
@@ -123,25 +119,21 @@ sub destroy_virtualos {
     # Purpose    : destroy a virtual OS instance
     # Returns    : true or undef on failure
     # Parameters :
-    #   Required : name      - name/ID of the virtual OS
-    #   Optional : test_mode -
+    #   Required : name  - name/ID of the virtual OS
 
     my $self = shift;
-
     my %p = validate(
         @_,
         {   'name'      => { type => SCALAR },
             'disk_root' => { type => SCALAR,  optional => 1 },
-            'test_mode' => { type => BOOLEAN, optional => 1 },
-            'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
-            'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
+            %std_opts
         }
     );
 
     my $name = $self->set_name( $p{name} );
     $prov->audit("initializing request to destroy virtual os '$name'");
 
-    foreach ( qw/ test_mode debug fatal / ) {
+    foreach ( @std_opts ) {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
@@ -158,17 +150,14 @@ sub start_virtualos {
     #   Optional : test_mode -
 
     my $self = shift;
-
     my %p = validate(
         @_,
-        {   'name'      => { type => SCALAR },
-            'test_mode' => { type => BOOLEAN, optional => 1 },
-            'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
-            'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
+        {  'name' => { type => SCALAR },
+            %std_opts
         }
     );
 
-    foreach ( qw/ name test_mode debug fatal / ) {
+    foreach ( 'name', @std_opts ) {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
@@ -188,14 +177,12 @@ sub stop_virtualos {
 
     my %p = validate(
         @_,
-        {   'name'      => { type => SCALAR },
-            'test_mode' => { type => BOOLEAN, optional => 1 },
-            'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
-            'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
+        {   'name' => { type => SCALAR },
+            %std_opts,
         }
     );
 
-    foreach ( qw/ name test_mode debug fatal / ) {
+    foreach ( 'name', @std_opts ) {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
@@ -209,20 +196,17 @@ sub restart_virtualos {
     # Returns    : true or undef on failure
     # Parameters :
     #   Required : name      - name/ID of the virtual OS
-    #   Optional : test_mode -
 
     my $self = shift;
 
     my %p = validate(
         @_,
         {   'name'      => { type => SCALAR },
-            'test_mode' => { type => BOOLEAN, optional => 1 },
-            'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
-            'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
+            %std_opts
         }
     );
 
-    foreach ( qw/ name test_mode debug fatal / ) {
+    foreach ( 'name', @std_opts ) {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
@@ -242,15 +226,13 @@ sub disable_virtualos {
 
     my %p = validate(
         @_,
-        {   'name'      => { type => SCALAR },
-            'disk_root' => { type => SCALAR,  optional => 1 },
-            'test_mode' => { type => BOOLEAN, optional => 1 },
-            'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
-            'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
+        {   name      => { type => SCALAR },
+            disk_root => { type => SCALAR,  optional => 1 },
+            %std_opts
         }
     );
 
-    foreach ( qw/ name test_mode debug fatal disk_root / ) {
+    foreach ( qw/ name disk_root /, @std_opts ) {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
@@ -270,15 +252,13 @@ sub enable_virtualos {
 
     my %p = validate(
         @_,
-        {   'name'      => { type => SCALAR },
-            'disk_root' => { type => SCALAR,  optional => 1 },
-            'test_mode' => { type => BOOLEAN, optional => 1 },
-            'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
-            'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
+        {   name      => { type => SCALAR },
+            disk_root => { type => SCALAR,  optional => 1 },
+            %std_opts
         }
     );
 
-    foreach ( qw/ name test_mode debug fatal disk_root / ) {
+    foreach ( qw/ name disk_root /, @std_opts ) {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
@@ -292,33 +272,23 @@ sub modify_virtualos {
     # Returns    : true or undef on failure
     # Parameters :
     #   Required : name      - name/ID of the virtual OS
-    #   Optional : test_mode -
 
     my $self = shift;
+    my @opt_scalars = qw/ ip hostname disk_root disk_size config 
+                    ssh_key template password nameservers searchdomain /;
+    my %opt_scalars = map { $_ => { type => SCALAR, optional => 1 } } @opt_scalars;
 
     my %p = validate(
         @_,
-        {   'name'         => { type => SCALAR },
-            'ip'           => { type => SCALAR, optional => 1 },
-            'hostname'     => { type => SCALAR, optional => 1 },
-            'disk_root'    => { type => SCALAR, optional => 1 },
-            'disk_size'    => { type => SCALAR, optional => 1 },
-            'config'       => { type => SCALAR, optional => 1 },
-            'template'     => { type => SCALAR, optional => 1 },
-            'password'     => { type => SCALAR, optional => 1 },
-            'nameservers'  => { type => SCALAR, optional => 1 },
-            'searchdomain' => { type => SCALAR, optional => 1 },
-            'test_mode'    => { type => BOOLEAN, optional => 1 },
-            'debug' => { type => BOOLEAN, optional => 1, default => 1 },
-            'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
+        {   name   => { type => SCALAR },
+            %opt_scalars,
+            %std_opts,
         }
     );
 
     $prov->audit("initializing request to modify container '$p{name}'");
 
-    foreach ( qw/ name hostname disk_root disk_size config
-                  template password ssh_key searchdomain
-                  fatal debug test_mode / ) {
+    foreach ( 'name', @opt_scalars, @std_opts ) {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
@@ -348,35 +318,27 @@ sub reinstall_virtualos {
 #            : searchdomain -
 
     my $self = shift;
+    my @opt_scalars = qw/ hostname disk_root disk_size ram config 
+                    template password nameservers searchdomain ssh_key
+                    kernel_version mac_address /;
+    my %opt_scalars = map { $_ => { type => SCALAR, optional => 1 } } @opt_scalars;
 
     my %p = validate(
         @_,
-        {   'name'         => { type => SCALAR },
-            'template'     => { type => SCALAR },
-            'ip'           => { type => SCALAR },
-            'hostname'     => { type => SCALAR | UNDEF, optional => 1 },
-            'disk_root'    => { type => SCALAR | UNDEF, optional => 1 },
-            'disk_size'    => { type => SCALAR | UNDEF, optional => 1 },
-            'ram'          => { type => SCALAR | UNDEF, optional => 1 },
-            'config'       => { type => SCALAR | UNDEF, optional => 1 },
-            'password'     => { type => SCALAR | UNDEF, optional => 1 },
-            'nameservers'  => { type => SCALAR | UNDEF, optional => 1 },
-            'searchdomain' => { type => SCALAR | UNDEF, optional => 1 },
-
-            'test_mode' => { type => BOOLEAN, optional => 1 },
-            'debug' => { type => BOOLEAN, optional => 1, default => 1 },
-            'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
+        {   name    => { type => SCALAR },
+            ip      => { type => SCALAR },
+            %opt_scalars,
+            %std_opts,
         }
     );
 
     $prov->audit( "initializing request to reinstall ve '$p{name}'");
 
-    foreach ( qw/ debug fatal test_mode 
-        name template hostname disk_root disk_size ram config password
-        searchdomain / ) {
+    foreach ( 'name', @opt_scalars, @std_opts ) {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
+    $self->{name}        = $self->set_name( $p{name} );
     $self->{ip}          = $self->get_ips( $p{ip} ) or return;
     $self->{nameservers} = $self->get_ips( $p{nameservers} ) if $p{nameservers};
 
@@ -386,26 +348,20 @@ sub reinstall_virtualos {
 
 sub upgrade_virtualos {
     my $self = shift;
+    my @req_scalars = qw/ name hostname disk_size ram config template ip /;
+    my %req_scalars = map { $_ => { type => SCALAR } } @req_scalars;
+
     my %p = validate(
         @_,
-        {   'name'         => { type => SCALAR },
-            'ram'          => { type => SCALAR },
-            'disk_size'    => { type => SCALAR },
-            'template'     => { type => SCALAR },
-            'hostname'     => { type => SCALAR },
-            'config'       => { type => SCALAR },
-            'ip'           => { type => SCALAR },
-            'disk_root'    => { type => SCALAR|UNDEF, optional => 1 },
-            'test_mode'    => { type => BOOLEAN, optional => 1 },
-            'debug' => { type => BOOLEAN, optional => 1, default => 1 },
-            'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
+        {   %req_scalars,
+            disk_root    => { type => SCALAR|UNDEF, optional => 1 },
+            %std_opts,
         }
     );
 
     $prov->audit( "initializing request to upgrade ve '$p{name}'");
 
-    foreach ( qw/ debug fatal test_mode 
-        name ram disk_root disk_size template hostname config / ) {
+    foreach ( qw/ disk_root /, @req_scalars, @std_opts ) {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
@@ -420,15 +376,13 @@ sub mount_disk_image {
         @_,
         {   name      => { type => SCALAR },
             refresh   => { type => BOOLEAN, optional => 1, default => 1 },
-            test_mode => { type => BOOLEAN, optional => 1 },
-            debug     => { type => BOOLEAN, optional => 1, default => 1 },
-            fatal     => { type => BOOLEAN, optional => 1, default => 1 },
+            %std_opts,
         }
     );
 
     $prov->audit( "initializing request to mount ve '$p{name}'");
 
-    foreach ( qw/ name refresh test_mode debug fatal / ) {
+    foreach ( qw/ name refresh /, @std_opts ) {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
@@ -441,15 +395,13 @@ sub unmount_disk_image {
         @_,
         {   name      => { type => SCALAR },
             refresh   => { type => BOOLEAN, optional => 1, default => 1 },
-            test_mode => { type => BOOLEAN, optional => 1 },
-            debug     => { type => BOOLEAN, optional => 1, default => 1 },
-            fatal     => { type => BOOLEAN, optional => 1, default => 1 },
+            %std_opts,
         }
     );
 
     $prov->audit( "initializing request to unmount ve '$p{name}'");
 
-    foreach ( qw/ name refresh test_mode debug fatal / ) {
+    foreach ( qw/ name refresh /, @std_opts ) {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
@@ -468,13 +420,12 @@ sub gen_config {
             config    => { type => SCALAR },
             hostname  => { type => SCALAR },
             ip        => { type => SCALAR },
-            debug     => { type => BOOLEAN, optional => 1, default => 1 },
-            fatal     => { type => BOOLEAN, optional => 1, default => 1 },
+            %std_opts,
         }
     );
 
-    foreach ( qw/ name ram disk_size disk_root template config hostname
-        debug fatal / ) 
+    foreach ( qw/ name ram disk_size disk_root template config hostname /, 
+        @std_opts ) 
     {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
@@ -489,12 +440,11 @@ sub get_console {
     my %p = validate( 
         @_, 
         {   name  => { type => SCALAR | UNDEF,  optional => 1 },
-            fatal => { type => BOOLEAN | UNDEF,  optional => 1 },
-            debug => { type => BOOLEAN | UNDEF,  optional => 1 },
+            %std_opts,
         }
     );
 
-    foreach ( qw/ name fatal debug / ) {
+    foreach ( qw/ name /, @std_opts ) {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
@@ -506,7 +456,7 @@ sub get_fs_root {
     my $name = shift || $self->{name};
     my $fs_root;
     if ( $self->{vtype}->can('get_fs_root') ) {
-        return $self->{vtype}->get_fs_root();
+        return $self->{vtype}->get_fs_root( $name );
     }
     return $self->{vtype}->get_ve_home( $name );
 };
@@ -541,13 +491,11 @@ sub get_status {
     my %p = validate(
         @_,
         {   name      => { type => SCALAR | UNDEF,  optional => 1 },
-            test_mode => { type => BOOLEAN, optional => 1 },
-            debug     => { type => BOOLEAN, optional => 1, default => 1 },
-            fatal     => { type => BOOLEAN, optional => 1, default => 1 },
+            %std_opts,
         }
     );
 
-    foreach ( qw/ name test_mode debug fatal / ) {
+    foreach ( qw/ name /, @std_opts ) {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
@@ -557,12 +505,10 @@ sub get_status {
 sub get_template_dir {
 
     my $self = shift;
-
     my %p = validate(
         @_,
         {   v_type => { type => SCALAR  },
-            debug  => { type => BOOLEAN, optional => 1, default => 1 },
-            fatal  => { type => BOOLEAN, optional => 1, default => 1 },
+            %std_opts,
         }
     );
 
@@ -585,70 +531,21 @@ sub get_template_dir {
         );
 };
 
-sub get_template {
-    my $self = shift;
-    my %p = validate( @_,
-        {   v_type    => { type => SCALAR  },
-            template  => { type => SCALAR  },
-            repo      => { type => SCALAR  },
-            debug     => { type => BOOLEAN, optional => 1, default => 1 },
-            fatal     => { type => BOOLEAN, optional => 1, default => 1 },
-        }
-    );
-
-    my $v_type = $p{v_type};
-    my $template_name = $p{template};
-    $template_name =~ s/\.tar\.gz$//g;  # strip it suffix if passed in
-
-    my $template_dir = $self->get_template_dir( v_type=> $v_type ) 
-        or return $prov->error( 'unable to determine template directory',
-            fatal  => $p{fatal},
-            debug  => $p{debug},
-        );
-
-    my $template_file = "$template_dir/$template_name.tar.gz";
-
-    if ( ! $util->is_writable( file => $template_file, fatal => 0, debug=>0 ) ) {
-        return $prov->error("insufficient permission to store template at $template_file",
-            fatal  => $p{fatal},
-            debug  => $p{debug},
-        );
-    };
-
-    my $url = "http://$p{repo}/$template_name.tar.gz";
-#warn "url: $url\n";
-
-    $prov->audit("fetching template from $url");
-    my $response = LWP::Simple::mirror($url, $template_file);
-
-    if ( ! -e $template_file ) {
-        return $prov->error( "received HTTP response $response but failed to fetch OS template from $url",
-            fatal  => $p{fatal},
-            debug  => $p{debug},
-        );
-    }
-
-    $prov->error( "OS template not found on template server! ($url)", fatal => $p{fatal} ) if $response == 404;
-    $prov->audit( "result 304: $template_file is up-to-date" ) if $response == 304;
-    $prov->audit( "result 200: cached template as $template_file" ) if $response == 200;
-    return $response; 
-};
-
 sub get_template_list {
     my $self = shift;
     my %p = validate(
         @_,
-        {   'v_type'    => { type => SCALAR  },
-            'url'       => { type => SCALAR,  optional => 1 },
-            'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
-            'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
+        {   v_type    => { type => SCALAR },
+            url       => { type => SCALAR, optional => 1 },
+            %std_opts,
         }
     );
 
+    my $url    = $p{url};
     my $v_type = $p{v_type};
     my @templates;
 
-    if ( ! $p{url} ) {
+    if ( ! $url ) {
         my $template_dir = $self->get_template_dir( v_type=> $v_type ) 
             or return $prov->error( 'unable to determine template directory',
                 fatal  => $p{fatal},
@@ -662,9 +559,8 @@ sub get_template_list {
         };
 
         return \@templates if scalar @templates;
+        return;
     };
-
-    my $url = $p{url} || 'http://spry-ovz.templates.int.spry.com/';
 
     my $ua = LWP::UserAgent->new( timeout => 10);
     my $response = $ua->get($url);
@@ -715,15 +611,13 @@ sub set_hostname {
     my $self = shift;
     my %p = validate(
         @_,
-        {   'name'      => { type => SCALAR },
-            'hostname'  => { type => SCALAR },
-            'test_mode' => { type => BOOLEAN, optional => 1 },
-            'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
-            'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
+        {   'name'     => { type => SCALAR },
+            'hostname' => { type => SCALAR },
+            %std_opts,
         }
     );
 
-    foreach ( qw/ name hostname test_mode fatal debug / ) {
+    foreach ( qw/ name hostname /, @std_opts ) {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
@@ -741,12 +635,10 @@ sub set_nameservers {
     my $self = shift;
     my %p = validate(
         @_,
-        {   'name'         => { type => SCALAR, optional => 1 },
-            'nameservers'  => { type => SCALAR, optional => 1 },
-            'searchdomain' => { type => SCALAR, optional => 1 },
-            'test_mode'    => { type => BOOLEAN, optional => 1 },
-            'debug' => { type => BOOLEAN, optional => 1, default => 1 },
-            'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
+        {   name         => { type => SCALAR, optional => 1 },
+            nameservers  => { type => SCALAR, optional => 1 },
+            searchdomain => { type => SCALAR, optional => 1 },
+            %std_opts,
         }
     );
 
@@ -789,21 +681,18 @@ sub set_password {
 
     my %p = validate(
         @_,
-        {   'name'      => { type => SCALAR },
-            'user'      => { type => SCALAR | UNDEF, optional => 1 },
-            'password'  => { type => SCALAR },
-            'disk_root' => { type => SCALAR,  optional => 1 },
-            'ssh_key'   => { type => SCALAR,  optional => 1 },
-            'test_mode' => { type => BOOLEAN, optional => 1 },
-            'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
-            'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
+        {   name      => { type => SCALAR },
+            password  => { type => SCALAR },
+            user      => { type => SCALAR | UNDEF, optional => 1 },
+            disk_root => { type => SCALAR,  optional => 1 },
+            ssh_key   => { type => SCALAR,  optional => 1 },
+            %std_opts,
         }
     );
 
     $self->{user} = $p{user} || 'root';
 
-    foreach ( qw/ name password ssh_key disk_root
-                  fatal debug test_mode / ) {
+    foreach ( qw/ name password ssh_key disk_root /, @std_opts ) {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
@@ -849,13 +738,11 @@ sub is_mounted {
         @_,
         {   name      => { type => SCALAR },
             refresh   => { type => BOOLEAN, optional => 1, default => 1 },
-            test_mode => { type => BOOLEAN, optional => 1 },
-            debug     => { type => BOOLEAN, optional => 1, default => 1 },
-            fatal     => { type => BOOLEAN, optional => 1, default => 1 },
+            %std_opts,
         }
     );
 
-    foreach ( qw/ name refresh test_mode debug fatal / ) {
+    foreach ( qw/ name refresh /, @std_opts ) {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
@@ -866,14 +753,12 @@ sub is_present {
     my $self = shift;
     my %p = validate(
         @_,
-        {   'name'      => { type => SCALAR },
-            'test_mode' => { type => BOOLEAN, optional => 1 },
-            'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
-            'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
+        {   name      => { type => SCALAR },
+            %std_opts,
         }
     );
 
-    foreach ( qw/ name test_mode debug fatal / ) {
+    foreach ( qw/ name /, @std_opts ) {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
@@ -884,14 +769,12 @@ sub is_running {
     my $self = shift;
     my %p = validate(
         @_,
-        {   'name'      => { type => SCALAR },
-            'test_mode' => { type => BOOLEAN, optional => 1 },
-            'debug'     => { type => BOOLEAN, optional => 1, default => 1 },
-            'fatal'     => { type => BOOLEAN, optional => 1, default => 1 },
+        {   name      => { type => SCALAR },
+            %std_opts
         }
     );
 
-    foreach ( qw/ name test_mode debug fatal / ) {
+    foreach ( qw/ name /, @std_opts ) {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
@@ -931,12 +814,7 @@ sub is_valid_ip {
 
 sub _get_virt_type {
     my $self = shift;
-    my %p = validate(
-        @_, { 
-            'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
-            'debug' => { type => BOOLEAN, optional => 1, default => 1 },
-        }
-    );
+    my %p = validate( @_, { %std_opts });
 
     my $debug = $p{debug};
     my $fatal = $p{fatal};
