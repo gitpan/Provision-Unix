@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::OpenVZ;
 
-our $VERSION = '0.38';
+our $VERSION = '0.39';
 
 use warnings;
 use strict;
@@ -960,7 +960,7 @@ sub _is_valid_template {
     my $template_dir = $self->{prov}{config}{ovz_template_dir} || '/vz/template/cache';
 
     if ( $template =~ /^http/ ) {
-
+        # EXAMPLE: http://templates.example.com/centos-5-i386-default.tar.gz
         my $uri = URI->new($template);
         my @segments = $uri->path_segments;
         my @path_bits = grep { /\w/ } @segments;  # ignore empty fields
@@ -974,9 +974,13 @@ sub _is_valid_template {
             fatal => 0,
             debug => 0,
         );
-        return $file if -f "$template_dir/$file";
+        if ( -f "$template_dir/$file" ) {
+            ($file) = $file =~ /^(.*)\.tar\.gz$/;
+            return $file;
+        };
     }
     else {
+        # EXAMPLE:   centos-5-i386-default
         return $template if -f "$template_dir/$template.tar.gz";
     }
 

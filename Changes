@@ -1,5 +1,9 @@
 Revision history for Provision-Unix
 
+0.69 Sep 25, 2009
+  - OpenVZ template fetching via URL needs to strip off .tar.gz from the
+    template filename before using it with vzctl create.
+
 0.68 Sep 24, 2009
   - Xen get_fs_root method failed to pass $name argument
   - report errors in P:U:V:L:X:get_fs_* methods
