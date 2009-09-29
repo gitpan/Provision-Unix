@@ -1,6 +1,6 @@
 package Provision::Unix;
 
-our $VERSION = '0.69';
+our $VERSION = '0.70';
 
 use warnings;
 use strict;
@@ -31,8 +31,8 @@ sub new {
         debug  => $p{debug},
         fatal  => $p{fatal},
         config => undef,
-        errors => [],          # runtime errors will get added to this array
-        audit  => [],          # status messages accumulate here
+        errors => [], # errors get appended here
+        audit  => [ 'launched at ' . time ], # status messages accumulate here
         last_audit => 0,
         last_error => 0,
     };
@@ -189,7 +189,8 @@ sub get_errors {
 
 sub get_last_error {
     my $self = shift;
-    return $self->{errors}[-1]->{errmsg};
+    return $self->{errors}[-1]->{errmsg} if scalar @{ $self->{errors} };
+    return;
 }
 
 sub get_version {

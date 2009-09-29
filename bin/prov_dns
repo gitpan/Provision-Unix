@@ -66,18 +66,18 @@ my $questions = {
 pod2usage( { -verbose => 3 } ) if $help;
 $prov->get_version() and exit if $version;
 
-$action ||= $util->ask( question=> $questions->{action}, default=>'create' );
+$action ||= $util->ask( $questions->{action}, default=>'create' );
 $action = lc($action);
 
 my %actions = map { $_ => 1 } qw/ create destroy /;
 pod2usage( { -verbose => 1 } ) if !$actions{$action};
 
-$zone ||= $util->ask( question=>"the zone name" );
+$zone ||= $util->ask( "the zone name" );
 $zone = lc($zone);
 
 my %types = map { $_ => 1 } qw/ zone a ptr ns mx txt srv cname aaaa /;
 while ( ! $types{$type} ) {
-    $type = $util->ask( question=>"the DNS entity would you like to $action:
+    $type = $util->ask( "the DNS entity would you like to $action:
 \t zone, A, PTR, NS, MX, TXT, SRV, CNAME, or AAAA" );
     $type = lc($type);
 };
@@ -103,31 +103,23 @@ sub dns_create {
         my @d = $util->get_the_date(debug=>0);
 
         if ( $prov->{config}{DNS}{server} ne 'nictool' ) {
-            $request{serial} =  $serial || $util->ask( 
-                question => $questions->{serial},  
+            $request{serial} =  $serial || $util->ask( $questions->{serial},  
                 default  => "$d[2]$d[1]$d[0]01" );
-            $request{ttl}    =  $ttl || $util->ask( 
-                question => $questions->{ttl},  
+            $request{ttl}    =  $ttl || $util->ask( $questions->{ttl},  
                 default  => $prov->{config}{DNS}{zone_ttl} );
-            $request{refresh} = $refresh || $util->ask( 
-                question => $questions->{refresh}, 
+            $request{refresh} = $refresh || $util->ask( $questions->{refresh}, 
                 default  => $prov->{config}{DNS}{zone_refresh} );
-            $request{retry}  =  $retry  || $util->ask( 
-                question => $questions->{retry},   
+            $request{retry}  =  $retry  || $util->ask( $questions->{retry},   
                 default  => $prov->{config}{DNS}{zone_retry}  );
-            $request{expire} =  $expire || $util->ask( 
-                question => $questions->{expire},  
+            $request{expire} =  $expire || $util->ask( $questions->{expire},  
                 default  => $prov->{config}{DNS}{zone_expire} );
-            $request{minimum} = $minimum || $util->ask( 
-                question => $questions->{minimum}, 
+            $request{minimum} = $minimum || $util->ask( $questions->{minimum}, 
                 default  => $prov->{config}{DNS}{zone_minimum} );
-            $request{nameserver} = $util->ask( 
-                question => $questions->{nameserver}, 
+            $request{nameserver} = $util->ask( $questions->{nameserver}, 
                 default  => "a.ns.$zone");
         }
         else {
-            $request{template} = $template || $util->ask( 
-                question => $questions->{template}, 
+            $request{template} = $template || $util->ask( $questions->{template},
                 default  => $prov->{config}{NicTool}{template} );
         }
 
@@ -136,26 +128,22 @@ sub dns_create {
     
     # create a zone record (A, AAAA, PTR, NS, MX, TXT, SRV, CNAME)
     $request{type}    = uc($type);
-    $request{name}    = $name || $util->ask( question => $questions->{name} );
+    $request{name}    = $name || $util->ask( $questions->{name} );
     if ( lc( $prov->{config}{DNS}{server} ) ne 'nictool' ) {
         $request{name} = $dns->fully_qualify( $zone, $request{name} );
     }
-    $request{address} = $name || $util->ask( question => $questions->{address} );
-    $request{ttl}     = $name || $util->ask( 
-            question => $questions->{ttl},
+    $request{address} = $name || $util->ask( $questions->{address} );
+    $request{ttl}     = $name || $util->ask( $questions->{ttl},
             default  => $prov->{config}{DNS}{ttl} );
 
     if ( $type =~ /mx|srv/i ) {
-        $request{weight} = $weight || $util->ask( 
-            question => $questions->{weight},
+        $request{weight} = $weight || $util->ask( $questions->{weight},
             default => $prov->{config}{DNS}{weight} );
     }
     elsif ($type =~ /srv/i ) {
-        $request{priority} = $priority || $util->ask(
-            question => $questions->{priority},
-            default  => 5 );
-        $request{port} = $port || $util->ask(
-            question => $questions->{port} )
+        $request{priority} = $priority || $util->ask( $questions->{priority},
+            default => 5 );
+        $request{port} = $port || $util->ask( $questions->{port} )
             or $prov->error( 'SRV records require a port' );
     }
 

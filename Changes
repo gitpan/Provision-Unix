@@ -1,5 +1,18 @@
 Revision history for Provision-Unix
 
+0.70 Sep 29, 2009
+  - updated API for $util->ask
+  - bin/install_deps no longer dependent on P:U:Utility
+  - dropped Solaris Container stubs
+  - prov_user no longer requires a uid/gid to succeed
+  - added method stubs in P:U:V:F:Jail for methods required to pass tests
+  - added note in P:U:V:F:Jails that it's not supported yet. (prevent test
+    suite from running).
+  - added method P:U:V:F:Ezjai::get_ve_home
+  - added enable/disable functions for prov_web & apache
+  - fail gracefully when reporting last error, if no errors exist
+  - overwrite /etc/rc.local when creating a new VE
+
 0.69 Sep 25, 2009
   - OpenVZ template fetching via URL needs to strip off .tar.gz from the
     template filename before using it with vzctl create.

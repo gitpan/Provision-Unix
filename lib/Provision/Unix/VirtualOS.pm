@@ -3,7 +3,7 @@ package Provision::Unix::VirtualOS;
 use warnings;
 use strict;
 
-our $VERSION = '0.37';
+our $VERSION = '0.38';
 
 use Data::Dumper;
 use English qw( -no_match_vars );
@@ -461,6 +461,16 @@ sub get_fs_root {
     return $self->{vtype}->get_ve_home( $name );
 };
 
+sub get_ve_home {
+    my $self = shift;
+    my $name = shift || $self->{name};
+    my $fs_root;
+    if ( $self->{vtype}->can('get_ve_home') ) {
+        return $self->{vtype}->get_ve_home( $name );
+    }
+    return;
+};
+
 sub get_ips {
     my $self      = shift;
     my $ip_string = shift;
@@ -856,10 +866,6 @@ sub _get_virt_type {
                 debug => $debug,
             );
         };
-    }
-    elsif ( lc( $OSNAME) eq 'solaris' ) {
-        require Provision::Unix::VirtualOS::Solaris::Container;
-        return Provision::Unix::VirtualOS::Solaris::Container->new( vos => $self );
     }
     elsif ( lc( $OSNAME) eq 'freebsd' ) {
         my $ezjail = $util->find_bin( bin => 'ezjail-admin', fatal => 0, debug => 0 );

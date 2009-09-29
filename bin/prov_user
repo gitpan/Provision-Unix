@@ -66,32 +66,29 @@ pod2usage( { -verbose => 1 } ) if !$actions{$action};
 #: $action->{'test'}    ? $user->test   ( prompt=>1 )
 
 sub user_create {
-    $user->{username} ||= $util->ask( question => 'Username' ) || die;
+    $user->{username} ||= $util->ask( 'Username' ) || die;
     $prov->error( "user exists",debug=>0) if $user->exists($user->{username});
-    $user->{password} ||= $util->ask( question => 'Password', password => 1 );
-    $user->{uid} ||= $util->ask( question => 'uid' ) || die;
-    $user->{gid} ||= $util->ask( question => 'gid' ) || die;
+    $user->{password} ||= $util->ask( 'Password', password => 1 );
+    $user->{uid} ||= $util->ask( 'uid' );
+    $user->{gid} ||= $util->ask( 'gid' );
     if ( $user->{gid} =~ /^[a-zA-Z]+$/ ) {
         my $gid = getgrnam($user->{gid});
         if ( ! $gid ) {
             $user->create_group(group=>$user->{gid}) 
-                if $util->ask( question=>'group does not exist, create it');
+                if $util->ask( 'group does not exist, create it');
             $gid = getgrnam($user->{gid}) || die;
             $user->{gid} = $gid;
         }
     }
-    $user->{shell} ||= $util->ask(
-        question => 'shell',
+    $user->{shell} ||= $util->ask( 'shell',
         default  => $conf->{User}{shell_default}
     );
-    $user->{homedir} ||= $util->ask(
-        question => 'homedir',
+    $user->{homedir} ||= $util->ask( 'homedir',
         default  => "$conf->{User}{home_base}/$user->{username}"
     );
-    $user->{gecos} ||= $util->ask( question => 'gecos' );
+    $user->{gecos} ||= $util->ask( 'gecos' );
     if ( $conf->{quota_enable} ) {
-        $user->{quota} ||= $util->ask(
-            question => 'quota',
+        $user->{quota} ||= $util->ask( 'quota',
             default  => $conf->{User}{quota_default}
         );
     }
@@ -111,9 +108,9 @@ sub user_create {
 };
 
 sub user_modify {
-    $user->{username} ||= $util->ask( question => 'Username' ) || die;
-    $user->{password} ||= $util->ask( question => 'Password', password => 1 );
-    $user->{ssh_key} ||= $util->ask( question => 'SSH public key' );
+    $user->{username} ||= $util->ask( 'Username' ) || die;
+    $user->{password} ||= $util->ask( 'Password', password => 1 );
+    $user->{ssh_key} ||= $util->ask( 'SSH public key' );
     $user->modify(
         username => $user->{username},
         password => $user->{password},
@@ -122,7 +119,7 @@ sub user_modify {
 
 sub user_destroy {
 
-    $user->{username} ||= $util->ask( question => 'Username' ) || die;
+    $user->{username} ||= $util->ask( 'Username' ) || die;
 
     $user->exists() or die "user $user->{username} does not exist\n";
     $user->_is_valid_request();
@@ -130,16 +127,16 @@ sub user_destroy {
 };
 
 sub group_create {
-    $user->{group} ||= $util->ask( question => 'Group' ) || die;
+    $user->{group} ||= $util->ask( 'Group' ) || die;
     $user->create_group( group=>$user->{group} );
 }
 
 sub group_destroy {
-    my $gid = $user->{gid} || $util->ask( question => 'gid' );
+    my $gid = $user->{gid} || $util->ask( 'gid' );
     if ( $gid ) {
         $user->{group} = getgrgid( $gid );
     }
-    my $group = $user->{group} || $util->ask( question => 'Group' ) || die;
+    my $group = $user->{group} || $util->ask( 'Group' ) || die;
     $gid   ||= getgrnam($group);
     $group = getgrnam($gid);
     die "invalid group or gid" if ( !$gid || ! $group);

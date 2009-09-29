@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::FreeBSD::Ezjail;
 
-our $VERSION = '0.09';
+our $VERSION = '0.10';
 
 use warnings;
 use strict;
@@ -72,6 +72,10 @@ sub create_virtualos {
 }
 
 sub is_present {
+    my $self = shift;
+    my $homedir = $self->get_ve_home();
+    return $homedir if -d $homedir;
+    return;
 };
 
 sub get_console {
@@ -79,6 +83,12 @@ sub get_console {
     my $ctid = $vos->{name};
     my $cmd = $util->find_bin( bin => 'ezjail-admin', debug => 0 );
     exec "$cmd console $ctid";
+};
+
+sub get_ve_home {
+    my $self = shift;
+    my $ctid = $vos->{name};
+    return "/usr/jails/$vos->{name}";
 };
 
 sub _get_jails_root {

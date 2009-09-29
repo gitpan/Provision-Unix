@@ -3,9 +3,9 @@ package Provision::Unix::Web::Apache;
 use strict;
 use warnings;
 
-our $VERSION = '0.05';
+our $VERSION = '0.08';
 
-#use Apache::ConfigFile;
+use Apache::ConfigFile;
 use Carp;
 use English qw( -no_match_vars );
 use Params::Validate qw( :all );
@@ -272,11 +272,14 @@ sub restart {
     }
 }
 
-sub restore {
+sub enable {
 
-    my ( $self, $vals ) = @_;
+    my $self = shift;
 
-    if ( $self->exists($vals) ) {
+    my %p = validate( @_, { request => { type => HASHREF } } );
+    my $vals = $p{'request'};
+
+    if ( $self->exists( request => $vals) ) {
         return {
             error_code => 400,
             error_desc => "Sorry, that virtual host is already enabled."
@@ -300,7 +303,7 @@ sub restore {
 
     $vals->{'disabled'} = 1;
 
-    # slit the file into two parts
+    # split the file into two parts
     ( undef, my $match, $vals ) = $self->get_match($vals);
 
     print "enabling: \n", join( "\n", @$match ), "\n";
@@ -335,15 +338,15 @@ sub restore {
     return { error_code => 200, error_desc => "vhost enabled successfully" };
 }
 
-sub suspend {
+sub disable {
+    my $self = shift;
 
-    my ( $self, $vals ) = @_;
+    my %p = validate( @_, { request => { type => HASHREF } } );
+    my $vals = $p{'request'};
 
-    unless ( $self->exists($vals) ) {
-        return {
-            error_code => 400,
-            error_desc => "Sorry, that virtual host does not exist."
-        };
+    if ( ! $self->exists( request => $vals) ) {
+        warn "Sorry, that virtual host does not exist.";
+        return;
     }
 
     print "disabling $vals->{'vhost'}\n";
@@ -357,7 +360,7 @@ sub suspend {
 
     print "Disabling: \n" . join( "\n", @$match ) . "\n";
 
-    $util->file_write( file => "$vhosts_conf.new", lines => [$new] );
+    $util->file_write( file => "$vhosts_conf.new", lines => $new );
 
     # write out the .disabled file (append if existing)
     if ( -f "$vhosts_conf.disabled" ) {
@@ -377,7 +380,7 @@ sub suspend {
             $util->file_write(
                 file   => "$vhosts_conf.disabled",
                 lines  => $match,
-                append => 1
+                append => 1,
             );
         }
     }
@@ -385,7 +388,7 @@ sub suspend {
         print "writing to file: $vhosts_conf.disabled\n" if $vals->{'debug'};
         $util->file_write(
             file  => "$vhosts_conf.disabled",
-            lines => [$match]
+            lines => $match,
         );
     }
 
@@ -424,7 +427,7 @@ sub destroy {
 
     my ( $self, $vals ) = @_;
 
-    unless ( $self->exists($vals) ) {
+    unless ( $self->exists( request => $vals) ) {
         return {
             error_code => 400,
             error_desc => "Sorry, that virtual host does not exist."
@@ -454,8 +457,8 @@ sub destroy {
     # we'll write out @new and @drop and compare them to make sure
     # the two total the same size as the original
 
-    $util->file_write( file => "$vhosts_conf.new",  lines => [$new] );
-    $util->file_write( file => "$vhosts_conf.drop", lines => [$drop] );
+    $util->file_write( file => "$vhosts_conf.new",  lines => $new );
+    $util->file_write( file => "$vhosts_conf.drop", lines => $drop );
 
     if ( ( ( -s "$vhosts_conf.new" ) + ( -s "$vhosts_conf.drop" ) )
         == -s $vhosts_conf )
@@ -499,8 +502,7 @@ sub exists {
 
     my $self = shift;
 
-    my %p = validate( @_, { 'request' => { type => HASHREF }, }, );
-
+    my %p = validate( @_, { request => { type => HASHREF } } );
     my $vals = $p{'request'};
 
     my $vhost       = lc( $vals->{vhost} );
@@ -519,35 +521,34 @@ sub exists {
 
         $prov->audit("searching for vhost $vhost in $vh_file_name");
         my $vh_file_path = "$vhosts_conf/$vh_file_name.conf";
-
-        return if !-f $vh_file_path;    # file does not exist
+        
+        if ( !-f $vh_file_path ) {   # file does not exist
+            $prov->audit("vhost $vhost does not exist");
+            return;
+        }; 
 
         # the file exists that the virtual host should be in.
         # determine if the vhost is defined in it
+        my $ac =
+          Apache::ConfigFile->read( file => $vh_file_path, ignore_case => 1 );
 
-        my $apa_conf = Apache::Admin::Config->new($vh_file_path)
-            or die $Apache::Admin::Config::ERROR;
+        for my $vh ( $ac->cmd_context( VirtualHost => '*:80' ) ) {
+            my $server_name = $vh->directive('ServerName');
+            $prov->audit( "ServerName $server_name") if $vals->{'debug'};
+            return 1 if ( $vhost eq $server_name );
 
-#        my $ac =
-#          Apache::ConfigFile->read( file => $vh_file_path, ignore_case => 1 );
-
-     #        for my $vh ( $ac->cmd_context( VirtualHost => '*:80' ) ) {
-     #            my $server_name = $vh->directive('ServerName');
-     #            print "ServerName $server_name\n" if $vals->{'debug'};
-     #            return 1 if ( $vhost eq $server_name );
-     #
-     #            my $alias = 0;
-     #            foreach my $server_alias ( $vh->directive('ServerAlias') ) {
-     #                return 1 if ( $vhost eq $server_alias );
-     #                if ( $vals->{'debug'} ) {
-     #                    print "\tServerAlias  " unless $alias;
-     #                    print "$server_alias ";
-     #                }
-     #                $alias++;
-     #            }
-     #            print "\n" if ( $alias && $vals->{'debug'} );
-     #        }
-     #        return 0;
+            my $alias = 0;
+            foreach my $server_alias ( $vh->directive('ServerAlias') ) {
+                return 1 if ( $vhost eq $server_alias );
+                if ( $vals->{'debug'} ) {
+                    print "\tServerAlias  " unless $alias;
+                    print "$server_alias ";
+                }
+                $alias++;
+            }
+            print "\n" if ( $alias && $vals->{'debug'} );
+        }
+        return 0;
     }
     elsif ( -f $vhosts_conf ) {
         print "parsing vhosts from file $vhosts_conf\n";
@@ -622,10 +623,10 @@ sub get_match {
     my ( $self, $vals ) = @_;
 
     my ($vhosts_conf) = $self->get_file($vals);
-    if ( $vals->{'disabled'} ) { $vhosts_conf .= ".disabled" }
+    $vhosts_conf .= ".disabled" if $vals->{'disabled'};
 
     print "reading in the vhosts file $vhosts_conf\n" if $vals->{'debug'};
-    my @lines = $util->file_read($vhosts_conf);
+    my @lines = $util->file_read( file => $vhosts_conf);
 
     my ( $in, $match, @new, @drop );
 LINE: foreach my $line (@lines) {
@@ -691,10 +692,6 @@ __END__
 
 Provision::Unix::Web::Apache - Provision web hosting accounts on Apache
 
-=head1 VERSION
-
-Version 0.05
-
 =head1 SYNOPSIS
 
 
@@ -731,17 +728,17 @@ Create an Apache vhost container like this:
       sslkey - SSL certificate key
      sslcert - SSL certificate
 
-=head2 restore
+=head2 enable
 
 Enable a (previously) disabled virtual host. 
 
-    $apache->restore($vals, $conf);
+    $apache->enable($vals, $conf);
 
-=head2 suspend
+=head2 disable
 
 Disable a previously disabled vhost.
 
-    $apache->suspend($vals, $conf);
+    $apache->disable($vals, $conf);
 
 =head2 destroy
 

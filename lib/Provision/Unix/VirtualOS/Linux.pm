@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux;
 
-our $VERSION = '0.23';
+our $VERSION = '0.24';
 
 use File::Copy;
 use File::Path;
@@ -111,7 +111,6 @@ sub set_rc_local {
     };
 
     return $util->file_write( 
-        append => 1,
         file   => $rc_local, 
         lines  => [ 'pkill -9 -f nash', 
                     'ldconfig > /dev/null', 
@@ -119,6 +118,7 @@ sub set_rc_local {
                     'exit 0',
                   ],
         mode   => '0755',
+        append => 0,
         fatal  => 0,
     );
 };

@@ -33,8 +33,6 @@ like this:
    |   |   |- OpenVZ
    |   |   |- Virtuozzo
    |   |   |- Xen
-   |   |- Solaris
-   |   |   |- Container
    |   |- Xen
    |- Web
    |   |- Apache

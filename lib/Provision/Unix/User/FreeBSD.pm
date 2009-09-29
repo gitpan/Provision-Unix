@@ -3,7 +3,7 @@ package Provision::Unix::User::FreeBSD;
 use warnings;
 use strict;
 
-our $VERSION = '0.08';
+our $VERSION = '0.09';
 
 use English qw( -no_match_vars );
 use Carp;
@@ -50,8 +50,8 @@ sub create {
     my %p = validate(
         @_,
         {   'username' => { type => SCALAR },
-            'uid'      => { type => SCALAR },
-            'gid'      => { type => SCALAR },
+            'uid'      => { type => SCALAR, optional => 1 },
+            'gid'      => { type => SCALAR, optional => 1 },
             'shell'    => { type => SCALAR | UNDEF, optional => 1 },
             'password' => { type => SCALAR | UNDEF, optional => 1 },
             'homedir'  => { type => SCALAR | UNDEF, optional => 1 },

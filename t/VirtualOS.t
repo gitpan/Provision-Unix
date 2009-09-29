@@ -78,9 +78,14 @@ my $container_id_or_name
     : $virt_type eq 'virtuozzo' ? 72000
     : $virt_type eq 'xen'       ? 'test1'
     : $virt_type eq 'ezjail'    ? 'test1'
-    : $virt_type eq 'jails'     ? 'test1'
+    : $virt_type eq 'jail'      ? 'test1'
     :                             undef;
 
+my %common = (
+    name  => $container_id_or_name,
+    debug => 0,
+    fatal => 0,
+);
 my $required_bin
     = $virt_type eq 'openvz'    ? 'vzlist'
     : $virt_type eq 'ovz'       ? 'vzlist'
@@ -88,7 +93,7 @@ my $required_bin
     : $virt_type eq 'xen'       ? 'xm'
     :                             undef;
 
-my %requires_template = map { $_ => 1 } qw/ xen /;
+my %requires_template = map { $_ => 1 } qw/ xen ovz openvz /;
 
 if ( defined $required_bin ) {
     my $found_bin
@@ -115,14 +120,11 @@ my $fs_root = $vos->get_fs_root( $container_id_or_name );
 if ( -d "$fs_root/etc" ) {
     print "\n$fs_root/etc/resolv.conf\n";
     my $r = $vos->set_nameservers( 
-        name         => $container_id_or_name,
+        %common,
         nameservers  => '67.223.251.133 64.79.200.113',  # nyc
         #nameservers  => '64.79.200.111 64.79.200.113',  # tuk
         #searchdomain => 'example.com',
         test_mode    => 1,
-        debug        => 0,
-        fatal        => 0,
-
     );
     ok( $r, "set_nameservers" );
 };
@@ -133,6 +135,7 @@ SKIP: {
     skip "could not determine a valid name", 12 if ! $container_id_or_name;
 
 my $r;
+
     if ( $vos->is_present( name => $container_id_or_name ) ) {
         $r = $vos->get_status( name => $container_id_or_name );
         ok( $r, 'get_status' );
@@ -143,41 +146,25 @@ my $r;
         # ok( $vos->is_running( name => $container_id_or_name ), 'is_running');
     }
 
-    if ( $vos->is_present( name => $container_id_or_name ) ) {
+    my %request = ( %common );
 
-        if ( $vos->is_running( name => $container_id_or_name ) ) {
-            ok( $vos->stop_virtualos(
-                    name  => $container_id_or_name,
-                    debug => 0,
-                    fatal => 0,
-                ),
-                'stop_virtualos'
-            );
+    if ( $vos->is_present( %common ) ) {
+
+        if ( $vos->is_running( %common ) ) {
+            ok( $vos->stop_virtualos( %common), 'stop_virtualos');
         };
 
-        ok( $vos->destroy_virtualos(
-                name      => $container_id_or_name,
-                test_mode => 0,
-                debug     => 0,
-                fatal     => 0,
-            ),
-            'destroy_virtualos'
-        );
+        $request{test_mode} = 0;
+        ok( $vos->destroy_virtualos( %common ), 'destroy_virtualos');
         sleep 1;
     }
 
 #$prov->error( 'dump' );
 
-#SKIP: {
-#    skip "negative tests for now", 3;
+    $request{test_mode} = 1;
+    $request{ip}        = '10.0.1.68';
 
-    $r = $vos->create_virtualos(
-        name      => $container_id_or_name,
-        ip        => '10.0.1.68',
-        test_mode => 1,
-        debug     => 0,
-        fatal     => 0,
-    );
+    $r = $vos->create_virtualos( %request );
 
     if ( $requires_template{$virt_type} ) {
         ok( !$r, 'create_virtualos, no template' );
@@ -186,125 +173,61 @@ my $r;
         ok( $r, 'create_virtualos, no template' );
     }
 
-    ok( !$vos->create_virtualos(
-            name      => $container_id_or_name,
-            ip        => '10.0.1.',
-            test_mode => 1,
-            debug     => 0,
-            fatal     => 0,
-        ),
-        'create_virtualos, no valid IPs'
-    );
+    $request{ip} = '10.0.1.';
+    ok( !$vos->create_virtualos( %request ), 'create_virtualos, no valid IPs');
 
-    ok( !$vos->create_virtualos(
-            name      => $container_id_or_name,
-            ip        => '10.0.1.70',
-            template  => 'non-existing',
-            test_mode => 1,
-            debug     => 0,
-            fatal     => 0,
-        ),
-        'create_virtualos, non-existing template'
-    );
+    $request{ip} = '10.0.1.70';
+    $request{template} = 'non-existing';
+    ok( !$vos->create_virtualos( %request ), 'create_virtualos, invalid template');
 
-#};
+    if ( $requires_template{$virt_type} ) {
+        $request{template} = $template_that_exists;
+    }
+    else {
+        delete $request{template};
+    };
 
-    ok( $vos->create_virtualos(
-            name      => $container_id_or_name,
-            ip        => '10.0.1.73 10.0.1.74 10.0.1.75',
-            template  => $template_that_exists,
-            password  => 'p_u_t3stlng',
-            ssh_key   => 'ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAv6f4BW89Afnsx51BkxGvPbLeqDK+o6RXp+82KSIhoiWzCJp/dwhB7xNBR0W7Lt/n7KJUGYdlP7h5YlmgvpdJayzMkbsoBW2Hj9/7MkFraUlWYIU9QtAUCOARBPQWC3JIkslVvInGBxMxH5vcCO0/3TM/FFZylPTXjyqmsVDgnY4C1zFW3SdGDh7+1NCDh4Jsved+UVE5KwN/ZGyWKpWXLqMlEFTTxJ1aRk563p8wW3F7cPQ59tLP+a3iHdH9sE09ynbI/I/tnAHcbZncwmdLy0vMA6Jp3rWwjXoxHJQLOfrLJzit8wzG867+RYDfm6SZWg7iYZYUlps1LSXSnUxuTQ== matt@SpryBook-Pro.local',
-            test_mode => 1,
-            debug     => 0,
-            fatal     => 0,
-        ),
+    $request{ip}       = '10.0.1.73 10.0.1.74 10.0.1.75';
+    $request{password} = 'p_u_t3stlng';
+    $request{ssh_key}  = 'ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAv6f4BW89Afnsx51BkxGvPbLeqDK+o6RXp+82KSIhoiWzCJp/dwhB7xNBR0W7Lt/n7KJUGYdlP7h5YlmgvpdJayzMkbsoBW2Hj9/7MkFraUlWYIU9QtAUCOARBPQWC3JIkslVvInGBxMxH5vcCO0/3TM/FFZylPTXjyqmsVDgnY4C1zFW3SdGDh7+1NCDh4Jsved+UVE5KwN/ZGyWKpWXLqMlEFTTxJ1aRk563p8wW3F7cPQ59tLP+a3iHdH9sE09ynbI/I/tnAHcbZncwmdLy0vMA6Jp3rWwjXoxHJQLOfrLJzit8wzG867+RYDfm6SZWg7iYZYUlps1LSXSnUxuTQ== matt@SpryBook-Pro.local';
+    ok( $vos->create_virtualos( %request ),
         "create_virtualos, valid template ($template_that_exists), test mode"
     );
 
-    ok( $vos->create_virtualos(
-            name        => $container_id_or_name,
-            hostname    => 'test1.example.com',
-            ip          => '10.0.1.73 10.0.1.74 10.0.1.75',
-            template    => $template_that_exists,
-            nameservers => '64.79.200.111 64.79.200.113',
-            password  => 'p_u_t3stlng',
-            ssh_key   => 'ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAv6f4BW89Afnsx51BkxGvPbLeqDK+o6RXp+82KSIhoiWzCJp/dwhB7xNBR0W7Lt/n7KJUGYdlP7h5YlmgvpdJayzMkbsoBW2Hj9/7MkFraUlWYIU9QtAUCOARBPQWC3JIkslVvInGBxMxH5vcCO0/3TM/FFZylPTXjyqmsVDgnY4C1zFW3SdGDh7+1NCDh4Jsved+UVE5KwN/ZGyWKpWXLqMlEFTTxJ1aRk563p8wW3F7cPQ59tLP+a3iHdH9sE09ynbI/I/tnAHcbZncwmdLy0vMA6Jp3rWwjXoxHJQLOfrLJzit8wzG867+RYDfm6SZWg7iYZYUlps1LSXSnUxuTQ== matt@SpryBook-Pro.local',
-            test_mode   => 0,
-            debug       => 0,
-            fatal       => 0,
-        ),
-        'create_virtualos, valid request'
-    )
-    or diag $vos->create_virtualos(
-        name      => $container_id_or_name,
-        ip        => '10.0.1.76',
-        debug     => 1,
-        fatal     => 0,
-    );
+    $request{hostname} = 'test1.example.com';
+    $request{nameservers} = '64.79.200.111 64.79.200.113';
+    $request{test_mode} = 0;
+    ok( $vos->create_virtualos( %request ), 'create_virtualos, valid request')
+        or diag $vos->create_virtualos(
+            name      => $container_id_or_name,
+            ip        => '10.0.1.76',
+            debug     => 1,
+            fatal     => 0,
+        );
 
-    ok( $vos->start_virtualos(
-            name  => $container_id_or_name,
-            debug => 0,
-            fatal => 0,
-        ),
-        'start_virtualos'
-    );
+    ok( $vos->start_virtualos( %common), 'start_virtualos');
 
 #exit;
 #$prov->error( 'dump' );
 
-    ok( $vos->restart_virtualos(
-            name  => $container_id_or_name,
-            debug => 0,
-            fatal => 0,
-        ),
-        'restart_virtualos'
-    );
+    ok( $vos->restart_virtualos( %common), 'restart_virtualos');
 
     ok( $vos->set_password(
-            name => $container_id_or_name,
-            user => 'root',
+            %common,
+            user     => 'root',
             password => 'letm3iwchlnny',
             ssh_key  => 'ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAv6f4BW89Afnsx51BkxGvPbLeqDK+o6RXp+82KSIhoiWzCJp/dwhB7xNBR0W7Lt/n7KJUGYdlP7h5YlmgvpdJayzMkbsoBW2Hj9/7MkFraUlWYIU9QtAUCOARBPQWC3JIkslVvInGBxMxH5vcCO0/3TM/FFZylPTXjyqmsVDgnY4C1zFW3SdGDh7+1NCDh4Jsved+UVE5KwN/ZGyWKpWXLqMlEFTTxJ1aRk563p8wW3F7cPQ59tLP+a3iHdH9sE09ynbI/I/tnAHcbZncwmdLy0vMA6Jp3rWwjXoxHJQLOfrLJzit8wzG867+RYDfm6SZWg7iYZYUlps1LSXSnUxuTQ== matt@SpryBook-Pro.local',
         ),
         'set_password'
     );
 
-    ok( $vos->disable_virtualos(
-            name  => $container_id_or_name,
-            debug => 0,
-            fatal => 0,
-        ),
-        'disable_virtualos'
-    );
-
-    ok( $vos->enable_virtualos(
-            name  => $container_id_or_name,
-            debug => 0,
-            fatal => 0,
-        ),
-        'enable_virtualos'
-    );
-
-    ok( $vos->stop_virtualos(
-            name  => $container_id_or_name,
-            debug => 0,
-            fatal => 0,
-        ),
-        'stop_virtualos'
-    );
+    ok( $vos->disable_virtualos( %common ), 'disable_virtualos');
+    ok( $vos->enable_virtualos( %common ), 'enable_virtualos');
+    ok( $vos->stop_virtualos( %common ), 'stop_virtualos');
 
 #exit;
 
-    ok( $vos->destroy_virtualos(
-            name      => $container_id_or_name,
-            test_mode => 0,
-            debug     => 0,
-            fatal     => 0,
-        ),
-        'destroy_virtualos'
-    );
+    ok( $vos->destroy_virtualos( %common, test_mode => 0), 'destroy_virtualos');
 };
 
 #$prov->error( 'dump' );

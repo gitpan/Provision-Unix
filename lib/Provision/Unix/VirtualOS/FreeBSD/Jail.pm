@@ -3,22 +3,25 @@ package Provision::Unix::VirtualOS::FreeBSD::Jail;
 use warnings;
 use strict;
 
-our $VERSION = '0.03';
+our $VERSION = '0.06';
 
 use English qw( -no_match_vars );
 use Params::Validate qw(:all);
+
+my ( $prov, $vos, $util );
 
 sub new {
     my $class = shift;
 
     my %p = validate( @_, { 'vos' => { type => OBJECT }, } );
 
-    my $vos  = $p{vos};
-    my $prov = $vos->{prov};
+    $vos  = $p{vos};
+    $prov = $vos->{prov};
 
     my $self = { prov => $prov };
     bless( $self, $class );
 
+    die "Not finished. Only ezjail is currently supported on FreeBSD";
     return $self;
 }
 
@@ -36,18 +39,54 @@ sub create_virtualos {
 
     my $self = shift;
 
-    my %p = validate(
-        @_,
-        {   'name'      => { type => SCALAR },
-            'ip'        => { type => SCALAR },
-            'disk_root' => { type => SCALAR },
-            'template'  => { type => SCALAR | UNDEF, optional => 1 },
-        }
-    );
+    $EUID == 0
+        or $prov->error( "Create function requires root privileges." );
+
+    my $ctid = $vos->{name};
+    my %std_opts = ( debug => $vos->{debug}, fatal => $vos->{fatal} );
+
+    return $prov->error( "ctid $ctid already exists", %std_opts) 
+        if $self->is_present();
+
+    $prov->audit("\tctid '$ctid' does not exist, creating...");
+
 
 }
 
 sub is_present {
+    my $self = shift;
+    my $homedir = $self->get_ve_home();
+    return $homedir if -d $homedir;
+    return;
+};
+
+sub get_console {
+    my $self = shift;
+    my $ctid = $vos->{name};
+    my $cmd = $util->find_bin( bin => 'jexec', debug => 0 );
+    exec "$cmd $ctid su";
+};
+
+sub get_ve_home {
+    my $self = shift;
+    my $ctid = $vos->{name} || shift;
+    return if ! $ctid;
+    return "/usr/jails/$ctid";
+};
+
+sub enable_virtualos {
+};
+sub destroy_virtualos {
+};
+sub disable_virtualos {
+};
+sub restart_virtualos {
+};
+sub start_virtualos {
+};
+sub stop_virtualos {
+};
+sub set_password {
 };
 
 1;

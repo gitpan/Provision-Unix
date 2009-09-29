@@ -23,8 +23,8 @@ GetOptions(
     'modify'  => \$action->{'modify'},
     'destroy' => \$action->{'destroy'},
 
-    'suspend' => \$action->{'suspend'},
-    'restore' => \$action->{'restore'},
+    'disable' => \$action->{'disable'},
+    'enable'  => \$action->{'enable'},
 
     'show'   => \$action->{'show'},
     'repair' => \$action->{'repair'},
@@ -57,17 +57,17 @@ $prov->get_version() and exit if $version;
 
 die "\n$0 must be run as root!\n\n" if $EFFECTIVE_USER_ID != 0;
 
-  $action->{'create'}  ? $web->create( request => $vals, prompt => 1 )
-: $action->{'destroy'} ? $web->destroy( request => $vals, prompt => 1 )
+  $action->{'create'}  ? $web->create(  request => $vals, prompt=>1 )
+: $action->{'destroy'} ? $web->destroy( request => $vals, prompt=>1 )
+: $action->{'enable'}  ? $web->enable(  request => $vals )
+: $action->{'disable'} ? $web->disable( request => $vals )
+: pod2usage( { -verbose => $vals->{'debug'} } );
 
-    # future functions....
-    #: $action->{'modify'}  ? $web->modify ( request=>$vals, prompt=>1 )
-    #: $action->{'suspend'} ? $web->suspend( request=>$vals, prompt=>1 )
-    #: $action->{'restore'} ? $web->restore( request=>$vals, prompt=>1 )
-    #: $action->{'show'}    ? $web->show   ( request=>$vals, prompt=>1 )
-    #: $action->{'repair'}  ? $web->repair ( request=>$vals, prompt=>1 )
-    #: $action->{'test'}    ? $web->test   ( request=>$vals, prompt=>1 )
-    : pod2usage( { -verbose => $vals->{'debug'} } );
+# future functions....
+#: $action->{'modify'}  ? $web->modify ( request=>$vals )
+#: $action->{'show'}    ? $web->show   ( request=>$vals )
+#: $action->{'repair'}  ? $web->repair ( request=>$vals )
+#: $action->{'test'}    ? $web->test   ( request=>$vals )
 
 =head1 NAME 
 
@@ -82,8 +82,8 @@ Action is one of the following:
   --create   - creates a new system user
   --modify   - make changes to an existing user
   --destroy  - remove a user from the system
-  --suspend  - disable an account
-  --restore  - restore an account
+  --disable  - disable an account
+  --enable   - enable an account
 
 required arguments:
 

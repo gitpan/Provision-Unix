@@ -19,7 +19,7 @@ my $virt_type = lc( $parts[-1] );
 print "virtualization type: $virt_type\n";
 
 
-my $container_id_or_name = $util->ask( question => 'VPS name' );
+my $container_id_or_name = $util->ask( 'VPS name' );
 
 if ( $vos->is_present( name => $container_id_or_name ) ) {
     my $r = $vos->get_status( name => $container_id_or_name ) or
@@ -27,9 +27,9 @@ if ( $vos->is_present( name => $container_id_or_name ) ) {
     warn Dumper($r);
 };
 
-my $user = $util->ask(question=>'user name', default => 'root');
-my $pass = $util->ask(question=>'password', password => 1 );
-my $ssh_key = $util->ask(question=>'ssh_key' );
+my $user = $util->ask( 'user name', default => 'root');
+my $pass = $util->ask( 'password',  password => 1 );
+my $ssh_key = $util->ask( 'ssh_key' );
 
 $vos->set_password( 
     name     => $container_id_or_name,

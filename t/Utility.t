@@ -52,28 +52,25 @@ ok( $util->syscmd( cmd => "cp TODO $tmp/", debug => 0, fatal => 0 ),
 SKIP: {
     skip "annoying", 4 if 1 == 1;
     skip "ask is an interactive only feature", 4 unless $util->is_interactive;
-    ok( $r = $util->ask(
-            question => 'test yes ask',
+    ok( $r = $util->ask( 'test yes ask',
             default  => 'yes',
             timeout  => 5
         ),
         'ask, proper args'
     );
     is( lc($r), "yes", 'ask' );
-    ok( $r = $util->ask( question => 'any (non empty) answer' ),
+    ok( $r = $util->ask( 'any (non empty) answer' ),
         'ask, tricky' );
 
     # multiline prompt
-    ok( $r = $util->ask(
-            question => 'test any (non empty) answer',
+    ok( $r = $util->ask( 'test any (non empty) answer',
             default  => 'just hit enter',
         ),
         'ask, multiline'
     );
 
     # default password prompt
-    ok( $r = $util->ask(
-            question => 'type a secret word',
+    ok( $r = $util->ask( 'type a secret word',
             password => 1,
             default  => 'secret',
         ),

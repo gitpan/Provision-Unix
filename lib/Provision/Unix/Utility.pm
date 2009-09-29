@@ -1,6 +1,6 @@
 package Provision::Unix::Utility;
 
-our $VERSION = '5.23';
+our $VERSION = '5.25';
 
 use strict;
 use warnings;
@@ -47,17 +47,16 @@ sub new {
 
 sub ask {
     my $self = shift;
+    my $question = shift;
     my %p = validate(
         @_,
-        {   'question' => { type => SCALAR,  optional => 0 },
-            'password' => { type => BOOLEAN, optional => 1, default => 0 },
-            'default'  => { type => SCALAR,  optional => 1 },
-            'timeout'  => { type => SCALAR,  optional => 1 },
-            'test_ok'  => { type => BOOLEAN, optional => 1 },
+        {   default  => { type => SCALAR,  optional => 1 },
+            timeout  => { type => SCALAR,  optional => 1 },
+            password => { type => BOOLEAN, optional => 1, default => 0 },
+            test_ok  => { type => BOOLEAN, optional => 1 },
         }
     );
 
-    my $question = $p{question};
     my $pass     = $p{password};
     my $default  = $p{default};
 
@@ -741,6 +740,7 @@ sub file_write {
 
     my $file   = $p{file};
     my $append = $p{append};
+    my $lines  = $p{lines};
     my ($debug, $fatal) = ($p{debug}, $p{fatal});
     my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
 
@@ -766,7 +766,7 @@ sub file_write {
     $log->audit( "opened $file for $m" ) if $debug;
 
     my $c = 0;
-    for ( @{ $p{lines} } ) { chomp; print $HANDLE "$_\n"; $c++ }
+    foreach ( @$lines ) { chomp; print $HANDLE "$_\n"; $c++ };
     close $HANDLE or return;
 
     move "$file.tmp", $file or return $log->error("unable to update $file");
@@ -1658,6 +1658,7 @@ sub is_process_running {
     my $grep = $self->find_bin( bin => 'grep', debug => 0 );
 
     if    ( lc($OSNAME) =~ /solaris/i ) { $ps .= " -ef";  }
+    elsif ( lc($OSNAME) =~ /irix/i    ) { $ps .= " -ef";  }
     elsif ( lc($OSNAME) =~ /linux/i   ) { $ps .= " -efw"; }
     else                                { $ps .= " axw";  };
 
@@ -2395,8 +2396,7 @@ To use any of the methods below, you must first create a utility object. The met
 Get a response from the user. If the user responds, their response is returned. If not, then the default response is returned. If no default was supplied, 0 is returned.
 
   ############################################
-  # Usage      :  my $ask = $utility->ask(
-  #  		           question => "Would you like fries with that",
+  # Usage      :  my $ask = $utility->ask( "Would you like fries with that",
   #  		           default  => "SuperSized!",
   #  		           timeout  => 30  
   #               );

@@ -57,12 +57,12 @@ my $questions = {
     searchdomain  => "the search domain (for /etc/resolv.conf)",
 };
 
-$action ||= $util->ask( question=> $questions->{action}, default=>'create' );
+$action ||= $util->ask( $questions->{action}, default=>'create' );
 $action = lc($action);
 
 pod2usage( { -verbose => 1 } ) if !$actions{$action};
 
-$name ||= $util->ask( question => $questions->{name} );
+$name ||= $util->ask( $questions->{name} );
 
 my %request = ( debug => 0, fatal => 0, name => lc($name) );
 
@@ -86,16 +86,14 @@ exit;
 
 sub create {
 
-    $request{ip}       = $ip       || $util->ask( question=> $questions->{ip} );
-    $request{hostname} = $hostname || $util->ask( question=> $questions->{hostname} );
-    $request{template} = $template || $util->ask( 
-            question=> $questions->{template}, default => 'centos-5-i386-default' );
-    $request{config}   = $config   || $util->ask( question=> $questions->{config} );
-    $request{password} = $password || $util->ask( question=> $questions->{password} );
-    $request{nameservers} = $nameservers || $util->ask( 
-            question=> $questions->{nameservers} );
-    $request{searchdomain} = $searchdomain || 
-        $util->ask( question=> $questions->{searchdomain} );
+    $request{ip}       = $ip       || $util->ask( $questions->{ip} );
+    $request{hostname} = $hostname || $util->ask( $questions->{hostname} );
+    $request{template} = $template || $util->ask( $questions->{template}, 
+        default => 'centos-5-i386-default' );
+    $request{config}   = $config   || $util->ask( $questions->{config} );
+    $request{password} = $password || $util->ask( $questions->{password} );
+    $request{nameservers} = $nameservers || $util->ask( $questions->{nameservers} );
+    $request{searchdomain} = $searchdomain || $util->ask( $questions->{searchdomain} );
 
     warn "creating!\n";
     $prov->audit("dispatching creation request");
@@ -129,9 +127,9 @@ sub enable {
     print Dumper( $vos->enable_virtualos( %request ) );
 }
 sub modify {
-    $request{hostname} = $hostname || $util->ask( question=> $questions->{hostname} );
-    $request{password} = $password || $util->ask( question=> $questions->{password} );
-    $request{ip}       = $ip       || $util->ask( question=> $questions->{ip} );
+    $request{hostname} = $hostname || $util->ask( $questions->{hostname} );
+    $request{password} = $password || $util->ask( $questions->{password} );
+    $request{ip}       = $ip       || $util->ask( $questions->{ip} );
     foreach ( keys %request ) { delete $request{$_} if ! defined $request{$_}; };
     print Dumper( $vos->modify_virtualos( %request ) );
 }
@@ -189,7 +187,7 @@ optional arguments: ip, hostname, template, config, password, nameservers, searc
 
 =head1 DESCRIPTION
  
-prov_virtual.pl is a consistent command line interface for provisioning virtual environments on various virtualization platforms. Support is included for OpenVZ, Xen, and FreeBSD jails. Support is planned for Solaris Zones/Containers. 
+prov_virtual.pl is a consistent command line interface for provisioning virtual environments on various virtualization platforms. Support is included for OpenVZ, Xen, and FreeBSD jails.
 
  
 =head1 CONFIGURATION AND ENVIRONMENT

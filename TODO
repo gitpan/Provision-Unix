@@ -32,11 +32,8 @@ Provision/Unix/User/Darwin.pm
 Provision/Unix/User/Linux.pm
   - needs to be authored
 Provision/Unix/Utility.pm
-Provision/Unix/VirtualOS/Solaris/Container.pm
-  - needs to be authored
-Provision/Unix/Web/Apache.pm
-  - needs to be authored
-Provision/Unix/Web/Lighttpd.pm
-  - needs to be authored
 Provision/Unix/Web.pm
+Provision/Unix/Web/Apache.pm
+  - needs to be extended support more features
+Provision/Unix/Web/Lighttpd.pm
   - needs to be authored

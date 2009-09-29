@@ -1,6 +1,6 @@
 package Provision::Unix::User;
 
-our $VERSION = '0.23';
+our $VERSION = '0.24';
 
 use strict;
 use warnings;
@@ -516,12 +516,12 @@ sub _is_valid_request {
         );
     }
 
-    # make sure uid is set
+    # is uid set?
     if ( !$self->{uid} ) {
         return $prov->progress(
             num  => 10,
             desc => 'error',
-            err  => "missing uid in request"
+            err  => "no uid in request, using system assigned UID"
         );
     }
     return 1;

@@ -6,7 +6,7 @@ use strict;
 use Carp;
 use Params::Validate qw( :all );
 
-our $VERSION = '0.08';
+our $VERSION = '0.09';
 
 use lib "lib";
 
@@ -40,10 +40,19 @@ sub new {
 }
 
 sub create {
-
     my $self = shift;
     return $self->{server}->create(@_);
 }
+
+sub enable {
+    my $self = shift;
+    return $self->{server}->enable(@_);
+};
+
+sub disable {
+    my $self = shift;
+    return $self->{server}->disable(@_);
+};
 
 sub _get_server {
 
@@ -110,16 +119,16 @@ sub get_vhost_attributes {
     my $vals = $p{'request'};
 
     if ( $p{'prompt'} ) {
-        $vals->{'vhost'} ||= $util->ask( question => 'vhost name' );
+        $vals->{'vhost'} ||= $util->ask( 'vhost name' );
     }
 
     my $vhost = $vals->{'vhost'}
         or $prov->error( "vhost is required" );
 
     if ( $p{'prompt'} ) {
-        $vals->{'ip'} ||= $util->ask( question => 'ip', default => '*:80' );
+        $vals->{'ip'} ||= $util->ask( 'ip', default => '*:80' );
         $vals->{'serveralias'}
-            ||= $util->ask( question => 'serveralias', default => "www.$vhost" );
+            ||= $util->ask( 'serveralias', default => "www.$vhost" );
     }
 
     if ( !$vals->{'documentroot'} ) {
@@ -133,7 +142,7 @@ sub get_vhost_attributes {
 
             # prompt with a sensible default
             $vals->{'documentroot'}
-                = $util->ask( question => 'documentroot', default => $docroot );
+                = $util->ask( 'documentroot', default => $docroot );
         }
         else {
             $vals->{'documentroot'} = $docroot;
@@ -141,7 +150,7 @@ sub get_vhost_attributes {
     }
 
     if ( $p{'prompt'} ) {
-        $vals->{'ssl'} ||= $util->ask( question => 'ssl' );
+        $vals->{'ssl'} ||= $util->ask( 'ssl' );
     }
 
     if ( $vals->{'ssl'} ) {
@@ -149,12 +158,10 @@ sub get_vhost_attributes {
             || "/usr/local/etc/apache2/certs";
 
         if ( $p{'prompt'} ) {
-            $vals->{'sslcert'} ||= $util->ask(
-                question => 'sslcert',
+            $vals->{'sslcert'} ||= $util->ask( 'sslcert',
                 default => "$certs/$vhost.crt"
             );
-            $vals->{'sslkey'} ||= $util->ask(
-                question => 'sslkey',
+            $vals->{'sslkey'} ||= $util->ask( 'sslkey',
                 default => "$certs/$vhost.key"
             );
         }
@@ -169,9 +176,7 @@ sub get_vhost_attributes {
         next if $key eq "verbose";
         next if $key eq "redirect";
 
-        if ( !defined $val ) {
-            $util->ask( question => $key );
-        }
+        $util->ask( $key ) if !defined $val;
     }
 
     return $vals;

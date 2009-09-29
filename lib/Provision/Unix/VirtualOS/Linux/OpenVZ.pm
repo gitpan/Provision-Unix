@@ -100,10 +100,11 @@ sub create_virtualos {
         $cmd .= " --config default";
     };
 
-    if ( $vos->{template} ) {
-        my $template = $self->_is_valid_template( $vos->{template} ) or return;
-        $cmd .= " --ostemplate $template";
-    }
+    return $prov->error( "template required but not specified", fatal => 0)
+        if ! $vos->{template};
+
+    my $template = $self->_is_valid_template( $vos->{template} ) or return;
+    $cmd .= " --ostemplate $template";
 
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
 
