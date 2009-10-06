@@ -1,5 +1,15 @@
 Revision history for Provision-Unix
 
+0.71 Oct 06, 2009
+  - if linux disto isn't passed to methods in P:U:V:L class, detect linux distro
+  - when doing a openvz modify, use P:U:V:L:set_ips instead of vzctl --ipadd
+  - formatting changes to increase readability
+  - added cpu to options passed in to create, reinstall, or modify a VE
+  - added set_hostname and set_ips methods to P:U:V:L:Xen
+  - openvz call to $user->install_ssh_key had incorrect directory specified
+  - fixed typo (250 vs 256) in P:U:V:L:OpenVZ::gen_config
+  - renamed P:U:V:L:Xen::install_config_file to gen_config (same as OpenVZ)
+
 0.70 Sep 29, 2009
   - updated API for $util->ask
   - bin/install_deps no longer dependent on P:U:Utility

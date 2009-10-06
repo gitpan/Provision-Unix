@@ -3,9 +3,8 @@ package Provision::Unix::Web::Apache;
 use strict;
 use warnings;
 
-our $VERSION = '0.08';
+our $VERSION = '0.09';
 
-use Apache::ConfigFile;
 use Carp;
 use English qw( -no_match_vars );
 use Params::Validate qw( :all );
@@ -529,6 +528,7 @@ sub exists {
 
         # the file exists that the virtual host should be in.
         # determine if the vhost is defined in it
+        require Apache::ConfigFile;
         my $ac =
           Apache::ConfigFile->read( file => $vh_file_path, ignore_case => 1 );
 

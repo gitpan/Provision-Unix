@@ -5,12 +5,13 @@ use warnings;
 use English qw( -no_match_vars );
 use Test::More;
 
-my $prov = Provision::Unix->new( debug => 0 );
-my $web = Provision::Unix::Web->new( prov => $prov, fatal => 0, debug => 0 );
-
-if ( ! $web) {
-    plan skip_all => "Could not load Provision::Unix::Web";
-};
+my %std_opts = ( debug => 0, fatal => 0 );
+my $prov = Provision::Unix->new( %std_opts );
+my $web = Provision::Unix::Web->new( prov => $prov, %std_opts ) 
+    or do {
+        my $last_error = $prov->get_last_error();
+        plan skip_all => "Could not load Provision::Unix::Web: $last_error";
+    };
 
 plan 'no_plan';
 

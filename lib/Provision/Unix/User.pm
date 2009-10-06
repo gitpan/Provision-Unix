@@ -319,7 +319,7 @@ sub install_ssh_key {
     return $util->file_write(
         file => "$ssh_dir/authorized_keys",
         lines => [ $line ], 
-        mode  => 0622,
+        mode  => '0600',
         debug => 0,
         fatal => 0,
     );

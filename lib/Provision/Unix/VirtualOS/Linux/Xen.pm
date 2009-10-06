@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::Xen;
 
-our $VERSION = '0.38';
+our $VERSION = '0.42';
 
 use warnings;
 use strict;
@@ -13,19 +13,18 @@ use Params::Validate qw(:all);
 
 use lib 'lib';
 use Provision::Unix::User;
-use Provision::Unix::Utility;
-use Provision::Unix::VirtualOS::Linux;
 
-my ( $linux, $prov, $user, $util, $vos );
+my ( $prov, $vos, $linux, $user, $util );
 
 sub new {
-
     my $class = shift;
 
     my %p = validate( @_, { 'vos' => { type => OBJECT }, } );
 
-    $vos  = $p{vos};
-    $prov = $vos->{prov};
+    $vos   = $p{vos};
+    $prov  = $vos->{prov};
+    $linux = $vos->{linux};
+    $util  = $vos->{util};
 
     my $self = { prov => $prov };
     bless( $self, $class );
@@ -33,8 +32,6 @@ sub new {
     $prov->audit("loaded P:U:V::Linux::Xen");
 
     $vos->{disk_root} ||= '/home/xen';    # xen default
-
-    $util = Provision::Unix::Utility->new( prov => $prov );
 
     return $self;
 }
@@ -52,8 +49,6 @@ sub create_virtualos {
 
     return $prov->error( "no valid template specified", fatal => 0 )
         if ! $self->is_valid_template();
-
-    $linux ||= Provision::Unix::VirtualOS::Linux->new( prov => $prov );
 
     my $err_count_before = @{ $prov->{errors} };
     my $xm = $util->find_bin( bin => 'xm', debug => 0, fatal => 1 );
@@ -78,16 +73,7 @@ sub create_virtualos {
     };
     $prov->error( $@, fatal => 0 ) if $@;
 
-    eval { 
-        $linux->set_ips(
-            hostname => $vos->{hostname},
-            ips      => $vos->{ip},
-            device   => $vos->{net_device} || 'eth0',
-            fs_root  => $fs_root,
-            dist     => $template,
-        );
-    };
-    $prov->error( $@, fatal => 0 ) if $@;
+    $self->set_ips();
 
     eval { $linux->set_rc_local( fs_root => $fs_root ); };
     $prov->error( $@, fatal => 0 ) if $@;
@@ -96,7 +82,7 @@ sub create_virtualos {
         $linux->set_hostname(
             host    => $vos->{hostname},
             fs_root => $fs_root,
-            dist    => $template,
+            distro  => $template,
         );
     };
     $prov->error( $@, fatal => 0 ) if $@;
@@ -128,7 +114,7 @@ sub create_virtualos {
 
     $self->unmount_disk_image();
 
-    $self->install_config_file()
+    $self->gen_config()
         or return $prov->error( "unable to install config file", fatal => 0 );
 
     my $err_count_after = @{ $prov->{errors} };
@@ -158,7 +144,7 @@ sub destroy_virtualos {
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
 
     if ( $self->is_running( debug => 0 ) ) {
-        $self->stop_virtualos() or return $prov->error("could not shut down VPS");
+        $self->stop_virtualos() or return;
     };
 
     if ( $self->is_mounted() ) {
@@ -292,6 +278,7 @@ sub stop_virtualos {
     };
 
     return 1 if !$self->is_running();
+    $prov->error( "failed to stop virtual $ve_name", fatal => 0 );
     return;
 }
 
@@ -300,11 +287,7 @@ sub restart_virtualos {
 
     my $ve_name = $self->get_ve_name();
 
-    if ( ! $self->stop_virtualos() ) {
-        $prov->error( "unable to stop virtual $ve_name", fatal => 0 );
-        return;
-    };
-
+    $self->stop_virtualos() or return;
     return $self->start_virtualos();
 }
 
@@ -338,7 +321,9 @@ sub disable_virtualos {
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
 
     # see if VE is running, and if so, stop it
-    $self->stop_virtualos() if $self->is_running();
+    if ( $self->is_running() ) {
+        $self->stop_virtualos() or return; 
+    };
 
     move( $config, "$config.suspend" )
         or return $prov->error( "\tunable to move file '$config': $!",
@@ -395,12 +380,61 @@ sub modify_virtualos {
     my $ctid = $vos->{name};
     $prov->audit("modifying $ctid");
 
-    my @settings = qw/ hostname searchdomain disk_size ram config /;
+    # hostname ips nameservers searchdomain disk_size ram config 
 
-    foreach my $setting ( @settings ) {
-        next if ! defined $vos->{$setting};
+    $self->stop_virtualos() or return;
+    $self->mount_disk_image() or return;
+
+    my $fs_root = $self->get_fs_root();
+    my $hostname = $vos->{hostname};
+
+    $self->set_ips() if $vos->{ip};
+    $linux->set_hostname( host => $hostname, fs_root => $fs_root ) 
+        if $hostname && ! $vos->{ip};
+
+    #
+    #if $vos->{nameservers};
+
+    $user ||= Provision::Unix::User->new( prov => $prov );
+
+    if ( $user ) {
+        $user->install_ssh_key(
+            homedir => "$fs_root/root",
+            ssh_key => $vos->{ssh_key},
+            debug   => $vos->{debug},
+        ) 
+        if $vos->{ssh_key};
+
+        my $pass = $vos->{password};
+        if ( $pass ) {
+            my $pass_file = $self->get_ve_passwd_file( $fs_root );
+            my @lines = $util->file_read( file => $pass_file, fatal => 0 );
+            grep { /^root:/ } @lines 
+                or $prov->error( "\tcould not find root in $pass_file!", fatal => 0);
+
+            my $crypted = $user->get_crypted_password($pass);
+
+            foreach ( @lines ) {
+                s/root\:.*?\:/root\:$crypted\:/ if m/^root\:/;
+            };
+            $util->file_write( 
+                file => $pass_file, lines => \@lines, 
+                debug => $vos->{debug}, fatal => 0,
+            );
+        };
     };
+
+    $self->gen_config();
+    $self->unmount_disk_image() or return;
+    $self->start_virtualos() or return;
+    return 1;
 }
+
+sub upgrade_virtualos {
+# temp placeholder, delete after 9/15/09
+    my $self = shift;
+    return $self->modify_virtualos();
+};
 
 sub reinstall_virtualos {
     my $self = shift;
@@ -952,6 +986,65 @@ sub mount_disk_image {
     return 1;
 }
 
+sub set_hostname {
+    my $self = shift;
+
+    $self->stop_virtualos() or return;
+    $self->mount_disk_image() or return;
+
+    $linux->set_hostname( 
+        host    => $vos->{hostname},
+        fs_root => $self->get_fs_root(),
+        fatal   => 0,
+    )
+    or $prov->error("unable to set hostname", fatal => 0);
+
+    $self->unmount_disk_image();
+    $self->start_virtualos() or return;
+    return 1;
+};
+
+sub set_ips {
+    my $self     = shift;
+    my $fs_root  = $self->get_fs_root();
+    my $template = $vos->{template};
+    my $ctid     = $vos->{name};
+
+    my %request = (
+        hostname => $vos->{hostname},
+        ips      => $vos->{ip},
+        device   => $vos->{net_device} || 'eth0',
+        fs_root  => $fs_root,
+    );
+    $request{distro} = $vos->{template} if $vos->{template};
+
+    eval { $linux->set_ips( %request ); };
+    $prov->error( $@, fatal => 0 ) if $@;
+
+    # update the config file, if it exists
+    my $config_file = $self->get_ve_config_path() or return;
+    return if ! -f $config_file;
+
+    my @ips      = @{ $vos->{ip} };
+    my $ip_list  = shift @ips;
+    foreach ( @ips ) { $ip_list .= " $_"; };
+    my $mac      = $self->get_mac_address();
+
+    my @lines = $util->file_read( file => $config_file, debug => 0, fatal => 0) 
+        or return $prov->error("could not read $config_file", fatal => 0);
+
+    foreach my $line ( @lines ) {
+        next if $line !~ /^vif/;
+        $line =~ /mac=([\w\d\:\-]+)\'\]/;
+        $mac = $1 if $1;   # use the existing mac if possible
+        $line = "vif        = ['ip=$ip_list, vifname=vif${ctid},  mac=$mac']";
+    };
+    $util->file_write( file => $config_file, lines => \@lines, fatal => 0 )
+        or return $prov->error( "could not write to $config_file", fatal => 0);
+
+    return 1;
+};
+
 sub set_libc {
     my $self = shift;
 
@@ -998,10 +1091,9 @@ sub set_password {
 
     if ( ! $arg || $arg ne 'setup' ) {
         if ( $self->is_running( debug => 0 ) ) {
-            $self->stop_virtualos()
-            or
-            return $prov->error( "\tunable to stop virtual $ve_name", fatal => 0 );
+            $self->stop_virtualos() or return;
             $i_stopped++;
+
         };
     
         my $r = $self->mount_disk_image();
@@ -1031,6 +1123,7 @@ sub set_password {
 
         # install the SSH key
         if ( $vos->{ssh_key} ) {
+            $prov->audit("installing ssh key");
             eval {
                 $user->install_ssh_key(
                     homedir => "$ve_home/mnt/root",
@@ -1108,7 +1201,7 @@ sub unmount_disk_image {
     return $r;
 }
 
-sub install_config_file {
+sub gen_config {
     my $self = shift;
 
     my $ctid        = $vos->{name};
@@ -1116,13 +1209,13 @@ sub install_config_file {
     my $config_file = $self->get_ve_config_path();
     #warn "config file: $config_file\n" if $vos->{debug};
 
-    my @ips      = @{ $vos->{ip} };
-    my $ram      = $vos->{ram} || 64;
-    my $mac      = $self->get_mac_address();
+    my $ram      = $vos->{ram} || 128;
     my $hostname = $vos->{hostname} || $ctid;
 
+    my @ips      = @{ $vos->{ip} };
     my $ip_list  = shift @ips;
     foreach ( @ips ) { $ip_list .= " $_"; };
+    my $mac      = $self->get_mac_address();
 
     my $kernel_dir = $self->get_kernel_dir();
     my $kernel_version = $self->get_kernel_version();
@@ -1131,6 +1224,7 @@ sub install_config_file {
     my ($ramdisk) = <$kernel_dir/initrd*$kernel_version*>;
     ($kernel) ||= </boot/vmlinuz-*xen>;
     ($ramdisk) ||= </boot/initrd-*xen.img>;
+    my $cpu = $vos->{cpu} || 1;
 
     my $config = <<"EOCONF"
 kernel     = '$kernel'
@@ -1145,11 +1239,11 @@ serial     = 'pty'
 disk       = ['phy:/dev/vol00/${ctid}_rootimg,sda1,w', 'phy:/dev/vol00/${ctid}_vmswap,sda2,w']
 root       = '/dev/sda1 ro'
 extra      = 'console=xvc0'
+vcpus      = $cpu
 EOCONF
         ;
 
     # These can also be set in the config file.
-    #vcpus      =
     #console    =
     #nics       =
     #dhcp       =

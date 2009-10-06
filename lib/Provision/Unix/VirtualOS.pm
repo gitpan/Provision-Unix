@@ -3,7 +3,7 @@ package Provision::Unix::VirtualOS;
 use warnings;
 use strict;
 
-our $VERSION = '0.38';
+our $VERSION = '0.41';
 
 use Data::Dumper;
 use English qw( -no_match_vars );
@@ -43,21 +43,25 @@ sub new {
         }
     );
 
+    $prov = $p{prov};
+    my $debug = $p{debug};
+    $util = Provision::Unix::Utility->new( prov=> $prov )
+        or die "unable to load P:U:Utility\n";
+
     my $self = {
         prov    => $p{prov},
         debug   => $p{debug},
         fatal   => $p{fatal},
         etc_dir => $p{etc_dir},
+        util    => $util,
     };
     bless( $self, $class );
 
-    $prov = $p{prov};
-    $prov->audit("loaded Provision::Unix::VirtualOS");
-
-    $util = Provision::Unix::Utility->new( prov=> $prov )
-        or die "unable to load P:U:Utility\n";
-    $self->{vtype} = $self->_get_virt_type( fatal => $p{fatal}, debug => $p{debug} )
+    my $v_type = $self->_get_virt_type( fatal => $p{fatal}, debug => $debug )
         or die $prov->{errors}[-1]{errmsg};
+    $self->{vtype} = $v_type;
+
+    $prov->audit("loaded Provision::Unix::VirtualOS for $v_type");
     return $self;
 }
 
@@ -80,9 +84,9 @@ sub create_virtualos {
 #            : searchdomain -
 
     my $self = shift;
-    my @opt_scalars = qw/ hostname disk_root disk_size ram config 
-                    template password nameservers searchdomain ssh_key
-                    kernel_version mac_address /;
+    my @opt_scalars = qw/ config cpu disk_root disk_size hostname 
+            kernel_version mac_address nameservers password ram 
+            searchdomain ssh_key template /;
     my %opt_scalars = map { $_ => { type => SCALAR, optional => 1 } } @opt_scalars;
 
     my %p = validate(
@@ -274,8 +278,8 @@ sub modify_virtualos {
     #   Required : name      - name/ID of the virtual OS
 
     my $self = shift;
-    my @opt_scalars = qw/ ip hostname disk_root disk_size config 
-                    ssh_key template password nameservers searchdomain /;
+    my @opt_scalars = qw/ config cpu disk_root disk_size hostname ip 
+                          nameservers password searchdomain ssh_key /;
     my %opt_scalars = map { $_ => { type => SCALAR, optional => 1 } } @opt_scalars;
 
     my %p = validate(
@@ -292,7 +296,7 @@ sub modify_virtualos {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
-    $self->{ip} = $self->get_ips( $p{ip} );
+    $self->{ip} = $self->get_ips( $p{ip} ) if $p{ip};
 
     $prov->audit("\tdelegating request to $self->{vtype}");
 
@@ -318,9 +322,9 @@ sub reinstall_virtualos {
 #            : searchdomain -
 
     my $self = shift;
-    my @opt_scalars = qw/ hostname disk_root disk_size ram config 
-                    template password nameservers searchdomain ssh_key
-                    kernel_version mac_address /;
+    my @opt_scalars = qw/ config cpu disk_root disk_size hostname 
+                    kernel_version mac_address nameservers password ram 
+                    searchdomain ssh_key template /;
     my %opt_scalars = map { $_ => { type => SCALAR, optional => 1 } } @opt_scalars;
 
     my %p = validate(
@@ -348,7 +352,7 @@ sub reinstall_virtualos {
 
 sub upgrade_virtualos {
     my $self = shift;
-    my @req_scalars = qw/ name hostname disk_size ram config template ip /;
+    my @req_scalars = qw/ config cpu disk_size hostname ip name ram template /;
     my %req_scalars = map { $_ => { type => SCALAR } } @req_scalars;
 
     my %p = validate(
@@ -830,44 +834,9 @@ sub _get_virt_type {
     my $fatal = $p{fatal};
     my $prov = $self->{prov};
 
-    if ( lc($OSNAME) eq 'linux' ) {
-        my $xm = $util->find_bin( bin=> 'xm', fatal => 0, debug => 0);
-        my $vzctl = $util->find_bin( bin=> 'vzctl', fatal => 0, debug => 0);
+    return $self->_get_virt_type_linux( %p ) if lc($OSNAME) eq 'linux';
 
-        if ( $xm && ! $vzctl ) {
-            require Provision::Unix::VirtualOS::Linux::Xen;
-            return Provision::Unix::VirtualOS::Linux::Xen->new( vos => $self );
-        }
-        elsif ( $vzctl && ! $xm ) {
-            # this could be Virtuozzo or OpenVZ. The way to tell is by
-            # checking for the presence of /vz/template/cache (OpenVZ only) 
-            # also, a Virtuozzo container will have a cow directory inside the
-            # container home directory.
-            if ( -d "/vz/template" ) {
-                if ( -d "/vz/template/cache" ) {
-                    require Provision::Unix::VirtualOS::Linux::OpenVZ;
-                    return Provision::Unix::VirtualOS::Linux::OpenVZ->new( vos => $self );
-                }
-                else {
-                    require Provision::Unix::VirtualOS::Linux::Virtuozzo;
-                    return Provision::Unix::VirtualOS::Linux::Virtuozzo->new( vos => $self );
-                }
-            }
-            else {
-# has someone moved the template cache directory from the default location?
-                require Provision::Unix::VirtualOS::Linux::OpenVZ;
-                return Provision::Unix::VirtualOS::Linux::OpenVZ->new( vos => $self );
-            };
-        }
-        else {
-            $prov->error( 
-                "Unable to determine your virtualization method. You need one supported hypervisor (xen, openvz) installed.",
-                fatal => $fatal,
-                debug => $debug,
-            );
-        };
-    }
-    elsif ( lc( $OSNAME) eq 'freebsd' ) {
+    if ( lc( $OSNAME) eq 'freebsd' ) {
         my $ezjail = $util->find_bin( bin => 'ezjail-admin', fatal => 0, debug => 0 );
         if ( $ezjail ) {
             require Provision::Unix::VirtualOS::FreeBSD::Ezjail;
@@ -876,17 +845,62 @@ sub _get_virt_type {
 
         require Provision::Unix::VirtualOS::FreeBSD::Jail;
         return Provision::Unix::VirtualOS::FreeBSD::Jail->new( vos => $self );
-    }
-    else {
-        print "fatal: $fatal\n";
-        $prov->error( 
-            "No virtualization methods for $OSNAME are supported yet",
-            fatal   => $fatal,
-            debug   => $debug,
-        );
     };
+    $prov->error( 
+        "No virtualization methods for $OSNAME yet",
+        fatal   => $fatal,
+        debug   => $debug,
+    );
+    return;
 }
 
+sub _get_virt_type_linux {
+    my $self = shift;
+    my %p = validate( @_, { %std_opts });
+
+    my $err_before = scalar @{ $prov->{errors} };
+    my $xm = $util->find_bin( bin=> 'xm', fatal => 0, debug => 0);
+    my $vzctl = $util->find_bin( bin=> 'vzctl', fatal => 0, debug => 0);
+    if ( scalar @{$prov->{errors}} > $err_before ) {
+        delete $prov->{errors}[-1];  # clear the last error
+        delete $prov->{errors}[-1] if scalar @{$prov->{errors}} > $err_before;
+    };
+
+    require Provision::Unix::VirtualOS::Linux;
+    $self->{linux} = Provision::Unix::VirtualOS::Linux->new( vos => $self );
+
+    if ( $xm && ! $vzctl ) {
+        require Provision::Unix::VirtualOS::Linux::Xen;
+        return Provision::Unix::VirtualOS::Linux::Xen->new( vos => $self );
+    };
+    if ( $vzctl && ! $xm ) {
+        # this could be Virtuozzo or OpenVZ. The way to tell is by
+        # checking for the presence of /vz/template/cache (OpenVZ only) 
+        # also, a Virtuozzo container will have a cow directory inside the
+        # container home directory.
+        if ( -d "/vz/template" ) {
+            if ( -d "/vz/template/cache" ) {
+                require Provision::Unix::VirtualOS::Linux::OpenVZ;
+                return Provision::Unix::VirtualOS::Linux::OpenVZ->new( vos => $self );
+            }
+            else {
+                require Provision::Unix::VirtualOS::Linux::Virtuozzo;
+                return Provision::Unix::VirtualOS::Linux::Virtuozzo->new( vos => $self );
+            }
+        }
+        else {
+# has someone moved the template cache directory from the default location?
+            require Provision::Unix::VirtualOS::Linux::OpenVZ;
+            return Provision::Unix::VirtualOS::Linux::OpenVZ->new( vos => $self );
+        };
+    };
+
+    $prov->error( 
+        "Unable to determine your virtualization method. You need one supported hypervisor (xen, openvz) installed.",
+        fatal => $p{fatal},
+        debug => $p{debug},
+    );
+};
 
 1;
 

@@ -17,7 +17,6 @@ my $vos;
 eval { $vos = Provision::Unix::VirtualOS->new( prov => $prov, fatal => 0, debug => 0 ) };
 if ( $EVAL_ERROR ) {
     my $message = $EVAL_ERROR; chop $message;
-    $message .= " on " . $OSNAME;
     plan skip_all => $message;
 } 
 else {

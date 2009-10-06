@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::OpenVZ;
 
-our $VERSION = '0.39';
+our $VERSION = '0.42';
 
 use warnings;
 use strict;
@@ -13,30 +13,22 @@ use URI;
 use lib 'lib';
 use Provision::Unix::User;
 
-our ( $prov, $vos, $util );
+our ( $prov, $vos, $linux, $util );
 
 sub new {
-
     my $class = shift;
+    my %p = validate( @_, { vos => { type => OBJECT } } );
 
-    my %p = validate( @_, { 'vos' => { type => OBJECT }, } );
+    $vos   = $p{vos};
+    $prov  = $vos->{prov};
+    $util  = $vos->{util};
+    $linux = $vos->{linux};
 
-    $vos  = $p{vos};
-    $prov = $vos->{prov};
-
-    my $self = { 
-        vos  => $vos,
-        util => undef,
-    };
-    bless( $self, $class );
+    my $self = bless { }, $class;
 
     $prov->audit("loaded P:U:V::Linux::OpenVZ");
 
     $prov->{etc_dir} ||= '/etc/vz/conf';    # define a default
-
-    require Provision::Unix::Utility;
-    $util = Provision::Unix::Utility->new( prov => $prov );
-    $self->{util} = $util;
 
     return $self;
 }
@@ -48,13 +40,12 @@ sub create_virtualos {
     $EUID == 0
         or $prov->error( "Create function requires root privileges." );
 
+    my %std_opts = ( fatal => $vos->{fatal}, debug => $vos->{debug} );
     my $ctid = $vos->{name};
 
     # do not create if it exists already
-    return $prov->error( "ctid $ctid already exists",
-        fatal   => $vos->{fatal},
-        debug   => $vos->{debug},
-    ) if $self->is_present();
+    return $prov->error( "ctid $ctid already exists", %std_opts) 
+        if $self->is_present();
 
     # make sure $ctid is within accepable ranges
     my $err;
@@ -64,28 +55,19 @@ sub create_virtualos {
         $err = "ctid must be greater than $min" if ( $min && $ctid < $min );
         $err = "ctid must be less than $max"    if ( $max && $ctid > $max );
     };
-    if ( $err && $err ne '' ) {
-        return $prov->error( $err,
-            fatal   => $vos->{fatal},
-            debug   => $vos->{debug},
-        );
-    }
-
-    # TODO
-    # validate the config (package). <- HUH? -mps 7/21/09
+    return $prov->error( $err, %std_opts) if ( $err && $err ne '' );
 
     $prov->audit("\tctid '$ctid' does not exist, creating...");
 
-    # build the shell command to create
-    my $cmd = $util->find_bin( bin => 'vzctl', debug => 0 );
+    # build the shell create command 
+    my $cmd = $util->find_bin( bin => 'vzctl', %std_opts );
 
     $cmd .= " create $ctid";
     if ( $vos->{disk_root} ) {
         my $disk_root = "$vos->{disk_root}/root/$ctid";
         if ( -e $disk_root ) {
             return $prov->error( "the root directory for $ctid ($disk_root) already exists!",
-                fatal   => $vos->{fatal},
-                debug   => $vos->{debug},
+                %std_opts
             );
         };
         $cmd .= " --root $disk_root";
@@ -110,10 +92,7 @@ sub create_virtualos {
 
     my $r = $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
     if ( ! $r ) {
-        $prov->error( "VPS creation failed, unknown error",
-            fatal   => $vos->{fatal},
-            debug   => $vos->{debug},
-        );
+        $prov->error( "VPS creation failed, unknown error", %std_opts);
     };
 
     $self->set_hostname()    if $vos->{hostname};
@@ -292,12 +271,11 @@ sub stop_virtualos {
 }
 
 sub restart_virtualos {
-
     my $self = shift;
 
     $self->stop_virtualos()
         or
-        return $prov->error( "unable to stop virtual $vos->{name}",
+        return $prov->error( "unable to restart virtual $vos->{name}, failed to stop VE",
             fatal   => $vos->{fatal},
             debug   => $vos->{debug},
         );
@@ -402,7 +380,6 @@ sub enable_virtualos {
 }
 
 sub modify_virtualos {
-
     my $self = shift;
 
     $EUID == 0
@@ -410,29 +387,21 @@ sub modify_virtualos {
 
     my $ctid = $vos->{name};
 
-    # cannot modify unless it exists
-    return $prov->error( "ctid $ctid does not exist",
-        fatal   => $vos->{fatal},
-        debug   => $vos->{debug},
-    ) if !$self->is_present();
+    $self->stop_virtualos() or return;
 
-    $prov->audit("\tcontainer '$ctid' exists, modifying...");
+    $prov->audit("\tVE '$ctid' exists and shut down, making changes");
 
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
 
     $self->set_hostname()    if $vos->{hostname};
-    $self->set_ips()         if $vos->{ip};
     $self->set_password()    if $vos->{password};
     $self->set_nameservers() if $vos->{nameservers};
+    $self->set_ips()         if $vos->{ip};
+    $self->gen_config();
 
-# TODO: this almost certainly needs some error checking, as well as more code to do other things that should be done here. If I knew what, I'd have put them here. mps.
-
-    return $prov->audit("\tcontainer modified");
-
-    return $prov->error( "modify failed, unknown error",
-        fatal   => $vos->{fatal},
-        debug   => $vos->{debug},
-    );
+    $prov->audit("\tVE modified");
+    $self->start_virtualos() or return;
+    return 1;
 }
 
 sub reinstall_virtualos {
@@ -450,24 +419,9 @@ sub reinstall_virtualos {
 }
 
 sub upgrade_virtualos {
+# delete after 9/15/09
     my $self = shift;
-
-# generate updated config file
-    my $config = $self->gen_config();
-    my $conf_file = $self->get_config();
-    
-# install config file
-    $util->file_write( file => $conf_file, lines => [ $config ] );
-    $prov->audit("updated config file, restarting VE");
-
-# restart VE
-    $self->restart_virtualos()
-        or return $prov->error( "unable to restart virtual $vos->{name}",
-            fatal   => $vos->{fatal},
-            debug   => $vos->{debug},
-        );
-
-    return 1;
+    return $self->modify_virtualos();
 };
 
 sub unmount_disk_image {
@@ -513,8 +467,10 @@ sub gen_config {
     my $self = shift;
 # most of this method was written by Max Vohra - 2009
 
-    my $ram  = $vos->{ram} or die "unable to determine RAM";
-    my $disk = $vos->{disk_size} or die "unable to determine disk space";
+    my $ram  = $vos->{ram} or 
+        return $prov->error( "unable to determine RAM" );
+    my $disk = $vos->{disk_size} or 
+        return $prov->error( "unable to determine disk space" );
 
     my $MAX_ULONG = "2147483647";
     if( ($CHILD_ERROR>>8) == 0 ){
@@ -537,7 +493,7 @@ sub gen_config {
     $config->{OTHERSOCKBUF} = [ int(23819*$ram), int(23819*$ram)+$config->{NUMOTHERSOCK}[0]*4096 ];
     $config->{DGRAMRCVBUF} = [ int(23819*$ram), int(23819*$ram) ];
     $config->{OOMGUARPAGES} = [ int(23819*$ram), $MAX_ULONG ];
-    $config->{PRIVVMPAGES} = [ int(250*$ram), int(256*$ram) ];
+    $config->{PRIVVMPAGES} = [ int(256*$ram), int(256*$ram) ];
 
     # Auxiliary parameters
     $config->{LOCKEDPAGES} = [ int($config->{NUMPROC}[0]*2), int($config->{NUMPROC}[0]*2) ];
@@ -600,10 +556,16 @@ EO_VE_CUSTOM
 ;
 
     return $result;
+
+    my $conf_file = $self->get_config();
+
+# install config file
+    $util->file_write( file => $conf_file, lines => [ $result ] );
+    $prov->audit("updated config file $conf_file");
 };
 
 sub get_config {
-    my $ctid   = $vos->{name};
+    my $ctid   = $vos->{name} or return;
     my $etc_dir = $prov->{etc_dir} || '/etc/vz/conf';
     my $config = "$etc_dir/$ctid.conf";
     return $config;
@@ -753,6 +715,11 @@ sub get_status {
     }
 }
 
+sub get_fs_root {
+    my $self = shift;  
+    return $self->get_ve_home(@_);  # same thing for OpenVZ
+};
+
 sub get_ve_home {
     my $self = shift;
     my $name = $vos->{name} || shift || die "missing VE name";
@@ -791,6 +758,15 @@ sub set_config_default {
 sub set_ips {
     my $self = shift;
 
+    my (undef,undef,undef,$calling_sub) = caller(1);
+    if ( $calling_sub eq 'modify_virtualos' ) {
+        $prov->audit("using linux method to set ips");
+        $linux->set_ips( 
+            ips     => $vos->{ip}, 
+            fs_root => $self->get_fs_root(),
+        );
+        return;
+    };
     my $cmd = $util->find_bin( bin => 'vzctl', debug => 0 );
     $cmd .= " set $vos->{name}";
 
@@ -831,8 +807,9 @@ sub set_password {
 
     if ( $vos->{ssh_key} ) {
         my $user = Provision::Unix::User->new( prov => $prov );
+        my $ve_home = $self->get_ve_home();  # "/vz/private/$ctid"
         $user->install_ssh_key( 
-            homedir => $self->get_ve_home(),  # "/vz/private/$ctid"
+            homedir => "$ve_home/root",
             ssh_key => $vos->{ssh_key},
             debug   => $vos->{debug},
         );
@@ -904,10 +881,11 @@ sub is_mounted {
     );
 
     my $name = $p{name} || $vos->{name} or
-        $prov->error( 'is_mounted was called without a CTID' );
+        return $prov->error( 'is_mounted was called without a CTID' );
 
     $self->get_status() if $p{refresh};
-    return 1 if $self->{status}{$name}{mount} eq 'mounted';
+    my $mount_status = $self->{status}{$name}{mount};
+    return 1 if ( $mount_status && $mount_status eq 'mounted');
     return;
 };
 

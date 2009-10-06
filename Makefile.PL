@@ -2,6 +2,8 @@
 
 use strict;
 use warnings;
+use 5.008;
+use English qw( -no_match_vars );
 use inc::Module::Install;
 
 name             'Provision-Unix';
@@ -30,6 +32,7 @@ recommends        'Quota'               => 0;
 recommends        'Mail::Send'          => 1;
 recommends        'Proc::ProcessTable'  => 1;
 recommends        'Apache::Admin::Config' => .9;
+recommends        'Apache::ConfigFile'  => .9;
 recommends        'JSON::XS'            => 0;
 recommends        'NicTool'             => 0;
 
@@ -72,5 +75,7 @@ install_script        'bin/remoteagent';
 
 # inc and t are automatically not indexed
 no_index              file      => 'bin/remoteagent';
+
+die "No support for OS" if $OSNAME =~ /win32/i;
 
 WriteAll;

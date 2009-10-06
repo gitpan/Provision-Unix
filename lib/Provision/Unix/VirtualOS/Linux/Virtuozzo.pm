@@ -1,9 +1,7 @@
 package Provision::Unix::VirtualOS::Linux::Virtuozzo;
-
-our $VERSION = '0.03';
-
-use lib 'lib';
 use base Provision::Unix::VirtualOS::Linux::OpenVZ;
+
+our $VERSION = '0.05';
 
 use warnings;
 use strict;
@@ -12,14 +10,30 @@ use English qw( -no_match_vars );
 use File::Copy;
 use Params::Validate qw(:all);
 
-sub create_virtualos {
+my ($vos, $prov, $util, $linux);
 
+sub new {
+    my $class = shift;
+    my %p = validate( @_, { vos => { type => OBJECT } } );
+
+    $vos   = $p{vos};
+    $prov  = $vos->{prov};
+    $util  = $vos->{util};
+    $linux = $vos->{linux};
+
+    my $self = bless { }, $class;
+
+    $prov->audit("loaded P:U:V::Linux::Virtuozzo");
+
+    $prov->{etc_dir} ||= '/etc/vz/conf';    # define a default
+
+    return $self;
+}
+
+sub create_virtualos {
     my $self = shift;
 
-    my $vos  = $self->{vos};
-    my $prov = $vos->{prov};
     my $ctid = $vos->{name};
-    my $util = $self->{util};
 
     $EUID == 0
         or $prov->error( "That requires root privileges." ); 
@@ -84,8 +98,8 @@ sub create_virtualos {
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
 
     if ( $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 ) ) {
-        $self->set_hostname() if $vos->{hostname};
-        $self->set_ips();
+        $linux->set_hostname()   if $vos->{hostname};
+        $linux->set_ips();
         $self->set_password()    if $vos->{password};
         $self->set_nameservers() if $vos->{nameservers};
         return $prov->audit("\tvirtual os created");
@@ -141,9 +155,6 @@ __END__
 
 Provision::Unix::VirtualOS::Linux::Virtuozzo - 
 
-=head1 VERSION
-
-Version 0.12
 
 =head1 SYNOPSIS
 

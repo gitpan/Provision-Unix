@@ -1,55 +1,66 @@
 package Provision::Unix::VirtualOS::Linux;
 
-our $VERSION = '0.24';
-
-use File::Copy;
-use File::Path;
+our $VERSION = '0.25';
 
 use warnings;
 use strict;
 
+use File::Copy;
+use File::Path;
 #use English qw( -no_match_vars );
 use Params::Validate qw(:all);
 
 use lib 'lib';
 use Provision::Unix;
-use Provision::Unix::Utility;
 
-my ($prov, $util);
+my ($prov, $vos, $util);
+my %std_opts = ( debug => 0, fatal => 0 );
 
 sub new {
     my $class = shift;
-    my %p = validate(@_, { prov => { type => HASHREF, optional => 1 } } );
+    my %p = validate(@_, { vos => { type => OBJECT, optional => 1 } } );
 
-    my $self = {};
+    $vos  = $p{vos} || Provion::Unix::VirtualOS->new();
+    $prov = $vos->{prov};
+    $util = $vos->{util};
+
+    my $self = { 
+        vos  => $vos, 
+        util => $util,
+    };
     bless $self, $class;
-
-    $prov = $p{prov} || Provision::Unix->new();
-    $util = Provision::Unix::Utility->new( prov => $prov );
 
     return $self;
 }
 
 sub get_distro {
+    my $self = shift;
+    my $fs_root = shift;
+    return if ! $fs_root;
+    my $etc = "$fs_root/etc";
+    return if ! -d "$fs_root/etc";
 
-  # credit to Max Vohra. Logic implemented here was taken from his Template.pm
+# credit to Max Vohra for distro detection logic 
+    return 
+        -e "$etc/debian_version"    ? 'debian'
+      : -e "$etc/redhat-release"    ? 'redhat'      
+      : -e "$etc/SuSE-release"      ? 'suse'
+      : -e "$etc/slackware-version" ? 'slackware'
+      : -e "$etc/gentoo-release"    ? 'gentoo'
+      : -e "$etc/arch-release"      ? 'arch'
+      : undef;
+};
 
-    my ($fs_root) = @_;
-
-    return -e "$fs_root/etc/debian_version"
-        ? { distro => 'debian', pack_mgr => 'apt' }
-        : -e "$fs_root/etc/redhat-release"
-        ? { distro => 'redhat', pack_mgr => 'yum' }
-        : -e "$fs_root/etc/SuSE-release"
-        ? { distro => 'suse', pack_mgr => 'zypper' }
-        : -e "$fs_root/etc/slackware-version"
-        ? { distro => 'slackware', pack_mgr => 'unknown' }
-        : -e "$fs_root/etc/gentoo-release"
-        ? { distro => 'gentoo', pack_mgr => 'emerge' }
-        : -e "$fs_root/etc/arch-release"
-        ? { distro => 'arch', pack_mgr => 'packman' }
-        : { distro => undef, pack_mgr => undef };
-}
+sub get_package_manager {
+    my $distro = shift or return;
+    return $distro eq 'debian'    ? 'apt'
+         : $distro eq 'redhat'    ? 'yum'
+         : $distro eq 'suse'      ? 'zypper'
+         : $distro eq 'slackware' ? undef
+         : $distro eq 'gentoo'    ? 'emerge'
+         : $distro eq 'arch'      ? 'packman'
+         : return;
+};
 
 sub install_kernel_modules {
     my $self = shift;
@@ -68,27 +79,24 @@ sub install_kernel_modules {
     if ( -d "/boot/domU" ) {
         my ($modules) = </boot/domU/modules*$version*>;
         $modules or return $prov->error( 
-            "unable to find kernel modules in /boot/domU", fatal => 0);
+            "unable to find kernel modules in /boot/domU", %std_opts);
         my $module_dir = "$fs_root/lib/modules";
-        mkpath $module_dir if ! -d $module_dir;
-        -d $module_dir or return $prov->error("unable to create $module_dir", fatal => 0);
+        if ( ! -d $module_dir ) {
+            mkpath $module_dir 
+                or return $prov->error("unable to create $module_dir", %std_opts);
+        };
         my $cmd = "tar -zxpf $modules -C $module_dir";
-        $util->syscmd( cmd => $cmd, fatal => 0, debug => 0 ) or return;
+        $util->syscmd( cmd => $cmd, %std_opts ) or return;
     }
     else {
-# try fetching them via curl
         chdir $fs_root;
         foreach my $mod ( qw/ modules headers / ) {
-# fuse modules not yet available by sysadmin team, 2009.08.20 - mps
 #    foreach my $mod ( qw/ modules module-fuse headers / ) {
             next if $mod eq 'headers' && ! "$fs_root/usr/src";
             my $file = "xen-$mod-$version.tar.gz";
-            $util->file_get( url => "$url/$file", debug => 0 ) or return;
-            $util->syscmd( cmd => "tar -zxpf $file -C $fs_root" , debug => 0 );
+            $util->file_get( url => "$url/$file", %std_opts ) or return;
+            $util->syscmd( cmd => "tar -zxpf $file -C $fs_root", %std_opts ) or return;
             unlink $file;
-            #my $cmd = "curl -s $url/xen-$mod-$version.tar.gz | tar -zxf - -C $fs_root";
-            #print "cmd: $cmd\n" and next if $p{test_mode};
-            #$util->syscmd( cmd => $cmd, fatal => 0, debug => 0 );
         };
         chdir "/home/xen";
     };
@@ -119,7 +127,7 @@ sub set_rc_local {
                   ],
         mode   => '0755',
         append => 0,
-        fatal  => 0,
+        %std_opts,
     );
 };
 
@@ -128,24 +136,21 @@ sub set_ips {
     my %p = validate(@_,
         {   ips       => { type => ARRAYREF },
             fs_root   => { type => SCALAR },
-            dist      => { type => SCALAR },
+            distro    => { type => SCALAR,  optional => 1 },
             device    => { type => SCALAR,  optional => 1 },
             hostname  => { type => SCALAR,  optional => 1 },
             test_mode => { type => BOOLEAN, optional => 1 },
         }
     );
 
-    my $dist = delete $p{dist};
-    if ( $dist =~ /debian|ubuntu/ ) {
-        return $self->set_ips_debian(%p);
-    }
-    elsif ( $dist =~ /redhat|fedora|centos/i ) {
-        return $self->set_ips_redhat(%p);
-    }
-    elsif ( $dist =~ /gentoo/i ) {
-        return $self->set_ips_gentoo(%p);
-    }
-    $prov->error( "unable to set up networking on distro $dist", fatal => 0 );
+    my $distro = delete $p{distro};
+    $distro ||= $self->get_distro( $p{fs_root} );
+
+    return $self->set_ips_debian(%p) if $distro =~ /debian|ubuntu/i;
+    return $self->set_ips_redhat(%p) if $distro =~ /redhat|fedora|centos/i;
+    return $self->set_ips_gentoo(%p) if $distro =~ /gentoo/i;
+
+    $prov->error( "unable to set up networking on distro $distro", %std_opts );
     return;
 };
 
@@ -172,7 +177,7 @@ sub set_ips_debian {
     my $net = "$octets[0].$octets[1].$octets[2].0";
 
     my $config = <<EO_FIRST_IP
-# This configuration file is auto-generated by Provision::Unix.
+# This configuration file is generated by Provision::Unix.
 # WARNING: Do not edit this file, else your changes will be lost.
 
 # Auto generated interfaces
@@ -206,13 +211,14 @@ EO_ADDTL_IPS
     if ( $util->file_write( 
             file => "$fs_root/$config_file", 
             lines => [ $config ], 
-            fatal => 0, debug => 0 ) 
+            %std_opts,
+            ) 
         ) 
     {
         $prov->audit( "updated debian $config_file with network settings");
     }
     else {
-        $prov->error( "failed to update $config_file with network settings", fatal => 0);
+        $prov->error( "failed to update $config_file with network settings", %std_opts);
     };
 
     if ( $hostname) {
@@ -227,28 +233,30 @@ sub set_ips_gentoo {
         {   ips       => { type => ARRAYREF },
             fs_root   => { type => SCALAR },
             device    => { type => SCALAR,  optional => 1 },
+            gw_octet  => { type => SCALAR,  optional => 1 },
             hostname  => { type => SCALAR,  optional => 1 },
             test_mode => { type => BOOLEAN, optional => 1 },
         }
     );
 
-    my $device = $p{device} || 'eth0';
-    my @ips = @{ $p{ips} };
-    my $test_mode = $p{test_mode};
+    my $device   = $p{device} || 'eth0';
+    my @ips      = @{ $p{ips} };
+    my $test_mode= $p{test_mode};
     my $hostname = $p{hostname};
     my $fs_root  = $p{fs_root};
 
-    my $ip = shift @ips;
-    my @octets = split /\./, $ip;
-    my $gw  = "$octets[0].$octets[1].$octets[2].1";
+    my $ip       = shift @ips;
+    my @octets   = split /\./, $ip;
+    my $gw_octet = $p{gw_octet} || 1;
+    my $gw       = "$octets[0].$octets[1].$octets[2].$gw_octet";
 
     my $conf_dir = "$fs_root/etc/conf.d";
     my $net_conf = "$conf_dir/net";
 
     my (@lines, @new_lines);
     if ( -r $net_conf ) {
-        @lines = $util->file_read( file => $net_conf, fatal => 0 )
-            or $prov->error("error trying to read /etc/conf.d/net", fatal => 0);
+        @lines = $util->file_read( file => $net_conf, %std_opts )
+            or $prov->error("error trying to read /etc/conf.d/net", %std_opts);
     };
     foreach ( @lines ) {
         next if $_ =~ /^config_$device/;
@@ -261,9 +269,9 @@ sub set_ips_gentoo {
     push @new_lines, $ip_string;
     push @new_lines, "routes_$device=(\n\t\"default via $gw\"\n)";
     $prov->audit("net config: $ip_string");
-    $util->file_write( file => $net_conf, lines => \@new_lines, fatal => 0 )
+    $util->file_write( file => $net_conf, lines => \@new_lines, %std_opts )
         or return $prov->error(
-        "error setting up networking, unable to write to $net_conf", fatal => 0);
+        "error setting up networking, unable to write to $net_conf", %std_opts);
 
     return 1;
     #my $script = "/etc/runlevels/default/net.$device";
@@ -275,6 +283,7 @@ sub set_ips_redhat {
         {   ips       => { type => ARRAYREF },
             fs_root   => { type => SCALAR },
             device    => { type => SCALAR,  optional => 1 },
+            gw_octet  => { type => SCALAR,  optional => 1 },
             hostname  => { type => SCALAR,  optional => 1 },
             test_mode => { type => BOOLEAN, optional => 1 },
         }
@@ -288,13 +297,17 @@ sub set_ips_redhat {
 
     my $ip = shift @ips;
     my @octets = split /\./, $ip;
-    my $gw  = "$octets[0].$octets[1].$octets[2].1";
+    my $gw_octet = $p{gw_octet} || 1;
+    my $gw  = "$octets[0].$octets[1].$octets[2].$gw_octet";
     my $net = "$octets[0].$octets[1].$octets[2].0";
 
     my $netfile = "sysconfig/network";
     my $if_file = "sysconfig/network-scripts/ifcfg-$device";
     my $route_f = "sysconfig/network-scripts/route-$device";
     my $errors_before = scalar @{ $prov->{errors} };
+
+    # cleanup any existing files that may no longer be valid
+    unlink <$etc/$if_file*>;
 
     my $contents = <<EO_NETFILE
 NETWORKING="yes"
@@ -303,7 +316,7 @@ HOSTNAME="$hostname"
 EO_NETFILE
 ;
     return $contents if $test_mode;
-    my $r = $util->file_write( file => "$etc/$netfile", lines => [ $contents ], debug => 0, fatal => 0 );
+    my $r = $util->file_write( file => "$etc/$netfile", lines => [ $contents ], %std_opts );
     $r ? $prov->audit("updated /etc/$netfile with hostname $hostname and gateway $gw")
        : $prov->error("failed to update $netfile", fatal => 0);
 
@@ -315,18 +328,18 @@ IPADDR=$ip
 NETMASK=255.255.255.0
 EO_IF_FILE
 ;
-    $r = $util->file_write( file => "$etc/$if_file", lines => [ $contents ], debug => 0, fatal => 0 );
+    $r = $util->file_write( file => "$etc/$if_file", lines => [ $contents ], %std_opts );
     $r ? $prov->audit("updated /etc/$if_file with ip $ip")
-       : $prov->error("failed to update $if_file", fatal => 0);
+       : $prov->error("failed to update $if_file", %std_opts);
 
     $contents = <<EO_ROUTE_FILE
 $net/24 dev $device scope host
 default via $gw
 EO_ROUTE_FILE
 ;
-    $r = $util->file_write( file => "$etc/$route_f", lines => [ $contents ], debug => 0, fatal => 0 );
+    $r = $util->file_write( file => "$etc/$route_f", lines => [ $contents ], %std_opts );
     $r ? $prov->audit("updated /etc/$route_f with net $net and gw $gw")
-       : $prov->error("failed to update $route_f", fatal => 0);
+       : $prov->error("failed to update $route_f", %std_opts);
 
     my $alias_count = 0;
     foreach ( @ips ) {
@@ -340,9 +353,9 @@ NETMASK=255.255.255.0
 EO_IF_FILE
 ;
         $alias_count++;
-        $r = $util->file_write( file => "$etc/$if_file", lines => [ $contents ], debug => 0, fatal => 0 );
+        $r = $util->file_write( file => "$etc/$if_file", lines => [ $contents ], %std_opts );
         $r ? $prov->audit("updated /etc/$if_file with device $device and ip $_")
-           : $prov->error("failed to update $if_file", fatal => 0);
+           : $prov->error("failed to update $if_file", %std_opts);
     };
     return if scalar @{ $prov->{errors}} > $errors_before;
     return 1;
@@ -353,21 +366,16 @@ sub set_hostname {
     my %p = validate(@_,
         {   host    => { type => SCALAR },
             fs_root => { type => SCALAR },
-            dist    => { type => SCALAR },
+            distro  => { type => SCALAR, optional => 1 },
         }
     );
 
-    my $dist = delete $p{dist};
-    if ( $dist =~ /debian|ubuntu/ ) {
-        return $self->set_hostname_debian(%p);
-    }
-    elsif ( $dist =~ /redhat|fedora|centos/i ) {
-        return $self->set_hostname_redhat(%p);
-    }
-    elsif ( $dist =~ /gentoo/i ) {
-        return $self->set_hostname_gentoo(%p);
-    }
-    $prov->error( "unable to set hostname on distro $dist", fatal => 0 );
+    my $distro = delete $p{distro} || $self->get_distro( $p{fs_root} );
+    return $self->set_hostname_debian(%p) if $distro =~ /debian|ubuntu/i;
+    return $self->set_hostname_redhat(%p) if $distro =~ /redhat|fedora|centos/i;
+    return $self->set_hostname_gentoo(%p) if $distro =~ /gentoo/i;
+
+    $prov->error( "unable to set hostname on distro $distro", %std_opts );
     return;
 };
 
@@ -382,9 +390,13 @@ sub set_hostname_debian {
     my $host    = $p{host};
     my $fs_root = $p{fs_root};
 
-    #print "$host > $etc/hostname";
-    $util->file_write( file => "$fs_root/etc/hostname" , lines => [ $host ], debug => 0, fatal => 0 )
-        or return $prov->error("unable to set hostname", fatal => 0 );
+    $util->file_write( 
+        file  => "$fs_root/etc/hostname" , 
+        lines => [ $host ], 
+        %std_opts,
+    )
+    or return $prov->error("unable to set hostname", %std_opts );
+
     $prov->audit("wrote hostname to /etc/hostname");
     return 1;
 };
@@ -405,10 +417,10 @@ sub set_hostname_gentoo {
     $util->file_write( 
         file => "$fs_root/etc/conf.d/hostname" , 
         lines => [ "HOSTNAME=$host" ],
-        fatal => 0,
-        debug => 0,
+        %std_opts,
     )
-    or return $prov->error("error setting hostname", fatal => 0);
+    or return $prov->error("error setting hostname", %std_opts);
+
     $prov->audit("updated /etc/conf.d/hostname with $host");
     return 1;
 };
@@ -427,7 +439,7 @@ sub set_hostname_redhat {
     my $config = "$fs_root/etc/sysconfig/network";
     my @new;
     if ( -r $config ) {
-        my @lines = $util->file_read( file => $config, debug => 0, fatal => 0 );
+        my @lines = $util->file_read( file => $config, %std_opts );
         foreach ( @lines ) {
             next if $_ =~ /^HOSTNAME/;
             push @new, $_;
@@ -438,10 +450,9 @@ sub set_hostname_redhat {
     $util->file_write( 
         file => $config, 
         lines => \@new, 
-        debug => 0, 
-        fatal => 0,
+        %std_opts,
     )
-    or return $prov->error("failed to update $config with hostname $host", fatal => 0);
+    or return $prov->error("failed to update $config with hostname $host", %std_opts);
 
     $prov->audit("updated $config with hostname $host");
     return 1;
@@ -474,15 +485,14 @@ EO_INITTAB
     $util->file_write( 
         file  => "$fs_root/etc/event.d/xvc0", 
         lines => [ $contents ],
-        debug => 0,
-        fatal => 0,
+        %std_opts,
     ) or return;
     $prov->audit( "installed /etc/event.d/xvc0" );
 
     my $serial = "$fs_root/etc/event.d/serial";
     return if ! -e $serial;
 
-    my @lines = $util->file_read( file => $serial, debug => 0, fatal => 0 );
+    my @lines = $util->file_read( file => $serial, %std_opts );
     my @new;
     foreach my $line ( @lines ) {
         if ( $line =~ /^[start|stop]/ ) {
@@ -494,8 +504,7 @@ EO_INITTAB
     $util->file_write( 
         file  => "$fs_root/etc/event.d/serial", 
         lines => \@new,
-        debug => 0,
-        fatal => 0,
+        %std_opts,
     ) or return;
     $prov->audit("updated /etc/event.d/serial");
     return;
@@ -536,7 +545,7 @@ sub setup_inittab {
     };
 
     my $inittab = "$fs_root/etc/inittab";
-    my @lines = $util->file_read( file => $inittab, debug => 0, fatal => 0 );
+    my @lines = $util->file_read( file => $inittab, %std_opts );
     my @new;
     foreach ( @lines ) {
         next if $_ =~ /^1:/;
@@ -544,8 +553,8 @@ sub setup_inittab {
     }
     push @new, "1:2345:respawn:$getty_cmd";
     copy $inittab, "$inittab.dist";
-    $util->file_write( file => $inittab, lines => \@new, fatal => 0, debug => 0 )
-        or return $prov->error( "unable to write $inittab", fatal => 0);
+    $util->file_write( file => $inittab, lines => \@new, %std_opts )
+        or return $prov->error( "unable to write $inittab", %std_opts);
 
     $prov->audit("updated /etc/inittab ");
     return 1;
@@ -573,13 +582,13 @@ EO_C_CODE
     $util->file_write( 
         file  => "$fs_root/tmp/autologin.c", 
         lines => [ $auto ], 
-        fatal => 0, debug => 0 
+        %std_opts 
     ) or return;
 
-    my $chroot = $util->find_bin( bin=>'chroot', fatal => 0, debug => 0 ) or return;
-    my $gcc = $util->find_bin( bin=>'gcc', fatal => 0, debug => 0 ) or return;
+    my $chroot = $util->find_bin( bin=>'chroot', %std_opts ) or return;
+    my $gcc = $util->find_bin( bin=>'gcc', %std_opts ) or return;
     my $cmd = "$chroot $fs_root $gcc -m32 -o /bin/autologin /tmp/autologin.c";
-    $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 ) or return;
+    $util->syscmd( cmd => $cmd, %std_opts ) or return;
     unlink "$fs_root/tmp/autologin.c";
     return if ! -x "$fs_root/bin/autologin";
     return '/bin/autologin';

@@ -19,6 +19,7 @@ no_index:
     - bin/remoteagent
 recommends:
   Apache::Admin::Config: 0.9
+  Apache::ConfigFile: 0.9
   JSON::XS: 0
   Mail::Send: 1
   NicTool: 0
@@ -37,4 +38,4 @@ requires:
   perl: 5.8.0
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.70
+version: 0.71

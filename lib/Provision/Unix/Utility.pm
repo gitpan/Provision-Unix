@@ -783,11 +783,11 @@ sub files_diff {
     my $self = shift;
     my %p = validate(
         @_,
-        {   'f1'    => { type => SCALAR },
-            'f2'    => { type => SCALAR },
-            'type'  => { type => SCALAR, optional => 1, default => 'text' },
-            'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
-            'debug' => { type => BOOLEAN, optional => 1, default => 1 },
+        {   f1    => { type => SCALAR },
+            f2    => { type => SCALAR },
+            type  => { type => SCALAR,  optional => 1, default => 'text' },
+            fatal => { type => BOOLEAN, optional => 1, default => 1 },
+            debug => { type => BOOLEAN, optional => 1, default => 1 },
         }
     );
 
@@ -872,7 +872,7 @@ sub find_bin {
         },
     );
 
-    my ( $bin, $debug, $fatal ) = ( $p{bin}, $p{debug}, $p{fatal} );
+    my ( $bin, $debug ) = ( $p{bin}, $p{debug} );
     my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
 
     $log->audit( "find_bin: searching for $bin" ) if $debug;
@@ -901,7 +901,8 @@ sub find_bin {
         return $found;
     }
 
-    return $log->error( "WARNING: could not find $bin", %std_args);
+    $log->error( "WARNING: could not find $bin", %std_args) if $debug;
+    return;
 }
 
 sub fstab_list {
@@ -1176,19 +1177,18 @@ sub install_if_changed {
     my $self = shift;
     my %p = validate(
         @_,
-        {   'newfile'  => { type => SCALAR, optional => 0, },
-            'existing' => { type => SCALAR, optional => 0, },
-            'mode'     => { type => SCALAR, optional => 1, },
-            'uid'      => { type => SCALAR, optional => 1, },
-            'gid'      => { type => SCALAR, optional => 1, },
-            'sudo'     => { type => SCALAR, optional => 1, default => 0 },
-            'notify'   => { type => SCALAR, optional => 1, },
-            'email' =>
-                { type => SCALAR, optional => 1, default => 'postmaster' },
-            'clean'   => { type => SCALAR, optional => 1, default => 1 },
-            'archive' => { type => SCALAR, optional => 1, default => 0 },
-            'fatal'   => { type => SCALAR, optional => 1, default => 1 },
-            'debug'   => { type => SCALAR, optional => 1, default => 1 },
+        {   newfile => { type => SCALAR, optional => 0, },
+            existing=> { type => SCALAR, optional => 0, },
+            mode    => { type => SCALAR, optional => 1, },
+            uid     => { type => SCALAR, optional => 1, },
+            gid     => { type => SCALAR, optional => 1, },
+            sudo    => { type => BOOLEAN, optional => 1, default => 0 },
+            notify  => { type => BOOLEAN, optional => 1, },
+            email   => { type => SCALAR, optional => 1, default => 'postmaster' },
+            clean   => { type => BOOLEAN, optional => 1, default => 1 },
+            archive => { type => BOOLEAN, optional => 1, default => 0 },
+            fatal   => { type => BOOLEAN, optional => 1, default => 1 },
+            debug   => { type => BOOLEAN, optional => 1, default => 1 },
         },
     );
 
