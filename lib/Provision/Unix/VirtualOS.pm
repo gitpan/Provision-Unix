@@ -3,7 +3,7 @@ package Provision::Unix::VirtualOS;
 use warnings;
 use strict;
 
-our $VERSION = '0.41';
+our $VERSION = '0.42';
 
 use Data::Dumper;
 use English qw( -no_match_vars );
@@ -278,21 +278,17 @@ sub modify_virtualos {
     #   Required : name      - name/ID of the virtual OS
 
     my $self = shift;
-    my @opt_scalars = qw/ config cpu disk_root disk_size hostname ip 
-                          nameservers password searchdomain ssh_key /;
+    my @req_scalars = qw/ name disk_size hostname ip ram /;
+    my %req_scalars = map { $_ => { type => SCALAR } } @req_scalars;
+    my @opt_scalars = qw/ config cpu disk_root disk_size 
+                          nameservers password searchdomain ssh_key template /;
     my %opt_scalars = map { $_ => { type => SCALAR, optional => 1 } } @opt_scalars;
 
-    my %p = validate(
-        @_,
-        {   name   => { type => SCALAR },
-            %opt_scalars,
-            %std_opts,
-        }
-    );
+    my %p = validate( @_, {   %req_scalars, %opt_scalars, %std_opts, } );
 
     $prov->audit("initializing request to modify container '$p{name}'");
 
-    foreach ( 'name', @opt_scalars, @std_opts ) {
+    foreach ( @req_scalars, @opt_scalars, @std_opts ) {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
@@ -351,27 +347,9 @@ sub reinstall_virtualos {
 }
 
 sub upgrade_virtualos {
+# backwards compat, remove after 11/1/09
     my $self = shift;
-    my @req_scalars = qw/ config cpu disk_size hostname ip name ram template /;
-    my %req_scalars = map { $_ => { type => SCALAR } } @req_scalars;
-
-    my %p = validate(
-        @_,
-        {   %req_scalars,
-            disk_root    => { type => SCALAR|UNDEF, optional => 1 },
-            %std_opts,
-        }
-    );
-
-    $prov->audit( "initializing request to upgrade ve '$p{name}'");
-
-    foreach ( qw/ disk_root /, @req_scalars, @std_opts ) {
-        $self->{$_} = $p{$_} if defined $p{$_};
-    };
-
-    $self->{ip} = $self->get_ips( $p{ip} ) or return;
-
-    $self->{vtype}->upgrade_virtualos();
+    $self->modify_virtualos( @_ );
 };
 
 sub mount_disk_image {

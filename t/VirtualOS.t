@@ -92,7 +92,7 @@ my $required_bin
     : $virt_type eq 'xen'       ? 'xm'
     :                             undef;
 
-my %requires_template = map { $_ => 1 } qw/ xen ovz openvz /;
+my %requires_template = map { $_ => 1 } qw/ xen ovz openvz virtuozzo /;
 
 if ( defined $required_bin ) {
     my $found_bin

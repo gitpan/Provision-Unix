@@ -1,6 +1,6 @@
 package Provision::Unix;
 
-our $VERSION = '0.71';
+our $VERSION = '0.72';
 
 use warnings;
 use strict;
@@ -181,6 +181,13 @@ sub find_config {
         fatal   => $fatal,
         debug   => $debug,
     );
+}
+
+sub get_datetime_from_epoch {
+    my ( $self, $time ) = @_;
+    my @lt = localtime( $time || time() );
+    return sprintf '%04d-%02d-%02d %02d:%02d:%02d', $lt[5] + 1900, $lt[4] + 1,
+           $lt[3], $lt[2], $lt[1], $lt[0];
 }
 
 sub get_errors {

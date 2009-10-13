@@ -216,7 +216,7 @@ sub chown {
             'dir'         => { type => SCALAR, optional => 1, },
             'uid'         => { type => SCALAR, optional => 0, },
             'gid'         => { type => SCALAR, optional => 1, default => -1 },
-            'sudo' => { type => BOOLEAN, optional => 1, default => 0 },
+            'sudo'    => { type => BOOLEAN, optional => 1, default => 0 },
             'fatal'   => { type => BOOLEAN, optional => 1, default => 1 },
             'debug'   => { type => BOOLEAN, optional => 1, default => 1 },
             'test_ok' => { type => BOOLEAN, optional => 1 },
@@ -1194,7 +1194,7 @@ sub install_if_changed {
 
     my ( $newfile, $existing, $mode, $uid, $gid, $email) = (
         $p{newfile}, $p{existing}, $p{mode}, $p{uid}, $p{gid}, $p{email} );
-    my ($debug, $sudo, $notify ) = ($p{sudo}, $p{debug}, $p{notify} );
+    my ($debug, $sudo, $notify ) = ($p{debug}, $p{sudo}, $p{notify} );
     my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
 
     if ( $newfile !~ /\// ) {
@@ -1226,7 +1226,7 @@ sub install_if_changed {
         return $log->error("missing write permission", %std_args)
             if $UID == 0;
 
-        if ( $p{sudo} ) {
+        if ( $sudo ) {
             $sudo = $self->find_bin( bin => 'sudo', %std_args );
             return $log->error( "you are not root, sudo is not installed,"
                     . " and you don't have permission to write to "
@@ -1389,9 +1389,9 @@ sub install_from_source {
 
     if ( $bintest && $self->find_bin( bin => $bintest, fatal => 0, debug => 0 ) ) {
         return if ! $self->yes_or_no(
-            timeout  => 60,
-            question => "$bintest exists, suggesting that"
+            "$bintest exists, suggesting that"
                 . "$package is installed. Do you want to reinstall?",
+            timeout  => 60,
         );
     }
 
@@ -1989,7 +1989,7 @@ sub sources_get {
         $log->audit( " found $tarball!") if -e $tarball;
 
         if (`$filet $tarball | $grep compress`) {
-            $self->yes_or_no( question => "$tarball exists, shall I use it?: ")
+            $self->yes_or_no( "$tarball exists, shall I use it?: ")
                 and do {
                     print "\n\t ok, using existing archive: $tarball\n";
                     return 1;
@@ -2061,7 +2061,7 @@ sub source_warning {
     }
 
     return if !$self->yes_or_no(
-        question => "\n\tMay I remove the sources for you?",
+        "\n\tMay I remove the sources for you?",
         timeout  => $p{timeout},
     );
 
@@ -2109,7 +2109,7 @@ sub sudo {
         "\n\n\tWARNING: Couldn't find sudo. This may not be a problem but some features require root permissions and will not work without them. Having sudo can allow legitimate and limited root permission to non-root users. Some features of Provision::Unix may not work as expected without it.\n\n";
 
     # try installing sudo
-    $self->yes_or_no( question => "may I try to install sudo?", timeout => 20 ) or do {
+    $self->yes_or_no( "may I try to install sudo?", timeout => 20 ) or do {
         print "very well then, skipping along.\n";
         return "";
     };
@@ -2264,16 +2264,15 @@ sub syscmd {
 
 sub yes_or_no {
     my $self = shift;
+    my $question = shift;
     my %p = validate(
         @_,
-        {   'question' => { type => SCALAR,  optional => 0 },
-            'timeout'  => { type => SCALAR,  optional => 1 },
+        {   'timeout'  => { type => SCALAR,  optional => 1 },
             'debug'    => { type => BOOLEAN, optional => 1, default => 1 },
             'force'    => { type => BOOLEAN, optional => 1, default => 0 },
         },
     );
 
-    my $question = $p{question};
 
     # for 'make test' testing
     return 1 if $question eq "test";
@@ -3065,7 +3064,7 @@ try creating a directory using perl's builtin mkdir.
 =item yes_or_no
 
   my $r = $utility->yes_or_no( 
-      question => "Would you like fries with that?",
+      "Would you like fries with that?",
       timeout  => 30
   );
 

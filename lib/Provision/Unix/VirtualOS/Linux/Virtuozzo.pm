@@ -1,7 +1,7 @@
 package Provision::Unix::VirtualOS::Linux::Virtuozzo;
 use base Provision::Unix::VirtualOS::Linux::OpenVZ;
 
-our $VERSION = '0.05';
+our $VERSION = '0.07';
 
 use warnings;
 use strict;
@@ -10,18 +10,21 @@ use English qw( -no_match_vars );
 use File::Copy;
 use Params::Validate qw(:all);
 
-my ($vos, $prov, $util, $linux);
-
 sub new {
     my $class = shift;
     my %p = validate( @_, { vos => { type => OBJECT } } );
 
-    $vos   = $p{vos};
-    $prov  = $vos->{prov};
-    $util  = $vos->{util};
-    $linux = $vos->{linux};
+    my $vos   = $p{vos};
+    my $prov  = $vos->{prov};
+    my $util  = $vos->{util};
+    my $linux = $vos->{linux};
 
-    my $self = bless { }, $class;
+    my $self = bless {
+        vos   => $vos,
+        prov  => $prov,
+        util  => $util,
+        linux => $linux,
+    }, $class;
 
     $prov->audit("loaded P:U:V::Linux::Virtuozzo");
 
@@ -32,6 +35,8 @@ sub new {
 
 sub create_virtualos {
     my $self = shift;
+    my ($prov, $vos, $util) = ($self->{prov}, $self->{vos}, $self->{util});
+    my $linux = $self->{linux};
 
     my $ctid = $vos->{name};
 
@@ -98,10 +103,17 @@ sub create_virtualos {
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
 
     if ( $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 ) ) {
-        $linux->set_hostname()   if $vos->{hostname};
-        $linux->set_ips();
-        $self->set_password()    if $vos->{password};
+
+        $self->set_hostname()    if $vos->{hostname};
+        sleep 1;
+        $self->set_ips();
+        sleep 1;
         $self->set_nameservers() if $vos->{nameservers};
+        sleep 1;
+        $self->set_password()    if $vos->{password};
+        sleep 1;
+        $self->start_virtualos();
+
         return $prov->audit("\tvirtual os created");
     }
 
@@ -116,9 +128,7 @@ sub _is_valid_template {
     my $self     = shift;
     my $template = shift;
 
-    my $vos  = $self->{vos};
-    my $util = $self->{util};
-    my $prov = $vos->{prov};
+    my ($prov, $vos, $util) = ($self->{prov}, $self->{vos}, $self->{util});
 
     my $template_dir = $self->{prov}{config}{virtuozzo_template_dir} || '/vz/template';
     if ( -f "$template_dir/$template.tar.gz" ) {

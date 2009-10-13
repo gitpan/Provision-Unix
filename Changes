@@ -1,5 +1,11 @@
 Revision history for Provision-Unix
 
+0.72 Oct 12, 2009
+  - added timestamp and 'created by P:U' to generated VE config files
+  - made P:U:V:L:OpenVZ a better OO citizen, so P:U:V:L:Virtuozzo inheritance
+    works properly.
+  - further enhancements to modify, tested and working on OpenVZ
+
 0.71 Oct 06, 2009
   - if linux disto isn't passed to methods in P:U:V:L class, detect linux distro
   - when doing a openvz modify, use P:U:V:L:set_ips instead of vzctl --ipadd

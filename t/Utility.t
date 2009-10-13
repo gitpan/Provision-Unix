@@ -193,7 +193,7 @@ TODO: {
     # this way to run them but not count them as failures
     local $TODO = $why if ( -e '/dev/null' );
 
-#$extra = $util->yes_or_no( question=>"can I run extended tests?", timeout=>5 );
+#$extra = $util->yes_or_no( "can I run extended tests?", timeout=>5 );
 #ok ( $extra, 'yes_or_no' );
 }
 
@@ -711,6 +711,6 @@ ok( $util->file_delete( file => "$rwtest.md5", debug => 0, ), 'file_delete' );
 ok( $util->clean_tmp_dir( dir => $tmp, debug => 0 ), 'clean_tmp_dir' );
 
 # yes_or_no
-ok( $util->yes_or_no( question => "test", timeout => 5, debug => 0 ),
+ok( $util->yes_or_no( "test", timeout => 5, debug => 0 ),
     'yes_or_no' );
 
