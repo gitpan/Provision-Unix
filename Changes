@@ -1,5 +1,10 @@
 Revision history for Provision-Unix
 
+0.73 Oct 13, 2009
+  - resolved an issue that caused 'make test' to fail on Virtuozzo nodes. 
+  - added ability to resize Xen volumes using LVM tools
+  - automatically subtract swap partition from disk_size allotment
+
 0.72 Oct 12, 2009
   - added timestamp and 'created by P:U' to generated VE config files
   - made P:U:V:L:OpenVZ a better OO citizen, so P:U:V:L:Virtuozzo inheritance

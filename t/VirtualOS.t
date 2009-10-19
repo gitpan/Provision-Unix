@@ -197,12 +197,11 @@ my $r;
     $request{nameservers} = '64.79.200.111 64.79.200.113';
     $request{test_mode} = 0;
     ok( $vos->create_virtualos( %request ), 'create_virtualos, valid request')
-        or diag $vos->create_virtualos(
-            name      => $container_id_or_name,
-            ip        => '10.0.1.76',
-            debug     => 1,
-            fatal     => 0,
-        );
+        or do {
+            $request{debug} = 1;
+            warn Dumper(\%request);
+            diag $vos->create_virtualos( %request );
+        };
 
     ok( $vos->start_virtualos( %common), 'start_virtualos');
 

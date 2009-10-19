@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::Xen;
 
-our $VERSION = '0.42';
+our $VERSION = '0.43';
 
 use warnings;
 use strict;
@@ -147,9 +147,7 @@ sub destroy_virtualos {
         $self->stop_virtualos() or return;
     };
 
-    if ( $self->is_mounted() ) {
-        $self->unmount_disk_image() or return $prov->error("could not unmount disk image");
-    };
+    $self->unmount_disk_image() or return $prov->error("could not unmount disk image");
 
     $prov->audit("\tctid '$ctid' is stopped. Nuking it...");
     $self->destroy_disk_image() or return;
@@ -203,9 +201,7 @@ sub start_virtualos {
 
 # disk images often get left mounted, preventing a VE from starting. 
 # Try unmounting them, just in case.
-    if ( $self->is_mounted() ) {
-        $self->unmount_disk_image( 'quiet' );
-    };
+    $self->unmount_disk_image( 'quiet' );
 
     my $config_file = $self->get_ve_config_path();
     if ( !-e $config_file ) {
@@ -392,9 +388,6 @@ sub modify_virtualos {
     $linux->set_hostname( host => $hostname, fs_root => $fs_root ) 
         if $hostname && ! $vos->{ip};
 
-    #
-    #if $vos->{nameservers};
-
     $user ||= Provision::Unix::User->new( prov => $prov );
 
     if ( $user ) {
@@ -426,6 +419,7 @@ sub modify_virtualos {
 
     $self->gen_config();
     $self->unmount_disk_image() or return;
+    $self->resize_disk_image();
     $self->start_virtualos() or return;
     return 1;
 }
@@ -511,20 +505,22 @@ sub create_console_user {
 sub create_disk_image {
     my $self = shift;
 
-    my $img_name = $vos->{name} . '_rootimg';
-    my $size = $vos->{disk_size} || 2500;
+    my $disk_image = $self->get_disk_image();
+    my $size = $self->get_ve_disk_size();
+    my $ram  = $self->get_ve_ram();
+    $size = $size - ( $ram * 2 );   # subtract swap from their disk allotment
 
     # create the disk image
     my $cmd = $util->find_bin( bin => 'lvcreate', debug => 0, fatal => 0 ) or return;
-    $cmd .= " -L$size -n${img_name} vol00";
+    $cmd .= " --size=${size}M --name=${disk_image} vol00";
     $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 )
-        or return $prov->error( "unable to create $img_name", fatal => 0 );
+        or return $prov->error( "unable to create $disk_image with: $cmd", fatal => 0 );
 
     # format as ext3 file system
     $cmd = $util->find_bin( bin => 'mkfs.ext3', debug => 0, fatal => 0 ) or return;
-    $cmd .= " /dev/vol00/${img_name}";
+    $cmd .= " /dev/vol00/${disk_image}";
     $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 )
-        or return $prov->error( "unable for format disk image", fatal => 0);
+        or return $prov->error( "unable for format disk image with: $cmd", fatal => 0);
 
     $prov->audit("disk image for $vos->{name} created");
     return 1;
@@ -533,13 +529,13 @@ sub create_disk_image {
 sub create_swap_image {
     my $self = shift;
 
-    my $img_name = $vos->{name} . '_vmswap';
-    my $ram      = $vos->{ram} || 128;
+    my $img_name = $self->get_swap_image();
+    my $ram      = $self->get_ve_ram();
     my $size     = $ram * 2;
 
     # create the swap image
     my $cmd = $util->find_bin( bin => 'lvcreate', debug => 0, fatal => 0 ) or return;
-    $cmd .= " -L$size -n${img_name} vol00";
+    $cmd .= " --size=${size}M --name=${img_name} vol00";
     $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 )
         or return $prov->error( "unable to create $img_name", fatal => 0 );
 
@@ -549,6 +545,7 @@ sub create_swap_image {
     $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 )
         or return $prov->error( "unable to format $img_name", fatal => 0 );
 
+    $prov->audit( "created a $size MB swap partition" );
     return 1;
 }
 
@@ -579,18 +576,18 @@ sub destroy_console_user {
 sub destroy_disk_image {
     my $self = shift;
 
-    my $img_name = "$vos->{name}_rootimg";
+    my $disk_image = $self->get_disk_image();
 
-    #$prov->audit("checking for presense of disk image $img_name");
-    if ( ! -e "/dev/vol00/$img_name" ) {
-        $prov->audit("disk image does not exist: $img_name");
+    #$prov->audit("checking for presense of disk image $disk_image");
+    if ( ! -e "/dev/vol00/$disk_image" ) {
+        $prov->audit("disk image does not exist: $disk_image");
         return 1;
     };
 
     $prov->audit("My name is Inigo Montoya. You killed my father. Prepare to die!");
 
     my $cmd  = $util->find_bin( bin => 'lvremove', debug => 0 );
-       $cmd .= " -f vol00/${img_name}";
+       $cmd .= " -f vol00/${disk_image}";
     my $r = $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
     if ( ! $r ) {
         $prov->audit("My name is Inigo Montoya. You killed my father. Prepare to die!");
@@ -598,20 +595,20 @@ sub destroy_disk_image {
         $r = $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 )
             and pop @{ $prov->{errors} };  # clear the last error
     };
-    $r or return $prov->error( "unable to destroy disk image: $img_name" );
+    $r or return $prov->error( "unable to destroy disk image: $disk_image" );
     return 1;
 }
 
 sub destroy_swap_image {
     my $self = shift;
 
-    my $img_name = "$vos->{name}_vmswap";
+    my $img_name = $self->get_swap_image();
 
     return $prov->audit("disk image does not exist: $img_name")
         if ! -e "/dev/vol00/$img_name";
 
     my $cmd = $util->find_bin( bin => 'lvremove', debug => 0 );
-    $cmd .= " -f vol00/${img_name}";
+    $cmd .= " -f vol00/$img_name";
     $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 )
         or return $prov->error( "unable to destroy swap $img_name", fatal => 0 );
     return 1;
@@ -652,6 +649,12 @@ sub get_console_username {
     my $ctid = $vos->{name};
        $ctid .= 'vm';
     return $ctid;
+};
+
+sub get_disk_image {
+    my $self = shift;
+    my $name = $vos->{name} or die "missing VE name!";
+    return $name . '_rootimg';
 };
 
 sub get_disk_usage {
@@ -808,6 +811,12 @@ sub get_status {
     }
 }
 
+sub get_swap_image {
+    my $self = shift;
+    my $name = $vos->{name} or die "missing VE name!";
+    return $name . '_vmswap';
+};
+
 sub get_template_dir {
     my $self = shift;
 
@@ -820,6 +829,19 @@ sub get_ve_config_path {
     my $ve_name     = $self->get_ve_name();
     my $config_file = "$vos->{disk_root}/$ve_name/$ve_name.cfg";
     return $config_file;
+};
+
+sub get_ve_ram {
+    my $self = shift;
+    return $vos->{ram} || 256;
+};
+
+sub get_ve_disk_size {
+    my $self = shift;
+    my $ram = $self->get_ve_ram();
+    my $swap = $ram * 2;
+    my $allocation = $vos->{disk_size} || 2500;
+    return $allocation - $swap;
 };
 
 sub get_fs_root {
@@ -868,9 +890,7 @@ sub get_ve_passwd_file {
 
 sub is_mounted {
     my $self = shift;
-
-    my $name = $vos->{name};
-    my $image = "${name}_rootimg";
+    my $image = $self->get_disk_image();
     my $found = `/bin/mount | grep $image`; chomp $found;
     return $found;
 };
@@ -893,8 +913,11 @@ sub is_present {
 
     $prov->audit("checking if VE $name exists") if $debug;
 
+    my $disk_image = $self->get_disk_image();
+    my $swap_image = $self->get_swap_image();
+
     my @possible_paths = (
-        $ve_home, "/dev/vol00/${name}_rootimg", "/dev/vol00/${name}_vmswap"
+        $ve_home, "/dev/vol00/$disk_image", "/dev/vol00/$swap_image"
     );
 
     foreach my $path (@possible_paths) {
@@ -965,26 +988,105 @@ sub is_enabled {
 sub mount_disk_image {
     my $self = shift;
 
-    my $name      = $vos->{name} or die "missing VE name!";
-    my $img_name  = $name . '_rootimg';
+    my $disk_image = $self->get_disk_image();
     my $ve_name   = $self->get_ve_name();
     my $fs_root   = $self->get_fs_root();
+
+# returns 2 (true) if image is already mounted
+    return 2 if $self->is_mounted();
 
     mkpath $fs_root if !-d $fs_root;
 
     return $prov->error( "unable to create $fs_root", fatal => 0 )
         if ! -d $fs_root;
 
-# returns 2 (true) if image was already mounted
-    return 2 if -d "$fs_root/etc";
-
     #$mount /dev/vol00/${VMNAME}_rootimg /home/xen/$ve_name/mnt
     my $cmd = $util->find_bin( bin => 'mount', debug => 0, fatal => 0 ) or return;
-    $cmd .= " /dev/vol00/$img_name $fs_root";
+    $cmd .= " /dev/vol00/$disk_image $fs_root";
     $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 )
-        or return $prov->error( "unable to mount $img_name", fatal => 0 );
+        or return $prov->error( "unable to mount $disk_image", fatal => 0 );
     return 1;
 }
+
+sub resize_disk_image {
+    my $self = shift;
+
+    my $name = $vos->{name} or die "missing VE name!";
+
+    $self->destroy_swap_image();
+    $self->create_swap_image();
+
+    my $image_name = $self->get_disk_image();
+    my $disk_image = '/dev/vol00/' . $image_name;
+    my $target_size = $self->get_ve_disk_size();
+
+    # check existing disk size.
+    $self->mount_disk_image() or $prov->error( "unable to mount disk image" );
+    my $fs_root = $self->get_fs_root();
+    my $df_out = qx{/bin/df -m $fs_root | /usr/bin/tail -n1};
+    my (undef, $current_size, $df_used, $df_free) = split /\s+/, $df_out;
+    $self->unmount_disk_image();
+
+    my $difference = $target_size - $current_size;
+
+    # return if the same
+    return $prov->audit( "no disk partition changes required" ) if ! $difference;
+    my $percent_diff = abs($difference / $target_size ) * 100;
+    return $prov->audit( "disk partition is close enough: $current_size vs $target_size" ) 
+        if $percent_diff < 5;
+
+    my $fsck   = $util->find_bin( bin => 'e2fsck', debug => 0 );
+       $fsck  .= " -y -f $disk_image";
+    my $pvscan = $util->find_bin( bin => 'pvscan', debug => 0);
+    my $resize2fs = $util->find_bin( bin => 'resize2fs', debug => 0 );
+
+    # if new size is bigger
+    if ( $target_size > $current_size ) {
+# make sure there is sufficient free disk space on the HW node
+        my $free = qx{$pvscan};
+        $free =~ /(\d+\.\d+)\s+GB\s+free\]/;
+        $free = $1 * 1024;
+        return $prov->error("Not enough disk space on HW node: needs $target_size but only $free MB free. Migrate account and manually increase disk space.") if $free <= $target_size;
+        # resize larger
+        $prov->audit("Extending disk $image_name from $current_size to $target_size");
+        my $cmd = "/usr/sbin/lvextend --size=${target_size}M $disk_image";
+        $prov->audit($cmd);
+        system $cmd and $prov->error( "failed to extend $image_name to $target_size megs");
+        system $fsck;
+        $cmd = "$resize2fs $disk_image";
+        $prov->audit($cmd);
+        system $cmd and $prov->error( "unable to resize filesystem $image_name");
+        system $fsck;
+        return 1;
+    }
+
+    if ( $current_size > $target_size ) {
+       # see if volume can be safely shrunk - per SA team: Andrew, Ryan, & Ted
+
+# if cannot be safely shrunk, fail.
+        return $prov->error( "volume has more than $target_size used, failed to shrink" ) 
+            if $df_used > $target_size;
+
+        # shrink it
+        $prov->audit( "Reducing $image_name from $current_size to $target_size MB");
+        system $fsck;
+        my $cmd = "$resize2fs -f $disk_image ${target_size}M";
+        $prov->audit($cmd);
+        system $cmd and $prov->error( " Unable to resize filesystem $image_name" );
+        $prov->audit("reduced file system");
+
+        $cmd  = $util->find_bin( bin => 'lvresize', debug => 0 );
+        $cmd .= " --size=${target_size}M $disk_image";
+        $prov->audit($cmd);
+        #system $cmd and $prov->error( "Error:  Unable to reduce filesystem on $image_name" );
+        open(FH, "| $cmd" ) or return $prov->error("failed to shrink logical volume");
+        print FH "y\n";  # deals with the non-suppressible "Are you sure..." 
+        close FH;        # waits for the open process to exit
+        $prov->audit("completed shrinking logical volume size");
+        system $fsck;
+        return 1;
+    };
+};
 
 sub set_hostname {
     my $self = shift;
@@ -1185,17 +1287,18 @@ sub unmount_disk_image {
     my $debug = $vos->{debug};
     my $fatal = $vos->{fatal};
 
+    return 1 if ! $self->is_mounted();
     $debug = $fatal = 0 if $quiet;
 
-    my $img_name = "$vos->{name}_rootimg";
+    my $disk_image = $self->get_disk_image();
 
     my $cmd = $util->find_bin( bin => 'umount', debug => 0, fatal => $fatal )
         or return $prov->error( "unable to find 'umount' program");
-    $cmd .= " /dev/vol00/$img_name";
+    $cmd .= " /dev/vol00/$disk_image";
 
     my $r = $util->syscmd( cmd => $cmd, debug => 0, fatal => $fatal );
     if ( ! $r && ! $quiet ) {
-        $prov->error( "unable to unmount $img_name" );
+        $prov->error( "unable to unmount $disk_image" );
     };
     return $r;
 }
@@ -1208,7 +1311,7 @@ sub gen_config {
     my $config_file = $self->get_ve_config_path();
     #warn "config file: $config_file\n" if $vos->{debug};
 
-    my $ram      = $vos->{ram} || 128;
+    my $ram      = $self->get_ve_ram();
     my $hostname = $vos->{hostname} || $ctid;
 
     my @ips      = @{ $vos->{ip} };
@@ -1216,6 +1319,8 @@ sub gen_config {
     foreach ( @ips ) { $ip_list .= " $_"; };
     my $mac      = $self->get_mac_address();
 
+    my $disk_image = $self->get_disk_image();
+    my $swap_image = $self->get_swap_image();
     my $kernel_dir = $self->get_kernel_dir();
     my $kernel_version = $self->get_kernel_version();
 
@@ -1237,7 +1342,7 @@ vif        = ['ip=$ip_list, vifname=vif${ctid},  mac=$mac']
 vnc        = 0
 vncviewer  = 0
 serial     = 'pty'
-disk       = ['phy:/dev/vol00/${ctid}_rootimg,sda1,w', 'phy:/dev/vol00/${ctid}_vmswap,sda2,w']
+disk       = ['phy:/dev/vol00/$disk_image,sda1,w', 'phy:/dev/vol00/$swap_image,sda2,w']
 root       = '/dev/sda1 ro'
 extra      = 'console=xvc0'
 vcpus      = $cpu
@@ -1346,7 +1451,7 @@ L<http://search.cpan.org/dist/Provision-Unix>
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2009 Matt Simerson
+Copyright (c) 2009 Matt Simerson
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

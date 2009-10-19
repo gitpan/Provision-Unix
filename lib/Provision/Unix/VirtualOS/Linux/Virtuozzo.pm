@@ -1,7 +1,7 @@
 package Provision::Unix::VirtualOS::Linux::Virtuozzo;
 use base Provision::Unix::VirtualOS::Linux::OpenVZ;
 
-our $VERSION = '0.07';
+our $VERSION = '0.08';
 
 use warnings;
 use strict;
@@ -77,15 +77,15 @@ sub create_virtualos {
     $cmd .= " --hostname $vos->{hostname}" if $vos->{hostname};
     $cmd .= " --config $vos->{config}" if $vos->{config};
 
-    if ( $vos->{template} ) {
-        my $template = $self->_is_valid_template( $vos->{template} )
-            or return;
-        my @bits = split '-', $template;
-        pop @bits;    # remove the stuff after the last hyphen
-        my $pkgset = join '-', @bits;
-        $cmd .= " --pkgset $pkgset";
-        # $cmd .= " --ostemplate $template";
-    }
+    return $prov->error( "template required but not specified", fatal => 0)
+        if ! $vos->{template};
+
+    my $template = $self->_is_valid_template( $vos->{template} ) or return;
+    my @bits = split '-', $template;
+    pop @bits;    # remove the stuff after the last hyphen
+    my $pkgset = join '-', @bits;
+    $cmd .= " --pkgset $pkgset";
+    # $cmd .= " --ostemplate $template";
     
     my @configs = </etc/vz/conf/ve-*.conf-sample>;
     no warnings;
@@ -100,7 +100,7 @@ sub create_virtualos {
 
     $prov->audit("\tcmd: $cmd");
 
-    return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
+    return $prov->audit("test mode early exit") if $vos->{test_mode};
 
     if ( $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 ) ) {
 
