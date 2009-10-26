@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::FreeBSD::Ezjail;
 
-our $VERSION = '0.10';
+our $VERSION = '0.11';
 
 use warnings;
 use strict;
@@ -21,7 +21,7 @@ sub new {
     my $self = { prov => $prov };
     bless( $self, $class );
 
-    $prov->audit("loaded P:U:V::FreeBSD::Ezjail");
+    $prov->audit( $class . sprintf( " loaded by %s, %s, %s", caller ) );
 
     require Provision::Unix::Utility;
     $util = Provision::Unix::Utility->new( prov => $prov );
@@ -38,25 +38,24 @@ sub create_virtualos {
     # ezjail-admin create -a archive
 
     my $admin = $util->find_bin( bin => 'ezjail-admin', debug => 0 );
-    my $cmd = "$admin ";
 
     my $jails_root = _get_jails_root() || '/usr/jails';
 
     if (   $vos->{disk_root}
         && $vos->{disk_root} ne "$jails_root/$vos->{name}" )
     {
-        $cmd .= " -r $vos->{disk_root}";
+        $admin .= " -r $vos->{disk_root}";
     }
 
     my $template = $vos->{template} || 'default';
     if ($template) {
         if ( -d "$jails_root/flavours/$template" ) {
             $prov->audit("detected ezjail flavour $template");
-            $cmd .= " -f $template";
+            $admin .= " -f $template";
         }
         elsif ( -f "$jails_root/$template.tgz" ) {
             $prov->audit("installing from archive $template");
-            $cmd .= " -a $jails_root/$template.tgz";
+            $admin .= " -a $jails_root/$template.tgz";
         }
         else {
             $prov->error( "You chose the template ($template) but it is not defined as a flavor in $jails_root/flavours or an archive at $jails_root/$template.tgz"
@@ -64,11 +63,11 @@ sub create_virtualos {
         }
     }
 
-    $cmd .= " -s $vos->{disk_size}" if $vos->{disk_size};
+    $admin .= " -s $vos->{disk_size}" if $vos->{disk_size};
 
-    $prov->audit("cmd: $cmd $vos->{name} $vos->{ip}");
+    $prov->audit("cmd: $admin $vos->{name} $vos->{ip}");
     return 1 if $vos->{test_mode};
-    return $util->syscmd( cmd => $cmd );
+    return $util->syscmd( $admin );
 }
 
 sub is_present {

@@ -81,7 +81,7 @@ sub create {
     $cmd .= " -m $username";
 
     return $prov->audit("\ttest mode early exit") if $p{test_mode};
-    $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 ) or return;
+    $util->syscmd( $cmd, debug => 0, fatal => 0 ) or return;
 
     if ( $password ) {
         my $passwd = $util->find_bin( bin => 'passwd', debug => $p{debug} );
@@ -127,7 +127,7 @@ sub create_group {
     $cmd .= " -g $p{gid}" if $p{gid};
     $cmd .= " $p{group}";
 
-    return $util->syscmd( cmd => $cmd, debug => $p{debug} );
+    return $util->syscmd( $cmd, debug => $p{debug} );
 }
 
 sub destroy {
@@ -163,7 +163,7 @@ sub destroy {
     my $cmd = $util->find_bin( bin => 'userdel', debug => $p{debug} );
     $cmd .= " -f -r $p{username}";
 
-    my $r = $util->syscmd( cmd => $cmd, debug => 0, fatal => $p{fatal} );
+    my $r = $util->syscmd( $cmd, debug => 0, fatal => $p{fatal} );
 
     # validate that the user was removed
     if ( !$self->exists() ) {
@@ -212,7 +212,7 @@ sub destroy_group {
     return 1 if $p{test_mode};
     $prov->audit("destroy group cmd: $cmd");
 
-    $util->syscmd( cmd => $cmd, debug => $debug, fatal => $fatal )
+    $util->syscmd( $cmd, debug => $debug, fatal => $fatal )
         or return $prov->progress(
         num   => 10,
         desc  => 'error',

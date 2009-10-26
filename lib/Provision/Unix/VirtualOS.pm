@@ -3,7 +3,7 @@ package Provision::Unix::VirtualOS;
 use warnings;
 use strict;
 
-our $VERSION = '0.42';
+our $VERSION = '0.45';
 
 use Data::Dumper;
 use English qw( -no_match_vars );
@@ -45,23 +45,24 @@ sub new {
 
     $prov = $p{prov};
     my $debug = $p{debug};
+    my $fatal = $p{fatal};
     $util = Provision::Unix::Utility->new( prov=> $prov )
         or die "unable to load P:U:Utility\n";
 
     my $self = {
         prov    => $p{prov},
-        debug   => $p{debug},
-        fatal   => $p{fatal},
+        debug   => $debug,
+        fatal   => $fatal,
         etc_dir => $p{etc_dir},
         util    => $util,
     };
     bless( $self, $class );
 
-    my $v_type = $self->_get_virt_type( fatal => $p{fatal}, debug => $debug )
-        or die $prov->{errors}[-1]{errmsg};
-    $self->{vtype} = $v_type;
+    $prov->audit( $class . sprintf( " loaded by %s, %s, %s", caller ) );
 
-    $prov->audit("loaded Provision::Unix::VirtualOS for $v_type");
+    $self->{vtype} = $self->_get_virt_type( fatal => $fatal, debug => $debug )
+        or die $prov->{errors}[-1]{errmsg};
+
     return $self;
 }
 
@@ -88,12 +89,15 @@ sub create_virtualos {
             kernel_version mac_address nameservers password ram 
             searchdomain ssh_key template /;
     my %opt_scalars = map { $_ => { type => SCALAR, optional => 1 } } @opt_scalars;
+    my @opt_bools = qw/ skip_start /;
+    my %opt_bools = map { $_ => { type => BOOLEAN, optional => 1 } } @opt_bools;
 
     my %p = validate(
         @_,
         {   name   => { type => SCALAR },
             ip     => { type => SCALAR },
             %opt_scalars,
+            %opt_bools,
             %std_opts,
         }
     );
@@ -268,6 +272,34 @@ sub enable_virtualos {
 
     $self->{vtype}->enable_virtualos();
 }
+
+sub migrate_virtualos {
+    my $self = shift;
+    my @req_scalars = qw/ name new_node /;
+    my %req_scalars = map { $_ => { type => SCALAR } } @req_scalars;
+    my @opt_scalars = qw/ /;
+    my %opt_scalars = map { $_ => { type => SCALAR, optional => 1 } } @opt_scalars;
+    my @opt_bools = qw/ connection_test /;
+    my %opt_bools = map { $_ => { type => BOOLEAN, optional => 1 } } @opt_bools;
+
+    my %p = validate( @_, { %req_scalars, %opt_scalars, %opt_bools, %std_opts, } );
+
+    my $name = $p{name};
+    my $new_node = $p{new_node};
+
+    $prov->audit("initializing request to migrate VE '$name' to $new_node");
+
+    foreach ( @req_scalars, @opt_scalars, @std_opts ) {
+        $self->{$_} = $p{$_} if defined $p{$_};
+    };
+    foreach ( @opt_bools ) {
+        $self->{$_} = defined $p{$_} ? $p{$_} : 0;
+    };
+
+    $prov->audit("\tdelegating request to $self->{vtype}");
+
+    $self->{vtype}->migrate_virtualos();
+};
 
 sub modify_virtualos {
 
@@ -719,7 +751,7 @@ sub setup_ssh_host_keys {
         unlink "$file_path.pub" if -e "$file_path.pub";
 
         my $cmd = "/usr/bin/ssh-keygen -q -t $type -f $file_path -N ''";
-        $util->syscmd( cmd => $cmd, debug => 0 );
+        $util->syscmd( $cmd, debug => 0 );
     };
 };
 

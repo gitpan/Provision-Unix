@@ -253,17 +253,17 @@ sub restart {
     print "restarting apache.\n" if $vals->{'debug'};
 
     if ( -x "/usr/local/etc/rc.d/apache2.sh" ) {
-        $util->syscmd( cmd => "/usr/local/etc/rc.d/apache2.sh stop" );
-        $util->syscmd( cmd => "/usr/local/etc/rc.d/apache2.sh start" );
+        $util->syscmd( "/usr/local/etc/rc.d/apache2.sh stop" );
+        $util->syscmd( "/usr/local/etc/rc.d/apache2.sh start" );
     }
     elsif ( -x "/usr/local/etc/rc.d/apache.sh" ) {
-        $util->syscmd( cmd => "/usr/local/etc/rc.d/apache.sh stop" );
-        $util->syscmd( cmd => "/usr/local/etc/rc.d/apache.sh start" );
+        $util->syscmd( "/usr/local/etc/rc.d/apache.sh stop" );
+        $util->syscmd( "/usr/local/etc/rc.d/apache.sh start" );
     }
     else {
         my $apachectl = $util->find_bin( bin => "apachectl" );
         if ( -x $apachectl ) {
-            $util->syscmd( cmd => "$apachectl graceful" );
+            $util->syscmd( "$apachectl graceful" );
         }
         else {
             warn "WARNING: couldn't restart Apache!\n ";
@@ -329,7 +329,7 @@ sub enable {
         # chmod 755 the documentroot directory
         if ( $vals->{'documentroot'} && -d $vals->{'documentroot'} ) {
             my $chmod = $util->find_bin( bin => "chmod" );
-            $util->syscmd( cmd => "$chmod 755 $vals->{'documentroot'}" );
+            $util->syscmd( "$chmod 755 $vals->{'documentroot'}" );
         }
     }
 
@@ -399,7 +399,7 @@ sub disable {
         }
         else {
             my $mv = $util->find_bin( bin => "move" );
-            $util->syscmd( cmd => "$mv $vhosts_conf.new $vhosts_conf" );
+            $util->syscmd( "$mv $vhosts_conf.new $vhosts_conf" );
         }
     }
     else {
@@ -415,7 +415,7 @@ sub disable {
     # chmod 0 the HTML directory
     if ( $vals->{'documentroot'} && -d $vals->{'documentroot'} ) {
         my $chmod = $util->find_bin( bin => "chmod" );
-        $util->syscmd( cmd => "$chmod 0 $vals->{'documentroot'}" );
+        $util->syscmd( "$chmod 0 $vals->{'documentroot'}" );
     }
 
     print "returning success or error\n" if $vals->{'debug'};

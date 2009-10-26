@@ -39,15 +39,18 @@ ok( $virt_type, "virtualization type: $virt_type");
 
 my $template_dir;
 my $template_that_exists = undef;
-if ( $virt_type =~ /virtuozzo|ovz|openvz|xen|ezjail/ ) {
+if ( $virt_type =~ /virtuozzo|ovz|openvz|xen/ ) {
 
 # get_template_dir
     $template_dir = $vos->get_template_dir( v_type => $virt_type );
     ok( $template_dir, "get_template_dir, $template_dir");
 
 # get_template_list
-    my $templates = $vos->get_template_list(v_type => $virt_type );
-    ok( scalar @$templates, 'get_template_list' );
+    my $templates = $vos->get_template_list( v_type => $virt_type );
+    ok( scalar @$templates, 'get_template_list' ) or do {
+        warn "no templates installed!";
+        exit;
+    };
 #warn Dumper($templates);
 
 # select a template for testing

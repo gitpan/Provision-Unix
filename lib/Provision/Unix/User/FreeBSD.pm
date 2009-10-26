@@ -115,7 +115,7 @@ sub create {
     }
     else {
         $prov->audit("pw command is: $pwcmd -h-");
-        $util->syscmd( cmd => "$pwcmd -h-", debug => 0 );
+        $util->syscmd( "$pwcmd -h-", debug => 0 );
     }
 
 ### TODO
@@ -150,11 +150,10 @@ sub create_group {
 
     # use the pw tool to add the user
     my $pw = $util->find_bin( bin => "pw", debug => $p{debug} );
+    $pw .= " groupadd -n $p{group}";
+    $pw .= " -g $p{gid}" if $p{gid};
 
-    my $cmd = "$pw groupadd -n $p{group}";
-    $cmd .= " -g $p{gid}" if $p{gid};
-
-    return $util->syscmd( cmd => $cmd, debug => $p{debug} );
+    return $util->syscmd( $pw, debug => $p{debug} );
 }
 
 sub destroy {
@@ -199,9 +198,9 @@ sub destroy {
     $prov->progress( num => 2, desc => "backed up master.passwd." );
 
     my $pw = $util->find_bin( bin => 'pw', debug => 0 );
-    my $cmd = "$pw userdel -n $p{username} -r";
+    $pw .= " userdel -n $p{username} -r";
 
-    my $r = $util->syscmd( cmd => $cmd, debug => $p{debug},
+    my $r = $util->syscmd( $pw, debug => $p{debug},
         fatal => $p{fatal} );
     $prov->progress( num => 3, desc => "deleted user" );
 
@@ -255,9 +254,9 @@ sub destroy_group {
     $prov->progress( num => 2, desc => "backed up /etc/group" );
 
     my $pw = $util->find_bin( bin => 'pw', debug => 0 );
-    my $cmd = "$pw groupdel -n $p{group}";
+    $pw .= " groupdel -n $p{group}";
 
-    my $r = $util->syscmd( cmd => $cmd, debug => $p{debug} );
+    my $r = $util->syscmd( $cmd, debug => $p{debug} );
     $prov->progress( num => 3, desc => "deleted group" );
 
     # validate that the group was removed

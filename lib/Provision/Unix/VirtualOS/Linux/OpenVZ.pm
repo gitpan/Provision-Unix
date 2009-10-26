@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::OpenVZ;
 
-our $VERSION = '0.43';
+our $VERSION = '0.45';
 
 use warnings;
 use strict;
@@ -18,7 +18,7 @@ sub new {
     my %p = validate( @_, { vos => { type => OBJECT } } );
 
     my $vos   = $p{vos};
-    my $prov  = $vos->{prov};
+    my $log = my $prov = $vos->{prov};
     my $util  = $vos->{util};
     my $linux = $vos->{linux};
 
@@ -30,7 +30,7 @@ sub new {
     };
     bless $self, $class;
 
-    $prov->audit("loaded P:U:V::Linux::OpenVZ");
+    $prov->audit( $class . sprintf( " loaded by %s, %s, %s", caller ) );
 
     $prov->{etc_dir} ||= '/etc/vz/conf';    # define a default
 
@@ -95,7 +95,7 @@ sub create_virtualos {
 
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
 
-    my $r = $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
+    my $r = $util->syscmd( $cmd, debug => 0, fatal => 0 );
     if ( ! $r ) {
         $prov->error( "VPS creation failed, unknown error", %std_opts);
     };
@@ -108,7 +108,7 @@ sub create_virtualos {
     sleep 1;
     $self->set_password()    if $vos->{password};
     sleep 1;
-    $self->start_virtualos();
+    $self->start_virtualos() if ! $vos->{skip_start};
     return $prov->audit("\tvirtual os created and launched");
 }
 
@@ -181,7 +181,7 @@ sub destroy_virtualos {
 
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
 
-    $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
+    $util->syscmd( $cmd, debug => 0, fatal => 0 );
 
     # we have learned better than to trust the return codes of vzctl
     if ( ! $self->is_present() ) {
@@ -222,7 +222,7 @@ sub start_virtualos {
     $cmd .= " --wait" if $vos->{'wait'};
 
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
-    $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
+    $util->syscmd( $cmd, debug => 0, fatal => 0 );
 
 # the results of vzctl start are not reliable. Use vzctl to
 # check the VE status and see if it actually started.
@@ -264,7 +264,7 @@ sub stop_virtualos {
     $cmd .= " stop $vos->{name}";
 
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
-    $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
+    $util->syscmd( $cmd, debug => 0, fatal => 0 );
 
     foreach ( 1..8 ) {
         return 1 if ! $self->is_running();
@@ -461,7 +461,7 @@ sub unmount_disk_image {
     $cmd .= " umount $vos->{name}";
 
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
-    $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
+    $util->syscmd( $cmd, debug => 0, fatal => 0 );
 
     foreach ( 1..8 ) {
         return 1 if ! $self->is_mounted();
@@ -802,7 +802,7 @@ sub set_ips {
     }
     $cmd .= " --save";
 
-    return $util->syscmd( cmd => $cmd, debug => 0, fatal => $vos->{fatal} );
+    return $util->syscmd( $cmd, debug => 0, fatal => $vos->{fatal} );
 }
 
 sub set_password {
@@ -821,7 +821,7 @@ sub set_password {
     $cmd .= " --userpasswd '$username:$password'";
 
     # not sure why but this likes to return gibberish, regardless of succeess or failure
-    # $r = $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
+    # $r = $util->syscmd( $cmd, debug => 0, fatal => 0 );
 
     # so we do it this way, with no error handling
     system( $cmd );
@@ -859,7 +859,7 @@ sub set_nameservers {
     $cmd .= " --searchdomain $search" if $search;
 #    $cmd .= " --save";
 
-    return $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
+    return $util->syscmd( $cmd, debug => 0, fatal => 0 );
 }
 
 sub set_hostname {
@@ -876,11 +876,7 @@ sub set_hostname {
     $cmd .= " set $vos->{name}";
     $cmd .= " --hostname $hostname --save";
 
-    return $util->syscmd( 
-        cmd => $cmd, 
-        debug => $vos->{debug}, 
-        fatal => $vos->{fatal}
-    );
+    return $util->syscmd( $cmd, debug => $vos->{debug}, fatal => $vos->{fatal});
 }
 
 sub pre_configure {

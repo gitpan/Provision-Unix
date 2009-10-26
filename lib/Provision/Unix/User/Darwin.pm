@@ -123,35 +123,29 @@ sub _create_dscl {
 
     my $dirutil = $util->find_bin( bin => "dscl", debug => 0 );
 
-    $util->syscmd(
-        cmd   => "$dirutil . -create /users/$user",
+    $util->syscmd( "$dirutil . -create /users/$user",
         debug => $debug,
     );
 
-    $util->syscmd(
-        cmd   => "$dirutil . -createprop /users/$user uid $p_user->{uid}",
+    $util->syscmd( "$dirutil . -createprop /users/$user uid $p_user->{uid}",
         debug => $debug,
     );
 
-    $util->syscmd(
-        cmd   => "$dirutil . -createprop /users/$user gid $p_user->{gid}",
+    $util->syscmd( "$dirutil . -createprop /users/$user gid $p_user->{gid}",
         debug => $debug,
     );
 
-    $util->syscmd(
-        cmd   => "$dirutil . -createprop /users/$user shell $p_user->{shell}",
+    $util->syscmd( "$dirutil . -createprop /users/$user shell $p_user->{shell}",
         debug => $debug,
     );
 
     my $homedir = $p_user->{homedir};
 
-    $util->syscmd(
-        cmd   => "$dirutil . -createprop /users/$user home $homedir",
+    $util->syscmd( "$dirutil . -createprop /users/$user home $homedir",
         debug => $debug,
     ) if $homedir;
 
-    $util->syscmd(
-        cmd   => "$dirutil . -createprop /users/$user passwd '*'",
+    $util->syscmd( "$dirutil . -createprop /users/$user passwd '*'",
         debug => $debug,
     );
 
@@ -177,41 +171,34 @@ sub _create_niutil {
     # use niutil on 10.4 and prior
     my $dirutil = $util->find_bin( bin => "niutil", debug => 0 );
 
-    $util->syscmd(
-        cmd   => "$dirutil -create . /users/$user",
+    $util->syscmd( "$dirutil -create . /users/$user",
         debug => $debug,
     ) or croak "failed to create user $user\n";
 
     $prov->progress( num => 6, desc => "configuring $user" );
 
-    $util->syscmd(
-        cmd   => "$dirutil -createprop . /users/$user uid $p_user->{uid}",
+    $util->syscmd( "$dirutil -createprop . /users/$user uid $p_user->{uid}",
         debug => $debug,
     );
 
-    $util->syscmd(
-        cmd   => "$dirutil -createprop . /users/$user gid $p_user->{gid}",
+    $util->syscmd( "$dirutil -createprop . /users/$user gid $p_user->{gid}",
         debug => $debug,
     );
 
-    $util->syscmd(
-        cmd   => "$dirutil -createprop . /users/$user shell $p_user->{shell}",
+    $util->syscmd( "$dirutil -createprop . /users/$user shell $p_user->{shell}",
         debug => $debug,
     );
 
     my $homedir = $p_user->{homedir};
-    $util->syscmd(
-        cmd   => "$dirutil -createprop . /users/$user home $homedir",
+    $util->syscmd( "$dirutil -createprop . /users/$user home $homedir",
         debug => $debug,
     );
 
-    $util->syscmd(
-        cmd   => "$dirutil -createprop . /users/$user _shadow_passwd",
+    $util->syscmd( "$dirutil -createprop . /users/$user _shadow_passwd",
         debug => $debug,
     );
 
-    $util->syscmd(
-        cmd   => "$dirutil -createprop . /users/$user passwd '*'",
+    $util->syscmd( "$dirutil -createprop . /users/$user passwd '*'",
         debug => $debug,
     );
 
@@ -257,7 +244,7 @@ sub destroy {
         $cmd = "$dirutil -destroy . /users/$user";
     }
 
-    $util->syscmd( cmd => $cmd, debug => 0 );
+    $util->syscmd( $cmd, debug => 0 );
 
     return $self->exists($user)
         ? $prov->progress( num => 10, 'err' => 'failed' )
@@ -285,31 +272,25 @@ sub create_group {
         = $util->find_bin( bin => "dscl", debug => $p{debug}, fatal => 0 );
 
     if ($dirutil) {    # 10.5
-        $util->syscmd(
-            cmd   => "$dirutil . -create /groups/$group",
+        $util->syscmd( "$dirutil . -create /groups/$group",
             debug => $p{debug}
         );
-        $util->syscmd(
-            cmd   => "$dirutil . -createprop /groups/$group gid $gid",
+        $util->syscmd( "$dirutil . -createprop /groups/$group gid $gid",
             debug => $p{debug}
         ) if $gid;
-        $util->syscmd(
-            cmd   => "$dirutil . -createprop /groups/$group passwd '*'",
+        $util->syscmd( "$dirutil . -createprop /groups/$group passwd '*'",
             debug => $p{debug}
         );
     }
     else {
         $dirutil = $prov->find_bin( bin => "niutil", debug => $p{debug} );
-        $util->syscmd(
-            cmd   => "$dirutil -create . /groups/$group",
+        $util->syscmd( "$dirutil -create . /groups/$group",
             debug => $p{debug}
         );
-        $util->syscmd(
-            cmd   => "$dirutil -createprop . /groups/$group gid $gid",
+        $util->syscmd( "$dirutil -createprop . /groups/$group gid $gid",
             debug => $p{debug}
         ) if $gid;
-        $util->syscmd(
-            cmd   => "$dirutil -createprop . /groups/$group passwd '*'",
+        $util->syscmd( "$dirutil -createprop . /groups/$group passwd '*'",
             debug => $p{debug}
         );
     }
@@ -340,15 +321,13 @@ sub destroy_group {
         = $util->find_bin( bin => "dscl", debug => $p{debug}, fatal => 0 );
 
     if ($dirutil) {    # 10.5
-        $util->syscmd(
-            cmd   => "$dirutil . -delete /groups/$group",
+        $util->syscmd( "$dirutil . -delete /groups/$group",
             debug => $p{debug}
         );
     }
     else {             # =< 10.4
         $dirutil = $util->find_bin( bin => "niutil", debug => $p{debug} );
-        $util->syscmd(
-            cmd   => "$dirutil -delete . /groups/$group",
+        $util->syscmd( "$dirutil -delete . /groups/$group",
             debug => $p{debug}
         );
     }
@@ -386,9 +365,6 @@ __END__
 
 Provision::Unix::User::Darwin - Provision Accounts on Darwin systems
 
-=head1 VERSION
-
-Version 0.16
 
 =head1 SYNOPSIS
 

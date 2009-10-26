@@ -1,7 +1,7 @@
 package Provision::Unix::VirtualOS::Linux::Virtuozzo;
 use base Provision::Unix::VirtualOS::Linux::OpenVZ;
 
-our $VERSION = '0.08';
+our $VERSION = '0.09';
 
 use warnings;
 use strict;
@@ -26,7 +26,7 @@ sub new {
         linux => $linux,
     }, $class;
 
-    $prov->audit("loaded P:U:V::Linux::Virtuozzo");
+    $prov->audit( $class . sprintf( " loaded by %s, %s, %s", caller ) );
 
     $prov->{etc_dir} ||= '/etc/vz/conf';    # define a default
 
@@ -102,7 +102,7 @@ sub create_virtualos {
 
     return $prov->audit("test mode early exit") if $vos->{test_mode};
 
-    if ( $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 ) ) {
+    if ( $util->syscmd( $cmd, debug => 0, fatal => 0 ) ) {
 
         $self->set_hostname()    if $vos->{hostname};
         sleep 1;

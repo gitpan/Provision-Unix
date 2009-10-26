@@ -44,7 +44,7 @@ if ( ! -d $tmp ) {
 };
 skip "$tmp dir creation failed!\n", 2 if ( ! -d $tmp );
 ok( -d $tmp, "temp dir: $tmp" );
-ok( $util->syscmd( cmd => "cp TODO $tmp/", debug => 0, fatal => 0 ),
+ok( $util->syscmd( "cp TODO $tmp/", debug => 0, fatal => 0 ),
     'cp TODO' );
 
 
@@ -84,15 +84,13 @@ my $tar  = $util->find_bin( bin => "tar",  fatal => 0, debug => 0 );
 
 SKIP: {
     skip "gzip or tar is missing!\n", 6 unless ( -x $gzip and -x $tar and -d $tmp );
-    ok( $util->syscmd(
-            cmd   => "$tar -cf $tmp/test.tar TODO",
+    ok( $util->syscmd( "$tar -cf $tmp/test.tar TODO",
             debug => 0,
             fatal => 0
         ),
         "tar -cf test.tar"
     );
-    ok( $util->syscmd(
-            cmd   => "$gzip -f $tmp/test.tar",
+    ok( $util->syscmd( "$gzip -f $tmp/test.tar",
             debug => 0,
             fatal => 0
         ),
@@ -365,7 +363,7 @@ use File::stat;
 my $st = stat($rwtest) or warn "No $tmp: $!\n";
 my $before = sprintf "%lo", $st->mode & 07777;
 
-#$util->syscmd( cmd=>"ls -al $rwtest" );   # use ls -al to view perms
+#$util->syscmd( "ls -al $rwtest" );   # use ls -al to view perms
 
 # change the permissions to something slightly unique
 if ( lc($OSNAME) ne 'irix' ) {
@@ -385,7 +383,7 @@ if ( lc($OSNAME) ne 'irix' ) {
     );
     cmp_ok( $result_mode, '==', 700, 'file_mode' );
 
-#$util->syscmd( cmd=>"ls -al $rwtest" );
+#$util->syscmd( "ls -al $rwtest" );
 
 # and then set them back
     ok( $util->chmod(
@@ -397,7 +395,7 @@ if ( lc($OSNAME) ne 'irix' ) {
     );
 };
 
-#$util->syscmd( cmd=>"ls -al $rwtest" );
+#$util->syscmd( "ls -al $rwtest" );
 
 # file_write
 ok( $util->file_write(
@@ -689,11 +687,10 @@ else {
 
 # syscmd
 my $tmpfile = '/tmp/provision-unix-test';
-ok( $util->syscmd( cmd=>"touch $tmpfile", fatal => 0, debug => 0), 'syscmd +');
-ok( ! $util->syscmd( cmd=>"rm $tmpfile.nonexist", fatal => 0, debug => 0), 'syscmd -');
-ok( $util->syscmd( cmd=>"rm $tmpfile", fatal => 0, debug => 0), 'syscmd +');
-ok( $util->syscmd(
-        cmd   => "$rm $tmp/maildrop-qmail-domain",
+ok( $util->syscmd( "touch $tmpfile", fatal => 0, debug => 0), 'syscmd +');
+ok( ! $util->syscmd( "rm $tmpfile.nonexist", fatal => 0, debug => 0), 'syscmd -');
+ok( $util->syscmd( "rm $tmpfile", fatal => 0, debug => 0), 'syscmd +');
+ok( $util->syscmd( "$rm $tmp/maildrop-qmail-domain",
         fatal => 0,
         debug => 0
     ),

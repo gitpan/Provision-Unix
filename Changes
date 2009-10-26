@@ -1,5 +1,17 @@
 Revision history for Provision-Unix
 
+0.74 Oct 26, 2009
+  - initial changes to support migrating Xen VEs between HW nodes.
+  - more robust detection of when a xen VE is actually shut down (versus when 
+    xm utils claims it is).
+  - added check to prevent mounting a LVM when its still attached to a dumU
+  - added ability to set VE password via command line
+  - first argument to Utility::syscmd is positional instead of named parameter
+  - added more concise and detailed audit messages for VirtualOS class loading
+  - added VirtualOS::create skip_start option (create a VE but don't start it)
+  - virtualOS test barks and exits if a v_type that requires templates runs
+    on a HW node with no templates.
+
 0.73 Oct 13, 2009
   - resolved an issue that caused 'make test' to fail on Virtuozzo nodes. 
   - added ability to resize Xen volumes using LVM tools

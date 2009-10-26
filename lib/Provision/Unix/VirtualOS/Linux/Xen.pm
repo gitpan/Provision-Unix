@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::Xen;
 
-our $VERSION = '0.43';
+our $VERSION = '0.47';
 
 use warnings;
 use strict;
@@ -14,7 +14,7 @@ use Params::Validate qw(:all);
 use lib 'lib';
 use Provision::Unix::User;
 
-my ( $prov, $vos, $linux, $user, $util );
+my ( $prov, $log, $vos, $linux, $user, $util );
 
 sub new {
     my $class = shift;
@@ -22,14 +22,19 @@ sub new {
     my %p = validate( @_, { 'vos' => { type => OBJECT }, } );
 
     $vos   = $p{vos};
-    $prov  = $vos->{prov};
+    $log = $prov = $vos->{prov};
     $linux = $vos->{linux};
     $util  = $vos->{util};
 
-    my $self = { prov => $prov };
+    my $self = { 
+        'prov'     => $prov,
+        'status'   => undef,
+        'exists'   => undef,
+        'xen_conf' => undef,
+    };
     bless( $self, $class );
 
-    $prov->audit("loaded P:U:V::Linux::Xen");
+    $log->audit( $class . sprintf( " loaded by %s, %s, %s", caller ) );
 
     $vos->{disk_root} ||= '/home/xen';    # xen default
 
@@ -40,20 +45,20 @@ sub create_virtualos {
     my $self = shift;
 
     $EUID == 0
-        or $prov->error( "Create function requires root privileges." );
+        or $log->error( "Create function requires root privileges." );
 
-    my $ctid = $vos->{name} or return $prov->error( "VE name missing in request!");
+    my $ctid = $vos->{name} or return $log->error( "VE name missing in request!");
 
-    return $prov->error( "VE $ctid already exists", fatal => 0 ) 
+    return $log->error( "VE $ctid already exists", fatal => 0 ) 
         if $self->is_present();
 
-    return $prov->error( "no valid template specified", fatal => 0 )
+    return $log->error( "no valid template specified", fatal => 0 )
         if ! $self->is_valid_template();
 
     my $err_count_before = @{ $prov->{errors} };
     my $xm = $util->find_bin( bin => 'xm', debug => 0, fatal => 1 );
 
-    return $prov->audit("test mode early exit") if $vos->{test_mode};
+    return $log->audit("test mode early exit") if $vos->{test_mode};
 
     $self->create_swap_image() or return;
     $self->create_disk_image() or return;
@@ -71,12 +76,12 @@ sub create_virtualos {
             version => $self->get_kernel_version(),
         );
     };
-    $prov->error( $@, fatal => 0 ) if $@;
+    $log->error( $@, fatal => 0 ) if $@;
 
     $self->set_ips();
 
     eval { $linux->set_rc_local( fs_root => $fs_root ); };
-    $prov->error( $@, fatal => 0 ) if $@;
+    $log->error( $@, fatal => 0 ) if $@;
 
     eval { 
         $linux->set_hostname(
@@ -85,40 +90,40 @@ sub create_virtualos {
             distro  => $template,
         );
     };
-    $prov->error( $@, fatal => 0 ) if $@;
+    $log->error( $@, fatal => 0 ) if $@;
 
     $vos->set_nameservers() if $vos->{nameservers};
 
     eval { $self->create_console_user(); };
-    $prov->error( $@, fatal => 0 ) if $@;
+    $log->error( $@, fatal => 0 ) if $@;
 
     if ( $vos->{password} ) {
         eval { $self->set_password('setup');  };
-        $prov->error( $@, fatal=>0) if $@;
+        $log->error( $@, fatal=>0) if $@;
     };
 
     eval { $self->set_fstab(); };
-    $prov->error( $@, fatal=>0) if $@;
+    $log->error( $@, fatal=>0) if $@;
 
     eval { $self->set_libc(); };
-    $prov->error( $@, fatal=>0) if $@;
+    $log->error( $@, fatal=>0) if $@;
 
     eval { $linux->setup_inittab( fs_root => $fs_root, template => $template ); };
-    $prov->error( $@, fatal=>0) if $@;
+    $log->error( $@, fatal=>0) if $@;
 
     eval { $vos->setup_ssh_host_keys( fs_root => $fs_root ); };
-    $prov->error( $@, fatal=>0) if $@;
+    $log->error( $@, fatal=>0) if $@;
    
     eval { $vos->setup_log_files( fs_root => $fs_root ); };
-    $prov->error( $@, fatal=>0) if $@;
+    $log->error( $@, fatal=>0) if $@;
 
     $self->unmount_disk_image();
 
     $self->gen_config()
-        or return $prov->error( "unable to install config file", fatal => 0 );
+        or return $log->error( "unable to install config file", fatal => 0 );
 
     my $err_count_after = @{ $prov->{errors} };
-    $self->start_virtualos();
+    $self->start_virtualos() if ! $vos->{skip_start};
 
     return if $err_count_after > $err_count_before;
     return 1;
@@ -130,44 +135,43 @@ sub destroy_virtualos {
     my $self = shift;
 
     $EUID == 0
-        or $prov->error( "Destroy function requires root privileges." );
+        or $log->error( "Destroy function requires root privileges." );
 
     my $ctid = $vos->{name};
 
     if ( !$self->is_present( debug => 0 ) ) {
-        return $prov->error( "container $ctid does not exist",
+        return $log->error( "container $ctid does not exist",
             fatal   => $vos->{fatal},
             debug   => $vos->{debug},
         ); 
     };
 
-    return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
+    return $log->audit("\ttest mode early exit") if $vos->{test_mode};
 
     if ( $self->is_running( debug => 0 ) ) {
         $self->stop_virtualos() or return;
     };
 
-    $self->unmount_disk_image() or return $prov->error("could not unmount disk image");
+    $self->unmount_disk_image() or return $log->error("could not unmount disk image");
 
-    $prov->audit("\tctid '$ctid' is stopped. Nuking it...");
+    $log->audit("\tctid '$ctid' is stopped. Nuking it...");
     $self->destroy_disk_image() or return;
     $self->destroy_swap_image() or return;
 
     my $ve_home = $self->get_ve_home() or
-        $prov->error( "could not deduce the containers home dir" );
+        $log->error( "could not deduce the containers home dir" );
 
     return 1 if ! -d $ve_home;
 
     $self->destroy_console_user();
     if ( -d $ve_home ) {
         my $cmd = $util->find_bin( bin => 'rm', debug => 0 );
-        $util->syscmd(
-            cmd   => "$cmd -rf $ve_home",
+        $util->syscmd( "$cmd -rf $ve_home",
             debug => 0,
             fatal => $vos->{fatal},
         );
         if ( -d $ve_home ) {
-            $prov->error( "failed to delete $ve_home" );
+            $log->error( "failed to delete $ve_home" );
         }
     };
 
@@ -185,17 +189,16 @@ sub start_virtualos {
     my $debug = $vos->{debug};
     my $fatal = $vos->{fatal};
 
-    $prov->audit("starting $ctid");
+    $log->audit("starting $ctid");
 
-    if ( !$self->is_present() ) {
-        return $prov->error( "ctid $ctid does not exist",
-            fatal   => $fatal,
-            debug   => $debug,
-        ); 
-    };
+    return $log->error( "ctid $ctid does not exist",
+        fatal => $fatal,
+        debug => $debug,
+    )
+    if !$self->is_present();
 
     if ( $self->is_running() ) {
-        $prov->audit("$ctid is already running.");
+        $log->audit("$ctid is already running.");
         return 1;
     };
 
@@ -204,16 +207,15 @@ sub start_virtualos {
     $self->unmount_disk_image( 'quiet' );
 
     my $config_file = $self->get_ve_config_path();
-    if ( !-e $config_file ) {
-        return $prov->error( "config file for $ctid at $config_file is missing.");
-    }
+    return $log->error( "config file for $ctid at $config_file is missing.")
+        if !-e $config_file;
 
 # -c option to xm create will start the vm in a console window. Could be useful
 # when doing test VEs to look for errors
     my $cmd = $util->find_bin( bin => 'xm', debug => 0 );
     $cmd .= " create $config_file";
-    $util->syscmd( cmd => $cmd, debug => 0, fatal => $fatal )
-        or $prov->error( "unable to start $ctid" );
+    $util->syscmd( $cmd, debug => 0, fatal => $fatal )
+        or $log->error( "unable to start $ctid" );
 
     foreach ( 1..15 ) {
         return 1 if $self->is_running();
@@ -228,53 +230,61 @@ sub stop_virtualos {
 
     my $ctid = $vos->{name} or die "name of container missing!\n";
 
-    $prov->audit("shutting down $ctid");
+    $log->audit("shutting down $ctid");
 
     if ( !$self->is_present() ) {
-        return $prov->error( "$ctid does not exist",
+        return $log->error( "$ctid does not exist",
             fatal   => $vos->{fatal},
             debug   => $vos->{debug},
         ); 
     };
 
     if ( ! $self->is_running() ) {
-        $prov->audit("$ctid is already shutdown.");
+        $log->audit("$ctid is already shutdown.");
         return 1;
     };
 
     my $ve_name = $self->get_ve_name();
     my $xm = $util->find_bin( bin => 'xm', debug => 0 );
 
-    # try a 'friendly' shutdown for 10 seconds
-    $util->syscmd(
-        cmd     => "$xm shutdown -w $ve_name",
-        timeout => 10,
+    # try a 'friendly' shutdown for 15 seconds
+    $util->syscmd( "$xm shutdown -w $ve_name",
+        timeout => 15,
         debug   => 0,
         fatal   => 0,
     );
 
-    # wait up to 15 seconds for it to finish shutting down
+    # xm shutdown may exit before the VE is stopped.
+    # wait up to 15 more seconds for VE to shutdown
     foreach ( 1..15 ) {
-        return 1 if ! $self->is_running();
-        sleep 1;   # xm shutdown may exit before the VE is stopped.
+        last if ! $self->is_running();
+        sleep 1;   
     };
 
-    # whack it with the bigger hammer
-    $util->syscmd(
-        cmd   => "$xm destroy $ve_name",
-        timeout => 20,
-        fatal => 0,
-        debug => 0,
-    );
+    if ( $self->is_running() ) {   # get a 2nd opinion
+        # whack it with the bigger hammer
+        $util->syscmd( "$xm destroy $ve_name",
+            timeout => 20,
+            fatal => 0,
+            debug => 0,
+        );
 
-    # wait up to 15 seconds for it to finish shutting down
-    foreach ( 1..15 ) {
-        return 1 if ! $self->is_running();
-        sleep 1;   # xm destroy may exit before the VE is stopped.
+        # xm destroy may exit before the VE is stopped.
+        # wait 15 more seconds for it to finish shutting down
+        foreach ( 1..15 ) {
+            last if ! $self->is_running();
+            sleep 1;   
+        };
+    };
+
+    system "sync";
+    foreach ( 1..5 ) {
+        last if ! $self->lvm_in_use();  # give the lvm time to sync and detach
+        sleep 1;
     };
 
     return 1 if !$self->is_running();
-    $prov->error( "failed to stop virtual $ve_name", fatal => 0 );
+    $log->error( "failed to stop virtual $ve_name", fatal => 0 );
     return;
 }
 
@@ -291,10 +301,10 @@ sub disable_virtualos {
     my $self = shift;
 
     my $ctid = $vos->{name};
-    $prov->audit("disabling $ctid");
+    $log->audit("disabling $ctid");
 
     # make sure CTID exists
-    return $prov->error( "$ctid does not exist",
+    return $log->error( "$ctid does not exist",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
     ) if !$self->is_present();
@@ -302,19 +312,19 @@ sub disable_virtualos {
     # is it already disabled?
     my $config = $self->get_ve_config_path();
     if ( !-e $config && -e "$config.suspend" ) {
-        $prov->audit( "container is already disabled." );
+        $log->audit( "container is already disabled." );
         return 1;
     };
 
     # make sure config file exists
     if ( !-e $config ) {
-        return $prov->error( "configuration file ($config) for $ctid does not exist",
+        return $log->error( "configuration file ($config) for $ctid does not exist",
             fatal => $vos->{fatal},
             debug => $vos->{debug},
         );
     }
 
-    return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
+    return $log->audit("\ttest mode early exit") if $vos->{test_mode};
 
     # see if VE is running, and if so, stop it
     if ( $self->is_running() ) {
@@ -322,12 +332,12 @@ sub disable_virtualos {
     };
 
     move( $config, "$config.suspend" )
-        or return $prov->error( "\tunable to move file '$config': $!",
+        or return $log->error( "\tunable to move file '$config': $!",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
         );
 
-    $prov->audit("\tdisabled $ctid.");
+    $log->audit("\tdisabled $ctid.");
     return 1;
 }
 
@@ -336,33 +346,33 @@ sub enable_virtualos {
     my $self = shift;
 
     my $ctid = $vos->{name};
-    $prov->audit("enabling $ctid");
+    $log->audit("enabling $ctid");
 
     # make sure CTID exists
-    return $prov->error( "$ctid does not exist",
+    return $log->error( "$ctid does not exist",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
     ) if !$self->is_present();
 
     # is it already enabled?
     if ( $self->is_enabled() ) {
-        $prov->audit("\t$ctid is already enabled");
+        $log->audit("\t$ctid is already enabled");
         return $self->start_virtualos();
     };
 
     # make sure config file exists
     my $config = $self->get_ve_config_path();
     if ( !-e "$config.suspend" ) {
-        return $prov->error( "configuration file ($config.suspend) for $ctid does not exist",
+        return $log->error( "configuration file ($config.suspend) for $ctid does not exist",
             fatal => $vos->{fatal},
             debug => $vos->{debug},
         );
     }
 
-    return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
+    return $log->audit("\ttest mode early exit") if $vos->{test_mode};
 
     move( "$config.suspend", $config )
-        or return $prov->error( "\tunable to move file '$config': $!",
+        or return $log->error( "\tunable to move file '$config': $!",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
         );
@@ -370,11 +380,22 @@ sub enable_virtualos {
     return $self->start_virtualos();
 }
 
+sub migrate_virtualos {
+    my $self = shift;
+
+    my $ctid = $vos->{name};
+    my $new_node = $vos->{new_node};
+
+    $self->do_connectivity_test() or return;
+
+    $log->audit( "all done" );
+};
+
 sub modify_virtualos {
     my $self = shift;
 
     my $ctid = $vos->{name};
-    $prov->audit("modifying $ctid");
+    $log->audit("modifying $ctid");
 
     # hostname ips nameservers searchdomain disk_size ram config 
 
@@ -403,7 +424,7 @@ sub modify_virtualos {
             my $pass_file = $self->get_ve_passwd_file( $fs_root );
             my @lines = $util->file_read( file => $pass_file, fatal => 0 );
             grep { /^root:/ } @lines 
-                or $prov->error( "\tcould not find root in $pass_file!", fatal => 0);
+                or $log->error( "\tcould not find root in $pass_file!", fatal => 0);
 
             my $crypted = $user->get_crypted_password($pass);
 
@@ -435,7 +456,7 @@ sub reinstall_virtualos {
 
     $self->destroy_virtualos()
         or
-        return $prov->error( "unable to destroy virtual $vos->{name}",
+        return $log->error( "unable to destroy virtual $vos->{name}",
             fatal => $vos->{fatal},
             debug => $vos->{debug},
         );
@@ -461,8 +482,8 @@ sub create_console_user {
             shell    => '',
             debug    => $debug,
         )
-        or return $prov->error( "unable to create console user $username", fatal => 0 ); 
-        $prov->audit("created console user account");
+        or return $log->error( "unable to create console user $username", fatal => 0 ); 
+        $log->audit("created console user account");
     };   
 
     foreach ( qw/ .bashrc .bash_profile / ) {
@@ -472,9 +493,9 @@ sub create_console_user {
             fatal => 0,
             debug => 0,
         )
-        or $prov->error( "failed to configure console login script", fatal => 0 );
+        or $log->error( "failed to configure console login script", fatal => 0 );
     }
-    $prov->audit("installed console login script");
+    $log->audit("installed console login script");
 
     if ( ! `grep '^$username' /etc/sudoers` ) {
         $util->file_write(
@@ -485,7 +506,7 @@ sub create_console_user {
             fatal  => 0,
             debug  => 0
         )
-        or $prov->error( "failed to update sudoers for console login");
+        or $log->error( "failed to update sudoers for console login");
 
         $util->file_write(
             file   => '/etc/sudoers.local',
@@ -494,58 +515,58 @@ sub create_console_user {
             fatal  => 0,
             debug  => 0
         )
-        or $prov->error( "failed to update sudoers for console login");
-        $prov->audit("updated sudoers for console account $username");
+        or $log->error( "failed to update sudoers for console login");
+        $log->audit("updated sudoers for console account $username");
     };
 
-    $prov->audit( "configured remote SSH console" );
+    $log->audit( "configured remote SSH console" );
     return 1;
 };
 
 sub create_disk_image {
     my $self = shift;
 
-    my $disk_image = $self->get_disk_image();
+    my $image_name = $self->get_disk_image();
+    my $image_path = $self->get_disk_image(1);
     my $size = $self->get_ve_disk_size();
     my $ram  = $self->get_ve_ram();
     $size = $size - ( $ram * 2 );   # subtract swap from their disk allotment
 
     # create the disk image
     my $cmd = $util->find_bin( bin => 'lvcreate', debug => 0, fatal => 0 ) or return;
-    $cmd .= " --size=${size}M --name=${disk_image} vol00";
-    $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 )
-        or return $prov->error( "unable to create $disk_image with: $cmd", fatal => 0 );
+    $cmd .= " --size=${size}M --name=${image_name} vol00";
+    $util->syscmd( $cmd, debug => 0, fatal => 0 )
+        or return $log->error( "unable to create $image_name with: $cmd", fatal => 0 );
 
     # format as ext3 file system
-    $cmd = $util->find_bin( bin => 'mkfs.ext3', debug => 0, fatal => 0 ) or return;
-    $cmd .= " /dev/vol00/${disk_image}";
-    $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 )
-        or return $prov->error( "unable for format disk image with: $cmd", fatal => 0);
+    my $mkfs = $util->find_bin( bin => 'mkfs.ext3', debug => 0, fatal => 0 ) or return;
+    $util->syscmd( "$mkfs $image_path", debug => 0, fatal => 0 )
+        or return $log->error( "unable for format disk image", fatal => 0);
 
-    $prov->audit("disk image for $vos->{name} created");
+    $log->audit("disk image for $vos->{name} created");
     return 1;
 }
 
 sub create_swap_image {
     my $self = shift;
 
-    my $img_name = $self->get_swap_image();
-    my $ram      = $self->get_ve_ram();
-    my $size     = $ram * 2;
+    my $swap_name = $self->get_swap_image();
+    my $swap_path = $self->get_swap_image(1);
+    my $ram       = $self->get_ve_ram();
+    my $size      = $ram * 2;
 
     # create the swap image
     my $cmd = $util->find_bin( bin => 'lvcreate', debug => 0, fatal => 0 ) or return;
-    $cmd .= " --size=${size}M --name=${img_name} vol00";
-    $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 )
-        or return $prov->error( "unable to create $img_name", fatal => 0 );
+    $cmd .= " --size=${size}M --name=${swap_name} vol00";
+    $util->syscmd( $cmd, debug => 0, fatal => 0 )
+        or return $log->error( "unable to create $swap_name", fatal => 0 );
 
     # format the swap file system
-    $cmd = $util->find_bin( bin => 'mkswap', debug => 0, fatal => 0) or return;
-    $cmd .= " /dev/vol00/${img_name}";
-    $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 )
-        or return $prov->error( "unable to format $img_name", fatal => 0 );
+    my $mkswap = $util->find_bin( bin => 'mkswap', debug => 0, fatal => 0) or return;
+    $util->syscmd( "$mkswap $swap_path", debug => 0, fatal => 0 )
+        or return $log->error( "unable to format $swap_name", fatal => 0 );
 
-    $prov->audit( "created a $size MB swap partition" );
+    $log->audit( "created a $size MB swap partition" );
     return 1;
 }
 
@@ -563,39 +584,40 @@ sub destroy_console_user {
             homedir  => $ve_home,
             debug    => 0,
         )
-        or return $prov->error( "unable to destroy console user $username", fatal => 0 ); 
-        $prov->audit( "deleted system user $username" );
+        or return $log->error( "unable to destroy console user $username", fatal => 0 ); 
+        $log->audit( "deleted system user $username" );
 
         $user->destroy_group( group => $username, fatal => 0, debug => 0 );
     };   
 
-    $prov->audit( "deleted system user $username" );
+    $log->audit( "deleted system user $username" );
     return 1;
 };
 
 sub destroy_disk_image {
     my $self = shift;
 
-    my $disk_image = $self->get_disk_image();
+    my $image_name = $self->get_disk_image();
+    my $image_path = $self->get_disk_image(1);
 
-    #$prov->audit("checking for presense of disk image $disk_image");
-    if ( ! -e "/dev/vol00/$disk_image" ) {
-        $prov->audit("disk image does not exist: $disk_image");
+    #$log->audit("checking for presense of disk image $image_name");
+    if ( ! -e $image_path ) {
+        $log->audit("disk image does not exist: $image_name");
         return 1;
     };
 
-    $prov->audit("My name is Inigo Montoya. You killed my father. Prepare to die!");
+    $log->audit("My name is Inigo Montoya. You killed my father. Prepare to die!");
 
-    my $cmd  = $util->find_bin( bin => 'lvremove', debug => 0 );
-       $cmd .= " -f vol00/${disk_image}";
-    my $r = $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 );
+    my $lvrm  = $util->find_bin( bin => 'lvremove', debug => 0 );
+       $lvrm .= " -f vol00/${image_name}";
+    my $r = $util->syscmd( $lvrm, debug => 0, fatal => 0 );
     if ( ! $r ) {
-        $prov->audit("My name is Inigo Montoya. You killed my father. Prepare to die!");
+        $log->audit("My name is Inigo Montoya. You killed my father. Prepare to die!");
         sleep 3;  # wait a few secs and try again
-        $r = $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 )
+        $r = $util->syscmd( $lvrm, debug => 0, fatal => 0 )
             and pop @{ $prov->{errors} };  # clear the last error
     };
-    $r or return $prov->error( "unable to destroy disk image: $disk_image" );
+    $r or return $log->error( "unable to destroy disk image: $image_name" );
     return 1;
 }
 
@@ -603,22 +625,43 @@ sub destroy_swap_image {
     my $self = shift;
 
     my $img_name = $self->get_swap_image();
+    my $img_path = $self->get_swap_image(1);
 
-    return $prov->audit("disk image does not exist: $img_name")
-        if ! -e "/dev/vol00/$img_name";
+    return $log->audit("swap image $img_name does not exist") if ! -e $img_path;
 
-    my $cmd = $util->find_bin( bin => 'lvremove', debug => 0 );
-    $cmd .= " -f vol00/$img_name";
-    $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 )
-        or return $prov->error( "unable to destroy swap $img_name", fatal => 0 );
+    my $lvrm = $util->find_bin( bin => 'lvremove', debug => 0 );
+    $util->syscmd( "$lvrm -f vol00/$img_name", debug => 0, fatal => 0 )
+        or return $log->error( "unable to destroy swap $img_name", fatal => 0 );
     return 1;
 }
+
+sub do_connectivity_test {
+    my $self = shift;
+
+    return 1 if ! $vos->{connection_test};
+
+    my $new_node = $vos->{new_node};
+    my $ssh = $util->find_bin( bin => 'ssh', debug => 0 );
+    my $r = $util->syscmd( "$ssh $new_node uname -a; whoami; /usr/bin/test -e /etc/hosts", debug => 1, fatal => 0)
+        or return $log->error("could not validation connectivity to $new_node", fatal => 0);
+    $log->audit("connectivity to $new_node is good");
+    return 1;
+};
+
+sub do_fsck {
+    my $self = shift;
+    my $image_path = $self->get_disk_image(1);
+
+    my $fsck  = $util->find_bin( bin => 'e2fsck', debug => 0 );
+    $util->syscmd( "$fsck -y -f $image_path", debug => 0, fatal => 0 ) or return;
+    return 1;
+};
 
 sub extract_template {
     my $self = shift;
 
     $self->is_valid_template()
-        or return $prov->error( "no valid template specified", fatal => 0 );
+        or return $log->error( "no valid template specified", fatal => 0 );
 
     my $ve_name = $self->get_ve_name();
     my $fs_root = $self->get_fs_root();
@@ -630,8 +673,8 @@ sub extract_template {
     # untar the template
     my $cmd = $util->find_bin( bin => 'tar', debug => 0, fatal => 0 ) or return;
     $cmd .= " -zxf $template_dir/$template.tar.gz -C $fs_root";
-    $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 )
-        or return $prov->error( "unable to extract template $template. Do you have enough disk space?",
+    $util->syscmd( $cmd, debug => 0, fatal => 0 )
+        or return $log->error( "unable to extract template $template. Do you have enough disk space?",
             fatal => 0
         );
     return 1;
@@ -653,8 +696,11 @@ sub get_console_username {
 
 sub get_disk_image {
     my $self = shift;
+    my $path = shift;
     my $name = $vos->{name} or die "missing VE name!";
-    return $name . '_rootimg';
+    my $image_name = $name . '_rootimg';
+    $image_name = '/dev/vol00/' . $image_name if $path;
+    return $image_name;
 };
 
 sub get_disk_usage {
@@ -690,7 +736,7 @@ sub get_kernel_version {
     my @kernels = <$kernel_dir/vmlinuz-*xen>;
     my $kernel = $kernels[0];
     my ($version) = $kernel =~ /-([0-9\.\-]+)\./;
-    return $prov->error("unable to detect a xen kernel (vmlinuz-*xen) in standard locations (/boot, /boot/domU)", fatal => 0) if ! $version;
+    return $log->error("unable to detect a xen kernel (vmlinuz-*xen) in standard locations (/boot, /boot/domU)", fatal => 0) if ! $version;
     $vos->{kernel_version} = $version;
     return $version;
 };
@@ -724,7 +770,7 @@ sub get_status {
     $self->{status} = {};    # reset status
 
     if ( ! $self->is_present() ) {
-        $prov->audit( "The xen VE $ve_name does not exist", fatal => 0 );
+        $log->audit( "The xen VE $ve_name does not exist", fatal => 0 );
         $self->{status}{$ve_name} = { state => 'non-existent' };
         return $self->{status}{$ve_name};
     };
@@ -735,14 +781,17 @@ sub get_status {
     if ( ! -e $config_file ) {
         return { state => 'disabled' } if -e "$config_file.suspend";
 
-        $prov->audit( "\tmissing config file $config_file" );
+        $log->audit( "\tmissing config file $config_file" );
         return { state => 'broken' };
     };
 
-    my ($xen_conf, $config);
-    eval "require Provision::Unix::VirtualOS::Xen::Config";
-    if ( ! $EVAL_ERROR ) {
-        $xen_conf = Provision::Unix::VirtualOS::Xen::Config->new();
+    my $xen_conf = $self->{xen_conf};
+    if ( ! $xen_conf ) {
+        eval "require Provision::Unix::VirtualOS::Xen::Config";
+        if ( ! $EVAL_ERROR ) {
+            $xen_conf = Provision::Unix::VirtualOS::Xen::Config->new();
+            $self->{xen_conf} = $xen_conf;
+        };
     };
 
     if ( $xen_conf && $xen_conf->read_config($config_file) ) {
@@ -772,7 +821,7 @@ sub get_status {
     };
 
     $r =~ /VCPUs/ 
-        or $prov->error( "could not get valid output from '$cmd'", fatal => 0 );
+        or $log->error( "could not get valid output from '$cmd'", fatal => 0 );
 
     foreach my $line ( split /\n/, $r ) {
 
@@ -813,8 +862,11 @@ sub get_status {
 
 sub get_swap_image {
     my $self = shift;
+    my $path = shift;
     my $name = $vos->{name} or die "missing VE name!";
-    return $name . '_vmswap';
+    my $swap_name = $name . '_vmswap';
+    $swap_name = '/dev/vol00/' . $swap_name if $path;
+    return $swap_name;
 };
 
 sub get_template_dir {
@@ -848,7 +900,7 @@ sub get_fs_root {
     my $self = shift;
     my @caller = caller;
     my $ve_home = $self->get_ve_home( shift )
-        or return $prov->error( "VE name unset when called by $caller[0] at $caller[2]");
+        or return $log->error( "VE name unset when called by $caller[0] at $caller[2]");
     my $fs_root = "$ve_home/mnt";
     return $fs_root;
 };
@@ -857,7 +909,7 @@ sub get_ve_home {
     my $self = shift;
     my @caller = caller;
     my $ve_name = $self->get_ve_name( shift )
-        or return $prov->error( "VE name unset when called by $caller[0] at $caller[2]");
+        or return $log->error( "VE name unset when called by $caller[0] at $caller[2]");
     my $homedir = "$vos->{disk_root}/$ve_name";
     return $homedir;
 };
@@ -866,7 +918,7 @@ sub get_ve_name {
     my $self = shift;
     my @caller = caller;
     my $ctid = shift || $vos->{name}
-        or return $prov->error( "missing VE name when called by $caller[0] at $caller[2]");
+        or return $log->error( "missing VE name when called by $caller[0] at $caller[2]");
     $ctid .= '.vm';  # TODO: make this a config file option
     return $ctid;
 };
@@ -884,51 +936,51 @@ sub get_ve_passwd_file {
     $pass_file = "$ve_home/mnt/etc/passwd";
     return $pass_file if -f $pass_file;
 
-    $prov->error( "\tcould not find password file", fatal => 0);
+    $log->error( "\tcould not find password file", fatal => 0);
     return;
 };
 
 sub is_mounted {
     my $self = shift;
-    my $image = $self->get_disk_image();
-    my $found = `/bin/mount | grep $image`; chomp $found;
-    return $found;
+    my $image_name = $self->get_disk_image();
+
+    my $found = `/bin/mount | grep $image_name`; chomp $found;
+    if ( $found ) {
+        $log->audit( "$image_name is mounted" );
+        return 1 
+    };
+    $log->audit( "$image_name is not mounted" );
+    return;
 };
 
 sub is_present {
     my $self = shift;
     my %p = validate(
         @_,
-        {   name    => { type => SCALAR, optional => 1 },
-            refresh => { type => BOOLEAN, optional => 1, default => 1 },
-            debug   => { type => BOOLEAN, optional => 1 },
+        {   debug => { type => BOOLEAN, optional => 1 },
         }
     );
 
-    my $debug = defined $p{debug} ? $p{debug} : $vos->{debug};
-    my $name = $p{name} || $vos->{name} or
-        $prov->error( 'is_present was called without a VE name' );
-
+    my $debug   = defined $p{debug} ? $p{debug} : $vos->{debug};
+    my $name    = $self->get_ve_name();
     my $ve_home = $self->get_ve_home();
 
-    $prov->audit("checking if VE $name exists") if $debug;
+    $log->audit("checking if VE $name exists") if $debug;
 
-    my $disk_image = $self->get_disk_image();
-    my $swap_image = $self->get_swap_image();
+    my $image_path = $self->get_disk_image(1);
+    my $swap_path = $self->get_swap_image(1);
 
-    my @possible_paths = (
-        $ve_home, "/dev/vol00/$disk_image", "/dev/vol00/$swap_image"
-    );
+    my @possible_paths = ( $ve_home, $image_path, $swap_path );
 
     foreach my $path (@possible_paths) {
-        #$prov->audit("\tchecking at $path") if $debug;
+        #$log->audit("\tchecking at $path") if $debug;
         if ( -e $path ) {
-            $prov->audit("\tfound $name at $path");
+            $log->audit("\tfound $name at $path");
             return $path;
         }
     }
 
-    $prov->audit("\tVE $name does not exist");
+    $log->audit("\tVE $name does not exist");
     return;
 }
 
@@ -936,7 +988,7 @@ sub is_running {
     my $self = shift;
     my %p = validate(
         @_, 
-        {   refresh => { type => SCALAR, optional => 1, default => 1 }, 
+        {   refresh => { type => SCALAR,  optional => 1, default => 1 }, 
             debug   => { type => BOOLEAN, optional => 1, default => 1 },
         }
     );
@@ -949,62 +1001,80 @@ sub is_running {
     if ( $self->{status}{$ve_name} ) {
         my $state = $self->{status}{$ve_name}{state};
         if ( $state && $state eq 'running' ) {
-            $prov->audit("$ve_name is running") if $debug;
+            $log->audit("$ve_name is running") if $debug;
             return 1;
         };
     }
-    $prov->audit("$ve_name is not running") if $debug;
+    $log->audit("$ve_name is not running") if $debug;
     return;
 }
 
 sub is_enabled {
     my $self = shift;
-
     my %p = validate(
         @_,
-        {   'name' =>
-                { type => SCALAR, optional => 1, default => $vos->{name} },
+        {   'name'  => { type => SCALAR,  optional => 1, },
             'debug' => { type => BOOLEAN, optional => 1, default => 1 },
             'fatal' => { type => BOOLEAN, optional => 1, default => 1 },
         }
     );
 
-    my $name = $p{name}
-        || $prov->error( 'is_enabled was called without a CTID' );
-    $prov->audit("testing if virtual container $name is enabled");
-
-    my $ve_name     = $self->get_ve_name();
+    my $ve_name     = $p{name} || $self->get_ve_name();
     my $config_file = $self->get_ve_config_path();
 
+    $log->audit("testing if virtual container $ve_name is enabled");
+
     if ( -e $config_file ) {
-        $prov->audit("\tfound $name at $config_file") if $p{debug};
+        $log->audit("\tfound $ve_name at $config_file") if $p{debug};
         return 1;
     }
 
-    $prov->audit("\tdid not find $config_file");
+    $log->audit("\tdid not find $config_file");
     return;
 }
+
+sub lvm_in_use {
+    my $self = shift;
+    my $image_name = $self->get_disk_image();
+    my $image_path = $self->get_disk_image(1);
+
+    my $lvdisplay = $util->find_bin( bin => 'lvdisplay', debug => 0 );
+    my $r = `$lvdisplay $image_path`;
+    my ($count) = $r =~ m/# open\s+([0-9])\s+/;
+
+    if ($count) {
+        $log->audit( "$image_name is in use" );
+        return 1 
+    };
+    $log->audit( "$image_name is not being used" );
+    return;
+};
 
 sub mount_disk_image {
     my $self = shift;
 
-    my $disk_image = $self->get_disk_image();
-    my $ve_name   = $self->get_ve_name();
-    my $fs_root   = $self->get_fs_root();
+    my $image_name = $self->get_disk_image();
+    my $image_path = $self->get_disk_image(1);
+    my $ve_name    = $self->get_ve_name();
+    my $fs_root    = $self->get_fs_root();
 
 # returns 2 (true) if image is already mounted
     return 2 if $self->is_mounted();
 
     mkpath $fs_root if !-d $fs_root;
 
-    return $prov->error( "unable to create $fs_root", fatal => 0 )
+    return $log->error( "unable to create $fs_root", fatal => 0 )
         if ! -d $fs_root;
 
-    #$mount /dev/vol00/${VMNAME}_rootimg /home/xen/$ve_name/mnt
-    my $cmd = $util->find_bin( bin => 'mount', debug => 0, fatal => 0 ) or return;
-    $cmd .= " /dev/vol00/$disk_image $fs_root";
-    $util->syscmd( cmd => $cmd, debug => 0, fatal => 0 )
-        or return $prov->error( "unable to mount $disk_image", fatal => 0 );
+    return $log->error( "LVM is in use, cannot safely mount", fatal => 0 )
+        if $self->lvm_in_use();
+
+    $self->do_fsck();
+
+    # mount /dev/vol00/${VE}_rootimg /home/xen/$VE/mnt
+    my $mount = $util->find_bin( bin => 'mount', debug => 0, fatal => 0 ) or return;
+    $util->syscmd( "$mount $image_path $fs_root", debug => 0, fatal => 0 )
+        or return $log->error( "unable to mount $image_name", fatal => 0 );
     return 1;
 }
 
@@ -1017,11 +1087,11 @@ sub resize_disk_image {
     $self->create_swap_image();
 
     my $image_name = $self->get_disk_image();
-    my $disk_image = '/dev/vol00/' . $image_name;
+    my $image_path = $self->get_disk_image(1);
     my $target_size = $self->get_ve_disk_size();
 
     # check existing disk size.
-    $self->mount_disk_image() or $prov->error( "unable to mount disk image" );
+    $self->mount_disk_image() or $log->error( "unable to mount disk image" );
     my $fs_root = $self->get_fs_root();
     my $df_out = qx{/bin/df -m $fs_root | /usr/bin/tail -n1};
     my (undef, $current_size, $df_used, $df_free) = split /\s+/, $df_out;
@@ -1030,13 +1100,11 @@ sub resize_disk_image {
     my $difference = $target_size - $current_size;
 
     # return if the same
-    return $prov->audit( "no disk partition changes required" ) if ! $difference;
+    return $log->audit( "no disk partition changes required" ) if ! $difference;
     my $percent_diff = abs($difference / $target_size ) * 100;
-    return $prov->audit( "disk partition is close enough: $current_size vs $target_size" ) 
+    return $log->audit( "disk partition is close enough: $current_size vs $target_size" ) 
         if $percent_diff < 5;
 
-    my $fsck   = $util->find_bin( bin => 'e2fsck', debug => 0 );
-       $fsck  .= " -y -f $disk_image";
     my $pvscan = $util->find_bin( bin => 'pvscan', debug => 0);
     my $resize2fs = $util->find_bin( bin => 'resize2fs', debug => 0 );
 
@@ -1046,17 +1114,17 @@ sub resize_disk_image {
         my $free = qx{$pvscan};
         $free =~ /(\d+\.\d+)\s+GB\s+free\]/;
         $free = $1 * 1024;
-        return $prov->error("Not enough disk space on HW node: needs $target_size but only $free MB free. Migrate account and manually increase disk space.") if $free <= $target_size;
+        return $log->error("Not enough disk space on HW node: needs $target_size but only $free MB free. Migrate account and manually increase disk space.") if $free <= $target_size;
         # resize larger
-        $prov->audit("Extending disk $image_name from $current_size to $target_size");
-        my $cmd = "/usr/sbin/lvextend --size=${target_size}M $disk_image";
-        $prov->audit($cmd);
-        system $cmd and $prov->error( "failed to extend $image_name to $target_size megs");
-        system $fsck;
-        $cmd = "$resize2fs $disk_image";
-        $prov->audit($cmd);
-        system $cmd and $prov->error( "unable to resize filesystem $image_name");
-        system $fsck;
+        $log->audit("Extending disk $image_name from $current_size to $target_size");
+        my $cmd = "/usr/sbin/lvextend --size=${target_size}M $image_path";
+        $log->audit($cmd);
+        system $cmd and $log->error( "failed to extend $image_name to $target_size megs");
+        $self->do_fsck();
+        $cmd = "$resize2fs $image_path";
+        $log->audit($cmd);
+        system $cmd and $log->error( "unable to resize filesystem $image_name");
+        $self->do_fsck();
         return 1;
     }
 
@@ -1064,26 +1132,26 @@ sub resize_disk_image {
        # see if volume can be safely shrunk - per SA team: Andrew, Ryan, & Ted
 
 # if cannot be safely shrunk, fail.
-        return $prov->error( "volume has more than $target_size used, failed to shrink" ) 
+        return $log->error( "volume has more than $target_size used, failed to shrink" ) 
             if $df_used > $target_size;
 
         # shrink it
-        $prov->audit( "Reducing $image_name from $current_size to $target_size MB");
-        system $fsck;
-        my $cmd = "$resize2fs -f $disk_image ${target_size}M";
-        $prov->audit($cmd);
-        system $cmd and $prov->error( " Unable to resize filesystem $image_name" );
-        $prov->audit("reduced file system");
+        $log->audit( "Reducing $image_name from $current_size to $target_size MB");
+        $self->do_fsck();
+        my $cmd = "$resize2fs -f $image_path ${target_size}M";
+        $log->audit($cmd);
+        system $cmd and $log->error( " Unable to resize filesystem $image_name" );
+        $log->audit("reduced file system");
 
         $cmd  = $util->find_bin( bin => 'lvresize', debug => 0 );
-        $cmd .= " --size=${target_size}M $disk_image";
-        $prov->audit($cmd);
-        #system $cmd and $prov->error( "Error:  Unable to reduce filesystem on $image_name" );
-        open(FH, "| $cmd" ) or return $prov->error("failed to shrink logical volume");
+        $cmd .= " --size=${target_size}M $image_path";
+        $log->audit($cmd);
+        #system $cmd and $log->error( "Error:  Unable to reduce filesystem on $image_name" );
+        open(FH, "| $cmd" ) or return $log->error("failed to shrink logical volume");
         print FH "y\n";  # deals with the non-suppressible "Are you sure..." 
         close FH;        # waits for the open process to exit
-        $prov->audit("completed shrinking logical volume size");
-        system $fsck;
+        $log->audit("completed shrinking logical volume size");
+        $self->do_fsck();
         return 1;
     };
 };
@@ -1099,7 +1167,7 @@ sub set_hostname {
         fs_root => $self->get_fs_root(),
         fatal   => 0,
     )
-    or $prov->error("unable to set hostname", fatal => 0);
+    or $log->error("unable to set hostname", fatal => 0);
 
     $self->unmount_disk_image();
     $self->start_virtualos() or return;
@@ -1121,7 +1189,7 @@ sub set_ips {
     $request{distro} = $vos->{template} if $vos->{template};
 
     eval { $linux->set_ips( %request ); };
-    $prov->error( $@, fatal => 0 ) if $@;
+    $log->error( $@, fatal => 0 ) if $@;
 
     # update the config file, if it exists
     my $config_file = $self->get_ve_config_path() or return;
@@ -1133,7 +1201,7 @@ sub set_ips {
     my $mac      = $self->get_mac_address();
 
     my @lines = $util->file_read( file => $config_file, debug => 0, fatal => 0) 
-        or return $prov->error("could not read $config_file", fatal => 0);
+        or return $log->error("could not read $config_file", fatal => 0);
 
     foreach my $line ( @lines ) {
         next if $line !~ /^vif/;
@@ -1142,7 +1210,7 @@ sub set_ips {
         $line = "vif        = ['ip=$ip_list, vifname=vif${ctid},  mac=$mac']";
     };
     $util->file_write( file => $config_file, lines => \@lines, fatal => 0 )
-        or return $prov->error( "could not write to $config_file", fatal => 0);
+        or return $log->error( "could not write to $config_file", fatal => 0);
 
     return 1;
 };
@@ -1157,22 +1225,22 @@ sub set_libc {
     if ( ! -f "$fs_root/$libfile" ) {
         if ( ! -d "$fs_root/$libdir" ) {
             mkpath "$fs_root/$libdir" or return 
-                $prov->error("unable to create $libdir", fatal => 0);
-            $prov->audit("created $libdir");
+                $log->error("unable to create $libdir", fatal => 0);
+            $log->audit("created $libdir");
         };
-        return $prov->error("could not create $libdir", fatal => 0) 
+        return $log->error("could not create $libdir", fatal => 0) 
             if ! -d "$fs_root/$libdir";
         $util->file_write( 
             file  => "$fs_root/$libfile", 
             lines => [ 'hwcap 0 nosegneg' ], 
             debug => 0 , fatal => 0 )
-            or return $prov->error("could not install $libfile", fatal => 0);
-        $prov->audit("installed $libfile");
+            or return $log->error("could not install $libfile", fatal => 0);
+        $log->audit("installed $libfile");
     };
 
     if ( -d "$fs_root/lib/tls" ) {
         move( "$fs_root/lib/tls", "$fs_root/lib/tls.disabled" );
-        $prov->audit("disabled /lib/tls");
+        $log->audit("disabled /lib/tls");
     };
     return 1;
 };
@@ -1184,9 +1252,9 @@ sub set_password {
     my $ve_name = $self->get_ve_name();
     my $ve_home = $self->get_ve_home();
     my $pass    = $vos->{password}
-        or return $prov->error( 'no password provided', fatal => 0 );
+        or return $log->error( 'no password provided', fatal => 0 );
 
-    $prov->audit("setting VPS password");
+    $log->audit("setting VPS password");
 
     my $i_stopped;
     my $i_mounted;
@@ -1210,7 +1278,7 @@ sub set_password {
     if ( ! $errors ) {
         my @lines = $util->file_read( file => $pass_file, fatal => 0 );
         grep { /^root:/ } @lines 
-            or $prov->error( "\tcould not find root password entry in $pass_file!", fatal => 0);
+            or $log->error( "\tcould not find root password entry in $pass_file!", fatal => 0);
 
         my $crypted = $user->get_crypted_password($pass);
 
@@ -1224,20 +1292,20 @@ sub set_password {
 
         # install the SSH key
         if ( $vos->{ssh_key} ) {
-            $prov->audit("installing ssh key");
+            $log->audit("installing ssh key");
             eval {
                 $user->install_ssh_key(
                     homedir => "$ve_home/mnt/root",
                     ssh_key => $vos->{ssh_key},
                 );
             };
-            $prov->error( $@, fatal => 0 ) if $@;
+            $log->error( $@, fatal => 0 ) if $@;
         };
-        $prov->audit( "VE root password configured." );
+        $log->audit( "VE root password configured." );
     };
 
     # create the VE console user
-    $prov->audit( "creating the console account and password." );
+    $log->audit( "creating the console account and password." );
     my %request = ( username => $ve_name, password => $pass );
     $request{username} =~ s/\.//g;  # strip the . out of the veid name: NNNNN.vm
     if ( $user->exists( $request{username} ) ) {  # see if user exists
@@ -1276,7 +1344,7 @@ EOFSTAB
         debug => 0,
         fatal => 0,
     ) or return;
-    $prov->audit("installed /etc/fstab");
+    $log->audit("installed /etc/fstab");
     return 1;
 };
 
@@ -1290,16 +1358,18 @@ sub unmount_disk_image {
     return 1 if ! $self->is_mounted();
     $debug = $fatal = 0 if $quiet;
 
-    my $disk_image = $self->get_disk_image();
+    my $image_name = $self->get_disk_image();
+    my $image_path = $self->get_disk_image(1);
 
-    my $cmd = $util->find_bin( bin => 'umount', debug => 0, fatal => $fatal )
-        or return $prov->error( "unable to find 'umount' program");
-    $cmd .= " /dev/vol00/$disk_image";
+    my $umount = $util->find_bin( bin => 'umount', debug => 0, fatal => $fatal )
+        or return $log->error( "unable to find 'umount' program");
+    $umount .= " $image_path";
 
-    my $r = $util->syscmd( cmd => $cmd, debug => 0, fatal => $fatal );
+    my $r = $util->syscmd( $umount, debug => 0, fatal => $fatal );
     if ( ! $r && ! $quiet ) {
-        $prov->error( "unable to unmount $disk_image" );
+        $log->error( "unable to unmount $image_name" );
     };
+    $self->do_fsck();
     return $r;
 }
 
@@ -1319,8 +1389,8 @@ sub gen_config {
     foreach ( @ips ) { $ip_list .= " $_"; };
     my $mac      = $self->get_mac_address();
 
-    my $disk_image = $self->get_disk_image();
-    my $swap_image = $self->get_swap_image();
+    my $image_path = $self->get_disk_image(1);
+    my $swap_path  = $self->get_swap_image(1);
     my $kernel_dir = $self->get_kernel_dir();
     my $kernel_version = $self->get_kernel_version();
 
@@ -1342,7 +1412,7 @@ vif        = ['ip=$ip_list, vifname=vif${ctid},  mac=$mac']
 vnc        = 0
 vncviewer  = 0
 serial     = 'pty'
-disk       = ['phy:/dev/vol00/$disk_image,sda1,w', 'phy:/dev/vol00/$swap_image,sda2,w']
+disk       = ['phy:$image_path,sda1,w', 'phy:$swap_path,sda2,w']
 root       = '/dev/sda1 ro'
 extra      = 'console=xvc0'
 vcpus      = $cpu
@@ -1359,7 +1429,7 @@ EOCONF
         lines => [$config],
         debug => 0,
         fatal => 0,
-    ) or return $prov->error("unable to install VE config file", fatal => 0);
+    ) or return $log->error("unable to install VE config file", fatal => 0);
 
     link $config_file, "/etc/xen/auto/$ve_name.cfg";
     return 1;
@@ -1375,7 +1445,7 @@ sub is_valid_template {
 
     # is $template a URL?
     if ( $template =~ /http|rsync/ ) {
-        $prov->audit("fetching $template");
+        $log->audit("fetching $template");
         my $uri = URI->new($template);
         my @segments = $uri->path_segments;
         my @path_bits = grep { /\w/ } @segments;  # ignore empty fields
@@ -1387,7 +1457,7 @@ sub is_valid_template {
 
     return $template if -f "$template_dir/$template.tar.gz";
 
-    return $prov->error( "template '$template' does not exist and is not a valid URL",
+    return $log->error( "template '$template' does not exist and is not a valid URL",
         debug => $vos->{debug},
         fatal => $vos->{fatal},
     );

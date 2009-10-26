@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux;
 
-our $VERSION = '0.25';
+our $VERSION = '0.26';
 
 use warnings;
 use strict;
@@ -29,6 +29,8 @@ sub new {
         util => $util,
     };
     bless $self, $class;
+
+    $prov->audit( $class . sprintf( " loaded by %s, %s, %s", caller ) );
 
     return $self;
 }
@@ -86,7 +88,7 @@ sub install_kernel_modules {
                 or return $prov->error("unable to create $module_dir", %std_opts);
         };
         my $cmd = "tar -zxpf $modules -C $module_dir";
-        $util->syscmd( cmd => $cmd, %std_opts ) or return;
+        $util->syscmd( $cmd, %std_opts ) or return;
     }
     else {
         chdir $fs_root;
@@ -95,7 +97,7 @@ sub install_kernel_modules {
             next if $mod eq 'headers' && ! "$fs_root/usr/src";
             my $file = "xen-$mod-$version.tar.gz";
             $util->file_get( url => "$url/$file", %std_opts ) or return;
-            $util->syscmd( cmd => "tar -zxpf $file -C $fs_root", %std_opts ) or return;
+            $util->syscmd( "tar -zxpf $file -C $fs_root", %std_opts ) or return;
             unlink $file;
         };
         chdir "/home/xen";
@@ -588,7 +590,7 @@ EO_C_CODE
     my $chroot = $util->find_bin( bin=>'chroot', %std_opts ) or return;
     my $gcc = $util->find_bin( bin=>'gcc', %std_opts ) or return;
     my $cmd = "$chroot $fs_root $gcc -m32 -o /bin/autologin /tmp/autologin.c";
-    $util->syscmd( cmd => $cmd, %std_opts ) or return;
+    $util->syscmd( $cmd, %std_opts ) or return;
     unlink "$fs_root/tmp/autologin.c";
     return if ! -x "$fs_root/bin/autologin";
     return '/bin/autologin';

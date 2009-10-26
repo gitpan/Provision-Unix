@@ -1,6 +1,6 @@
 package Provision::Unix;
 
-our $VERSION = '0.73';
+our $VERSION = '0.74';
 
 use warnings;
 use strict;
@@ -17,36 +17,37 @@ sub new {
     my $class = shift;
     my %p     = validate(
         @_,
-        {   'file' => {
-                type     => SCALAR,
-                optional => 1,
-                default  => 'provision.conf'
-            },
-            'fatal' => { type => SCALAR, optional => 1, default => 1 },
-            'debug' => { type => SCALAR, optional => 1, default => 1 },
+        {   file  => { type => SCALAR, optional => 1, },
+            fatal => { type => SCALAR, optional => 1, default => 1 },
+            debug => { type => SCALAR, optional => 1, default => 1 },
         }
     );
 
+    my $file = $p{file} || 'provision.conf';
+    my $debug = $p{debug};
+    my $ts = get_datetime_from_epoch();
     my $self = {
-        debug  => $p{debug},
+        debug  => $debug,
         fatal  => $p{fatal},
         config => undef,
-        errors => [], # errors get appended here
-        audit  => [ 'launched at ' . time ], # status messages accumulate here
+        errors => [],  # errors get appended here
+        audit  => [    # status messages accumulate here
+                "launched at $ts",
+                $class . sprintf( " loaded by %s, %s, %s", caller ),
+            ], 
         last_audit => 0,
         last_error => 0,
     };
 
     bless( $self, $class );
-    my $config_file
-        = $self->find_config( file => $p{file}, debug => $p{debug}, fatal => 0 );
-    if ( $config_file ) {
-        $self->{config} = Config::Tiny->read( $config_file );
+    my $config = $self->find_config( file => $file, debug => $debug, fatal => 0 );
+    if ( $config ) {
+        $self->{config} = Config::Tiny->read( $config );
     }
     else {
         warn "could not find provision.conf. Consider installing it in your local etc directory.\n";
     };
-    #warn sprintf( "Provision::Unix loaded by %s, %s, %s\n", caller );
+
     return $self;
 }
 
@@ -159,7 +160,7 @@ sub find_config {
     my $fatal = $self->{fatal} = $p{fatal};
     my $debug = $self->{debug} = $p{debug};
 
-    $self->audit("find_config: searching for $file");
+    $self->audit("searching for config $file");
 
     return $self->_find_readable( $file, $etcdir ) if $etcdir;
 
@@ -173,7 +174,7 @@ sub find_config {
 
     # try $file-dist in the working dir
     if ( -r "./$file-dist" ) {
-        $self->audit("\tfound $file in ./");
+        $self->audit("\tfound $file-dist in ./");
         return "$working_directory/$file-dist";
     }
 
@@ -274,7 +275,7 @@ sub _find_readable {
 
     if ( -r "$dir/$file" ) {
         no warnings;
-        $self->audit("\tfound $file in $dir");
+        $self->audit("\tfound in $dir");
         return "$dir/$file";       # we have succeeded
     }
 

@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Xen::Config;
 
-our $VERSION = 0.2;
+our $VERSION = 0.3;
 
 use strict;
 use warnings;
@@ -14,6 +14,7 @@ sub new {
         'config' => {},
       };
     bless $self, $class;
+    #warn $class . sprintf( " loaded by %s, %s, %s", caller ) . "\n";
     return $self;
 };
 
@@ -248,6 +249,7 @@ sub write {
 };
 
 1;
+
 __END__
 
 =head1 NAME

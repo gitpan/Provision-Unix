@@ -22,6 +22,9 @@ sub new {
     bless( $self, $class );
 
     die "Not finished. Only ezjail is currently supported on FreeBSD";
+
+    $prov->audit( $class . sprintf( " loaded by %s, %s, %s", caller ) );
+
     return $self;
 }
 

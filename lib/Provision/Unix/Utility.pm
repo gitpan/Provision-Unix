@@ -42,6 +42,7 @@ sub new {
         fatal => $p{fatal},
     };
     bless $self, $class;
+    $log->audit( $class . sprintf( " loaded by %s, %s, %s", caller ) );
     return $self;
 }
 
@@ -164,7 +165,7 @@ sub archive_expand {
 
     my $bin = $self->find_bin( bin => $types{$type}{bin}, %std_args);
 
-    if ($self->syscmd( cmd => "$bin -c $archive | $tar -xf -", debug => 0)) {
+    if ($self->syscmd( "$bin -c $archive | $tar -xf -", debug => 0)) {
         $log->audit( "extracted $archive" );
         return 1;
     }
@@ -196,7 +197,7 @@ sub chmod {
     if ( $p{sudo} ) {
         my $chmod = $self->find_bin( bin => 'chmod', debug => 0 );
         my $sudo  = $self->sudo();
-        $self->syscmd( cmd => "$sudo $chmod $mode $file", debug => 0 ) 
+        $self->syscmd( "$sudo $chmod $mode $file", debug => 0 ) 
             or return $log->error( "couldn't chmod $file: $!", %std_args );
     }
 
@@ -300,7 +301,7 @@ sub chown_system {
 
     $log->audit( "cmd: $cmd" );
 
-    $self->syscmd( cmd => $cmd, fatal => 0, debug => 0 ) or 
+    $self->syscmd( $cmd, fatal => 0, debug => 0 ) or 
         return $log->error( "couldn't chown with $cmd: $!", %std_args);
 
     my $mess;
@@ -438,7 +439,7 @@ sub file_archive {
             my $cp = $self->find_bin( bin => 'cp', %std_args );
 
             if ( $sudo && $cp && -x $cp ) {
-                $self->syscmd( cmd => "$sudo $cp $file $file.$date", %std_args);
+                $self->syscmd( "$sudo $cp $file $file.$date", %std_args);
             }
             else {
                 $log->audit(
@@ -495,7 +496,7 @@ sub file_delete {
         $err .= " (sudo)";
     }
 
-    $self->syscmd( cmd => $rm_command, %std_args ) 
+    $self->syscmd( $rm_command, %std_args ) 
         or return $log->error( $err, %std_args );
 
     return -e $file ? undef : 1;
@@ -590,7 +591,7 @@ sub file_get_system {
     my $fetchcmd = "$found $url";
 
     if ( ! $p{timeout} ) {
-        $self->syscmd( cmd => $fetchcmd, %std_args ) or return;
+        $self->syscmd( $fetchcmd, %std_args ) or return;
         my $uri = URI->new($url);
         my @parts = $uri->path_segments;
         my $file = $parts[-1];  # everything after the last / in the URL
@@ -605,7 +606,7 @@ sub file_get_system {
     eval {
         local $SIG{ALRM} = sub { die "alarm\n" };
         alarm $p{timeout};
-        $r = $self->syscmd( cmd => $fetchcmd, %std_args );
+        $r = $self->syscmd( $fetchcmd, %std_args );
         alarm 0;
     };
 
@@ -769,7 +770,7 @@ sub file_write {
     foreach ( @$lines ) { chomp; print $HANDLE "$_\n"; $c++ };
     close $HANDLE or return;
 
-    move "$file.tmp", $file or return $log->error("unable to update $file");
+    move( "$file.tmp", $file ) or return $log->error("unable to update $file");
 
     $log->audit( "\twrote $c lines" ) if $debug;
 
@@ -1301,15 +1302,15 @@ sub install_if_changed {
         my $cp = $self->find_bin( bin => 'cp', %std_args);
 
         # back up the existing file
-        $self->syscmd( cmd => "$sudo $cp $existing $existing.bak", %std_args)
+        $self->syscmd( "$sudo $cp $existing $existing.bak", %std_args)
             if -e $existing;
 
         # install the new one
         if ( $p{clean} ) {
-            $self->syscmd( cmd => "$sudo  mv $newfile $existing", %std_args);
+            $self->syscmd( "$sudo  mv $newfile $existing", %std_args);
         }
         else {
-            $self->syscmd( cmd => "$sudo $cp $newfile $existing",%std_args);
+            $self->syscmd( "$sudo $cp $newfile $existing",%std_args);
         }
     }
     else {
@@ -1412,7 +1413,7 @@ sub install_from_source {
         }
 
         print "install_from_source: removing previous build sources.\n";
-        $self->syscmd( cmd => "rm -rf $package-*", %std_args);
+        $self->syscmd( "rm -rf $package-*", %std_args);
     }
 
     #print "install_from_source: looking for existing sources...";
@@ -1475,8 +1476,7 @@ sub install_from_source {
             my $patchbin = $self->find_bin( bin => "patch", %std_args );
             -x $patchbin or return $log->error( "could not find 'patch'!", %std_args);
 
-            $self->syscmd(
-                cmd   => "$patchbin $p{patch_args} < $src/$patch",
+            $self->syscmd( "$patchbin $p{patch_args} < $src/$patch",
                 debug => $debug
             );
         }
@@ -1502,15 +1502,15 @@ TARGET:
             next TARGET;
         }
 
-        $self->syscmd( cmd => $target, debug => $debug ) or
+        $self->syscmd( $target, debug => $debug ) or
             return $log->error( "pwd: " . cwd .  "\n$target failed: $!", %std_args );
     }
 
     # clean up the build sources
     chdir $src;
-    $self->syscmd( cmd => "rm -rf $package", debug => $debug ) if -d $package;
+    $self->syscmd( "rm -rf $package", debug => $debug ) if -d $package;
 
-    $self->syscmd( cmd => "rm -rf $package/$sub_path", %std_args )
+    $self->syscmd( "rm -rf $package/$sub_path", %std_args )
         if defined $sub_path && -d "$package/$sub_path";
 
     chdir $original_directory;
@@ -1802,7 +1802,7 @@ sub mkdir_system {
 
     # if we are root, just do it (no sudo nonsense)
     if ( $< == 0 ) {
-        $self->syscmd( cmd => "$mkdir -p $dir", %std_args);
+        $self->syscmd( "$mkdir -p $dir", %std_args);
 
         $self->chmod( dir => $dir, mode => $mode, debug => $debug ) if $mode;
 
@@ -1816,11 +1816,11 @@ sub mkdir_system {
 
         $log->audit( "trying $sudo mkdir -p") if $debug;
         $mkdir = $self->find_bin( bin => 'mkdir', %std_args);
-        $self->syscmd( cmd => "$sudo $mkdir -p $dir", %std_args);
+        $self->syscmd( "$sudo $mkdir -p $dir", %std_args);
 
         $log->audit( "setting ownership to $<.") if $debug;
         my $chown = $self->find_bin( bin => 'chown', %std_args);
-        $self->syscmd( cmd => "$sudo $chown $< $dir", %std_args);
+        $self->syscmd( "$sudo $chown $< $dir", %std_args);
 
         $self->chmod( dir => $dir, mode => $mode, sudo => $sudo, %std_args)
              if $mode;
@@ -1831,7 +1831,7 @@ sub mkdir_system {
     $log->audit( "trying mkdir -p $dir" ) if $debug;
 
     # no root and no sudo, just try and see what happens
-    $self->syscmd( cmd => "$mkdir -p $dir", %std_args );
+    $self->syscmd( "$mkdir -p $dir", %std_args );
 
     $self->chmod( dir => $dir, mode => $mode, %std_args) if $mode;
 
@@ -2137,26 +2137,25 @@ sub sudo {
 
 sub syscmd {
     my $self = shift;
+    my $cmd = shift or die "missing command!\n";
     my %p = validate(
         @_,
-        {   'cmd'     => { type => SCALAR },
-            'timeout' => { type => SCALAR, optional => 1 },
+        {   'timeout' => { type => SCALAR,  optional => 1 },
             'fatal'   => { type => BOOLEAN, optional => 1, default => 1 },
             'debug'   => { type => BOOLEAN, optional => 1, default => 1 },
         },
     );
 
-    my $cmd_request = $p{cmd};
     my $debug       = $p{debug};
     my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
 
-    $log->audit("preparing sys cmd: $cmd_request") if $debug;
+    $log->audit("preparing sys cmd: $cmd") if $debug;
 
     my ( $is_safe, $tainted, $bin, @args );
 
     # separate the program from its arguments
-    if ( $cmd_request =~ m/\s+/xm ) {
-        @args = split /\s+/, $cmd_request;  # split on whitespace
+    if ( $cmd =~ m/\s+/xm ) {
+        @args = split /\s+/, $cmd;  # split on whitespace
         $bin = shift @args;
         $is_safe++;
         my $arg_string = join ' ', @args;
@@ -2164,8 +2163,8 @@ sub syscmd {
     }
     else {
         # make sure it does not not contain a ./ pattern
-        if ( $cmd_request !~ m{\./} ) {
-            $bin = $cmd_request;
+        if ( $cmd!~ m{\./} ) {
+            $bin = $cmd;
             $is_safe++;
         }
     }
@@ -2186,14 +2185,14 @@ sub syscmd {
         my $found_bin = $self->find_bin( bin => $bin, fatal => 0, debug => 0 );
         $bin = $found_bin if $found_bin && -x $found_bin;
 
-        return $log->error( "cmd: $cmd_request \t bin: $bin is not found", %std_args)
+        return $log->error( "cmd: $cmd\t bin: $bin is not found", %std_args)
             if !-x $bin;
     }
     unshift @args, $bin;
 
     $status_message = "checking for tainted data in string";
     require Scalar::Util;
-    $tainted++ if Scalar::Util::tainted($cmd_request);
+    $tainted++ if Scalar::Util::tainted($cmd);
 
     my $before_path = $ENV{PATH};
 
@@ -2209,21 +2208,21 @@ sub syscmd {
         $ENV{PATH} = "/bin:/sbin:/usr/bin:/usr/sbin:$prefix/bin:$prefix/sbin";
     }
 
-    $log->audit($cmd_request);
+    $log->audit($cmd);
 
     my $r;
     if ( $p{timeout} ) {
         eval {
             local $SIG{ALRM} = sub { die "alarm\n" };
             alarm $p{timeout};
-            #$r = system $cmd_request;
-            $r = `$cmd_request 2>&1`;
+            #$r = system $cmd;
+            $r = `$cmd 2>&1`;
             alarm 0;
         };
 
         if ($EVAL_ERROR) {
             if ( $EVAL_ERROR eq "alarm\n" ) {
-                $log->audit("timed out running '$cmd_request'");
+                $log->audit("timed out running '$cmd'");
             }
             else {
                 return $log->error( "unknown error '$EVAL_ERROR'", %std_args);
@@ -2231,8 +2230,8 @@ sub syscmd {
         }
     }
     else {
-        $r = `$cmd_request 2>&1`;
-        #$r = system $cmd_request;
+        $r = `$cmd 2>&1`;
+        #$r = system $cmd;
     }
 
     my $exit_code = sprintf ("%d", $CHILD_ERROR >> 8);
@@ -2244,11 +2243,11 @@ sub syscmd {
         warn "error $CHILD_ERROR: $r \n" if $debug;
 
         if ( $CHILD_ERROR == -1 ) {     # check $? for "normal" errors
-            warn "$cmd_request \nfailed to execute: $ERRNO" if $debug;
+            warn "$cmd\nfailed to execute: $ERRNO" if $debug;
         }
         elsif ( $CHILD_ERROR & 127 ) {  # check for core dump
             if ($debug) {
-                warn "syscmd: $cmd_request";
+                warn "syscmd: $cmd";
                 printf "child died with signal %d, %s coredump\n", ( $? & 127 ),
                     ( $? & 128 ) ? 'with' : 'without';
             }
@@ -3022,7 +3021,7 @@ This sub proved quite useful during 2005 as many packages began to be distribute
 
    my $sudo = $utility->sudo();
 
-   $utility->syscmd( cmd=>"$sudo rm /etc/root-owned-file" );
+   $utility->syscmd( "$sudo rm /etc/root-owned-file" );
 
 Often you want to run a script as an unprivileged user. However, the script may need elevated privileges for a plethora of reasons. Rather than running the script suid, or as root, configure sudo allowing the script to run system commands with appropriate permissions.
 
@@ -3042,7 +3041,7 @@ If sudo is not installed and you're running as root, it'll offer to install sudo
 
    Just a little wrapper around system calls, that returns any failure codes and prints out the error(s) if present. A bit of sanity testing is also done to make sure the command to execute is safe. 
 
-      my $r = $utility->syscmd( cmd=>"gzip /tmp/example.txt" );
+      my $r = $utility->syscmd( "gzip /tmp/example.txt" );
       $r ? print "ok!\n" : print "not ok.\n";
 
     arguments required:

@@ -190,7 +190,7 @@ returns a hashref with error_code and error_desc
     }
 
     print "user_show: $user show function...\n" if $self->{debug};
-    $prov->syscmd( cmd => "quota $user" );
+    $prov->syscmd( "quota $user" );
     return { 'error_code' => 100, 'error_desc' => 'all is well' };
 }
 
@@ -214,7 +214,7 @@ Disable an /etc/passwd user by expiring their account.
     {
         my $cmd = "$pw usermod -n $user -e -1m";
 
-        if ( $util->syscmd( cmd => $cmd ) ) {
+        if ( $util->syscmd( $cmd ) ) {
             return {
                 'error_code' => 200,
                 'error_desc' => "disable: success. $user has been disabled."
@@ -260,7 +260,7 @@ returns a hashref with error_code and error_desc
     {
         my $cmd = "$pw usermod -n $user -e ''";
 
-   #        if ( $prov->syscmd( cmd => $cmd ) ) {
+   #        if ( $prov->syscmd( $cmd ) ) {
    #            $r = {
    #                'error_code' => 200,
    #                'error_desc' => "enable: success. $user has been enabled."
