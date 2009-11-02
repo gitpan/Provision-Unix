@@ -79,8 +79,8 @@ SKIP: {
 }
 
 # archive_expand
-my $gzip = $util->find_bin( bin => "gzip", fatal => 0, debug => 0 );
-my $tar  = $util->find_bin( bin => "tar",  fatal => 0, debug => 0 );
+my $gzip = $util->find_bin( "gzip", fatal => 0, debug => 0 );
+my $tar  = $util->find_bin( "tar",  fatal => 0, debug => 0 );
 
 SKIP: {
     skip "gzip or tar is missing!\n", 6 unless ( -x $gzip and -x $tar and -d $tmp );
@@ -149,7 +149,7 @@ chdir($cwd) or die;
 print "\t\t wd: " . cwd . "\n" if $debug;
 
 # chown_system
-my $sudo_bin = $util->find_bin( bin => 'sudo', debug => 0, fatal => 0 );
+my $sudo_bin = $util->find_bin( 'sudo', debug => 0, fatal => 0 );
 if ( $UID == 0 && $sudo_bin && -x $sudo_bin ) {
 
     # avoid the possiblity of a sudo call in testing
@@ -291,7 +291,7 @@ print "\t\t  wd: " . Cwd::cwd . "\n" if $debug;
 my $uid = getpwuid($UID);
 my $gid = getgrgid($GID);
 my $root = 'root';
-my $grep = $util->find_bin( bin=> 'grep', debug =>  0 );
+my $grep = $util->find_bin( 'grep', debug =>  0 );
 my $wheel = `$grep wheel /etc/group` ? 'wheel' : 'root';
 
 SKIP: {
@@ -465,14 +465,14 @@ ok( $util->files_diff(
 
 # find_bin
 # a typical invocation
-my $rm = $util->find_bin( bin => "rm", debug => 0, fatal => 0 );
+my $rm = $util->find_bin( "rm", debug => 0, fatal => 0 );
 ok( $rm && -x $rm, 'find_bin' );
 
 # a test that should fail
-ok( !$util->find_bin( bin => "globRe", fatal => 0, debug => 0 ), 'find_bin' );
+ok( !$util->find_bin( "globRe", fatal => 0, debug => 0 ), 'find_bin' );
 
 # a shortcut that should work
-$rm = $util->find_bin( bin => "rm", debug => 0 );
+$rm = $util->find_bin( "rm", debug => 0 );
 ok( -x $rm, 'find_bin' );
 
 # fstab_list
@@ -501,7 +501,7 @@ if ( eval "require $mod" ) {
 
     ok( @list = $util->get_the_date( debug => 0 ), 'get_the_date' );
 
-    my $date = $util->find_bin( bin => "date", debug => 0 );
+    my $date = $util->find_bin( "date", debug => 0 );
     cmp_ok( $list[0], '==', `$date '+%d'`, 'get_the_date day' );
     cmp_ok( $list[1], '==', `$date '+%m'`, 'get_the_date month' );
     cmp_ok( $list[2], '==', `$date '+%Y'`, 'get_the_date year' );

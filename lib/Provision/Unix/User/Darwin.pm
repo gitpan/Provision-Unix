@@ -83,7 +83,7 @@ sub create {
 
     # finally, create the user
     my $dirutil
-        = $util->find_bin( bin => "dscl", debug => $p{debug}, fatal => 0 );
+        = $util->find_bin( "dscl", debug => $p{debug}, fatal => 0 );
 
     $prov->progress(
         num  => 5,
@@ -121,7 +121,7 @@ sub _create_dscl {
     my $user  = $p_user->{username};
     my $debug = $self->{debug};
 
-    my $dirutil = $util->find_bin( bin => "dscl", debug => 0 );
+    my $dirutil = $util->find_bin( "dscl", debug => 0 );
 
     $util->syscmd( "$dirutil . -create /users/$user",
         debug => $debug,
@@ -169,7 +169,7 @@ sub _create_niutil {
     my $debug = $p_user->{debug};
 
     # use niutil on 10.4 and prior
-    my $dirutil = $util->find_bin( bin => "niutil", debug => 0 );
+    my $dirutil = $util->find_bin( "niutil", debug => 0 );
 
     $util->syscmd( "$dirutil -create . /users/$user",
         debug => $debug,
@@ -230,7 +230,7 @@ sub destroy {
         if $p{test_mode};
 
     # this works on 10.5
-    my $dirutil = $util->find_bin( bin => "dscl", debug => 0, fatal => 0 );
+    my $dirutil = $util->find_bin( "dscl", debug => 0, fatal => 0 );
 
     my $cmd;
 
@@ -240,7 +240,7 @@ sub destroy {
     else {
 
         # this works on 10.4 and previous
-        $dirutil = $util->find_bin( bin => "niutil", debug => 0 );
+        $dirutil = $util->find_bin( "niutil", debug => 0 );
         $cmd = "$dirutil -destroy . /users/$user";
     }
 
@@ -269,7 +269,7 @@ sub create_group {
     $prov->progress( num => 5, desc => "adding Darwin group $group" );
 
     my $dirutil
-        = $util->find_bin( bin => "dscl", debug => $p{debug}, fatal => 0 );
+        = $util->find_bin( "dscl", debug => $p{debug}, fatal => 0 );
 
     if ($dirutil) {    # 10.5
         $util->syscmd( "$dirutil . -create /groups/$group",
@@ -283,7 +283,7 @@ sub create_group {
         );
     }
     else {
-        $dirutil = $prov->find_bin( bin => "niutil", debug => $p{debug} );
+        $dirutil = $prov->find_bin( "niutil", debug => $p{debug} );
         $util->syscmd( "$dirutil -create . /groups/$group",
             debug => $p{debug}
         );
@@ -318,7 +318,7 @@ sub destroy_group {
     $prov->progress( num => 5, desc => "destroy Darwin group $p{group}" );
 
     my $dirutil
-        = $util->find_bin( bin => "dscl", debug => $p{debug}, fatal => 0 );
+        = $util->find_bin( "dscl", debug => $p{debug}, fatal => 0 );
 
     if ($dirutil) {    # 10.5
         $util->syscmd( "$dirutil . -delete /groups/$group",
@@ -326,7 +326,7 @@ sub destroy_group {
         );
     }
     else {             # =< 10.4
-        $dirutil = $util->find_bin( bin => "niutil", debug => $p{debug} );
+        $dirutil = $util->find_bin( "niutil", debug => $p{debug} );
         $util->syscmd( "$dirutil -delete . /groups/$group",
             debug => $p{debug}
         );

@@ -208,7 +208,7 @@ Disable an /etc/passwd user by expiring their account.
 
     my $r;
 
-    my $pw = $util->find_bin( bin => "pw" ) || '/usr/sbin/pw';
+    my $pw = $util->find_bin( "pw" ) || '/usr/sbin/pw';
 
     if ( getpwnam($user) && getpwnam($user) > 0 )    # Make sure user exists
     {

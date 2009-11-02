@@ -138,10 +138,10 @@ sub _get_server {
 
     # try to autodetect the server
     if ( ! $chosen_server ) {
-        if ( $util->find_bin( bin=>'tinydns', debug=>0,fatal => 0 ) ) {
+        if ( $util->find_bin( 'tinydns', debug=>0,fatal => 0 ) ) {
             $chosen_server = 'tinydns';
         }
-        elsif ( $util->find_bin( bin=>'named', debug=>0,fatal => 0) ) {
+        elsif ( $util->find_bin( 'named', debug=>0,fatal => 0) ) {
             $chosen_server = 'bind';
         };
     };

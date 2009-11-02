@@ -319,7 +319,7 @@ sub compile_data_cdb {
     my $service_dir = $prov->{config}{tinydns}{service_dir};
     my $data_dir    = "$service_dir/root";
 
-    my $tdata = $util->find_bin( bin => 'tinydns-data', debug => 0 );
+    my $tdata = $util->find_bin( 'tinydns-data', debug => 0 );
 
     # compile the data.cdb file
     my $original_wd = getcwd;

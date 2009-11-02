@@ -1,6 +1,6 @@
 package Provision::Unix::Utility;
 
-our $VERSION = '5.25';
+our $VERSION = '5.26';
 
 use strict;
 use warnings;
@@ -145,8 +145,8 @@ sub archive_expand {
         if $archive !~ /[bz2|gz]$/;
 
     # find these binaries, we need them to inspect and expand the archive
-    my $tar  = $self->find_bin( bin => 'tar',  %std_args);
-    my $file = $self->find_bin( bin => 'file', %std_args);
+    my $tar  = $self->find_bin( 'tar',  %std_args);
+    my $file = $self->find_bin( 'file', %std_args);
 
     my %types = (
         gzip => { bin => 'gunzip',  content => 'gzip',       },
@@ -163,7 +163,7 @@ sub archive_expand {
     return $log->error( "$archive not a $type compressed file", %std_args)
         unless grep ( /$types{$type}{content}/, `$file $archive` );
 
-    my $bin = $self->find_bin( bin => $types{$type}{bin}, %std_args);
+    my $bin = $self->find_bin( $types{$type}{bin}, %std_args);
 
     if ($self->syscmd( "$bin -c $archive | $tar -xf -", debug => 0)) {
         $log->audit( "extracted $archive" );
@@ -195,7 +195,7 @@ sub chmod {
         or return $log->error( "invalid params to chmod in ". ref $self  );
 
     if ( $p{sudo} ) {
-        my $chmod = $self->find_bin( bin => 'chmod', debug => 0 );
+        my $chmod = $self->find_bin( 'chmod', debug => 0 );
         my $sudo  = $self->sudo();
         $self->syscmd( "$sudo $chmod $mode $file", debug => 0 ) 
             or return $log->error( "couldn't chmod $file: $!", %std_args );
@@ -292,7 +292,7 @@ sub chown_system {
     my $dir = $p{dir} || $p{file_or_dir} || $p{file} or
         return $log->error( "missing file or dir", %std_args ); 
 
-    my $cmd = $self->find_bin( bin => 'chown', %std_args );
+    my $cmd = $self->find_bin( 'chown', %std_args );
 
     $cmd .= " -R"     if $recurse;
     $cmd .= " $user";
@@ -436,7 +436,7 @@ sub file_archive {
     if ( $< != 0 ) {   # we're not root
         if ( $p{sudo} ) {
             my $sudo = $self->sudo( %std_args );
-            my $cp = $self->find_bin( bin => 'cp', %std_args );
+            my $cp = $self->find_bin( 'cp', %std_args );
 
             if ( $sudo && $cp && -x $cp ) {
                 $self->syscmd( "$sudo $cp $file $file.$date", %std_args);
@@ -487,7 +487,7 @@ sub file_delete {
     }
 
     $err = "trying with system rm";
-    my $rm_command = $self->find_bin( bin => "rm", %std_args );
+    my $rm_command = $self->find_bin( "rm", %std_args );
     $rm_command .= " -f $file";
 
     if ( $< != 0 ) {      # we're not running as root
@@ -566,14 +566,14 @@ sub file_get_system {
 
     my ($fetchbin, $found);
     if ( $OSNAME eq "freebsd" ) {
-        $fetchbin = $self->find_bin( bin => 'fetch', %std_args);
+        $fetchbin = $self->find_bin( 'fetch', %std_args);
         if ( $fetchbin && -x $fetchbin ) {
             $found = $fetchbin;
             $found .= " -q" unless $debug;
         }
     }
     elsif ( $OSNAME eq "darwin" ) {
-        $fetchbin = $self->find_bin( bin => 'curl', %std_args );
+        $fetchbin = $self->find_bin( 'curl', %std_args );
         if ( $fetchbin && -x $fetchbin ) {
             $found = "$fetchbin -O";
             $found .= " -s " if !$debug;
@@ -581,7 +581,7 @@ sub file_get_system {
     }
 
     if ( !$found ) {
-        $fetchbin = $self->find_bin( bin => 'wget', %std_args);
+        $fetchbin = $self->find_bin( 'wget', %std_args);
         $found = $fetchbin if $fetchbin && -x $fetchbin;
     }
 
@@ -808,7 +808,7 @@ sub files_diff {
         #
         $log->audit("comparing ascii files $f1 and $f2 using diff") if $debug;
 
-        my $diff = $self->find_bin( bin => 'diff', %std_args );
+        my $diff = $self->find_bin( 'diff', %std_args );
         my $r = `$diff $f1 $f2`;
         chomp $r;
         return $r;
@@ -864,16 +864,16 @@ FILE: foreach my $f ( $f1, $f2 ) {
 
 sub find_bin {
     my $self = shift;
+    my $bin  = shift or die "missing argument to find_bin\n";
     my %p = validate(
         @_,
-        {   'bin'   => { type => SCALAR, },
-            'dir'   => { type => SCALAR, optional => 1, },
+        {   'dir'   => { type => SCALAR, optional => 1, },
             'fatal' => { type => SCALAR, optional => 1, default => 1 },
             'debug' => { type => SCALAR, optional => 1, default => 1 },
         },
     );
 
-    my ( $bin, $debug ) = ( $p{bin}, $p{debug} );
+    my $debug = $p{debug};
     my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
 
     $log->audit( "find_bin: searching for $bin" ) if $debug;
@@ -898,7 +898,7 @@ sub find_bin {
     };
 
     if ($found) {
-        $log->audit( "find_bin: found $found") if $debug;
+        $log->audit( "found $found") if $debug;
         return $found;
     }
 
@@ -925,7 +925,7 @@ sub fstab_list {
         return;
     }
 
-    my $grep = $self->find_bin( bin => "grep", debug => 0 );
+    my $grep = $self->find_bin( "grep", debug => 0 );
     my @fstabs = `$grep -v cdr $fstab`;
 
     #	foreach my $fstab (@fstabs)
@@ -1047,9 +1047,9 @@ sub get_my_ips {
     my $debug = $p{debug};
     my $only  = $p{only};
 
-    my $ifconfig = $self->find_bin( bin => "ifconfig", debug => 0 );
-    my $grep     = $self->find_bin( bin => "grep",     debug => 0 );
-    my $cut      = $self->find_bin( bin => "cut",      debug => 0 );
+    my $ifconfig = $self->find_bin( "ifconfig", debug => 0 );
+    my $grep     = $self->find_bin( "grep",     debug => 0 );
+    my $cut      = $self->find_bin( "cut",      debug => 0 );
 
     my $once = 0;
 
@@ -1066,11 +1066,11 @@ TRY:
     }
 
     if ( $only eq "first" ) {
-        my $head = $self->find_bin( bin => "head", debug => 0 );
+        my $head = $self->find_bin( "head", debug => 0 );
         $cmd .= "| $head -n1 ";
     }
     elsif ( $only eq "last" ) {
-        my $tail = $self->find_bin( bin => "tail", debug => 0 );
+        my $tail = $self->find_bin( "tail", debug => 0 );
         $cmd .= "| $tail -n1 ";
     }
 
@@ -1156,7 +1156,7 @@ sub get_mounted_drives {
 
     my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
 
-    my $mount = $self->find_bin( bin => 'mount', %std_args );
+    my $mount = $self->find_bin( 'mount', %std_args );
 
     -x $mount or return $log->error( "I couldn't find mount!", %std_args );
 
@@ -1228,7 +1228,7 @@ sub install_if_changed {
             if $UID == 0;
 
         if ( $sudo ) {
-            $sudo = $self->find_bin( bin => 'sudo', %std_args );
+            $sudo = $self->find_bin( 'sudo', %std_args );
             return $log->error( "you are not root, sudo is not installed,"
                     . " and you don't have permission to write to "
                     . " $newfile and $existing. Sorry, I can't proceed!" )
@@ -1299,7 +1299,7 @@ sub install_if_changed {
 
     # install the new file
     if ($sudo) {
-        my $cp = $self->find_bin( bin => 'cp', %std_args);
+        my $cp = $self->find_bin( 'cp', %std_args);
 
         # back up the existing file
         $self->syscmd( "$sudo $cp $existing $existing.bak", %std_args)
@@ -1388,7 +1388,7 @@ sub install_from_source {
 
     $self->cwd_source_dir( dir => $src, debug => $debug );
 
-    if ( $bintest && $self->find_bin( bin => $bintest, fatal => 0, debug => 0 ) ) {
+    if ( $bintest && $self->find_bin( $bintest, fatal => 0, debug => 0 ) ) {
         return if ! $self->yes_or_no(
             "$bintest exists, suggesting that"
                 . "$package is installed. Do you want to reinstall?",
@@ -1473,7 +1473,7 @@ sub install_from_source {
 
         foreach my $patch (@$patches) {
 
-            my $patchbin = $self->find_bin( bin => "patch", %std_args );
+            my $patchbin = $self->find_bin( "patch", %std_args );
             -x $patchbin or return $log->error( "could not find 'patch'!", %std_args);
 
             $self->syscmd( "$patchbin $p{patch_args} < $src/$patch",
@@ -1654,8 +1654,8 @@ sub is_process_running {
         };
     };
 
-    my $ps   = $self->find_bin( bin => 'ps',   debug => 0 );
-    my $grep = $self->find_bin( bin => 'grep', debug => 0 );
+    my $ps   = $self->find_bin( 'ps',   debug => 0 );
+    my $grep = $self->find_bin( 'grep', debug => 0 );
 
     if    ( lc($OSNAME) =~ /solaris/i ) { $ps .= " -ef";  }
     elsif ( lc($OSNAME) =~ /irix/i    ) { $ps .= " -ef";  }
@@ -1763,7 +1763,7 @@ sub provision_unix {
     my ( $self, $debug ) = @_;
     my ( $conf, $ver );
 
-    my $perlbin = $self->find_bin( bin => "perl", debug => 0 );
+    my $perlbin = $self->find_bin( "perl", debug => 0 );
 
     if ( -e "/usr/local/etc/provision.conf" ) {
 
@@ -1798,7 +1798,7 @@ sub mkdir_system {
     }
 
     # can't do anything without mkdir
-    my $mkdir = $self->find_bin( bin => 'mkdir', %std_args);
+    my $mkdir = $self->find_bin( 'mkdir', %std_args);
 
     # if we are root, just do it (no sudo nonsense)
     if ( $< == 0 ) {
@@ -1815,11 +1815,11 @@ sub mkdir_system {
         my $sudo = $self->sudo();
 
         $log->audit( "trying $sudo mkdir -p") if $debug;
-        $mkdir = $self->find_bin( bin => 'mkdir', %std_args);
+        $mkdir = $self->find_bin( 'mkdir', %std_args);
         $self->syscmd( "$sudo $mkdir -p $dir", %std_args);
 
         $log->audit( "setting ownership to $<.") if $debug;
-        my $chown = $self->find_bin( bin => 'chown', %std_args);
+        my $chown = $self->find_bin( 'chown', %std_args);
         $self->syscmd( "$sudo $chown $< $dir", %std_args);
 
         $self->chmod( dir => $dir, mode => $mode, sudo => $sudo, %std_args)
@@ -1979,8 +1979,8 @@ sub sources_get {
 
     my @extensions = qw/ tar.gz tgz tar.bz2 tbz2 /;
 
-    my $filet = $self->find_bin( bin => 'file', %std_args);
-    my $grep  = $self->find_bin( bin => 'grep', %std_args);
+    my $filet = $self->find_bin( 'file', %std_args);
+    my $grep  = $self->find_bin( 'grep', %std_args);
 
     foreach my $ext (@extensions) {
 
@@ -2093,11 +2093,7 @@ sub sudo {
     }
 
     my $sudo;
-    my $path_to_sudo = $self->find_bin(
-        bin   => 'sudo',
-        debug => $debug,
-        fatal => 0,
-    );
+    my $path_to_sudo = $self->find_bin( 'sudo', debug => $debug, fatal => 0 );
 
     # sudo is installed
     if ( $path_to_sudo && -x $path_to_sudo ) {
@@ -2114,7 +2110,7 @@ sub sudo {
         return "";
     };
 
-    -x $self->find_bin( bin => "sudo", debug => $debug, fatal => 0 ) or
+    -x $self->find_bin( "sudo", debug => $debug, fatal => 0 ) or
         $self->install_from_source(
             package => 'sudo-1.6.9p17',
             site    => 'http://www.courtesan.com',
@@ -2125,7 +2121,7 @@ sub sudo {
         );
 
     # can we find it now?
-    $path_to_sudo = $self->find_bin( bin => "sudo", %std_args);
+    $path_to_sudo = $self->find_bin( "sudo", %std_args);
 
     if ( !-x $path_to_sudo ) {
         carp "sudo install failed!";
@@ -2182,7 +2178,7 @@ sub syscmd {
     if ( $bin && !-e $bin ) {  # $bin is set, but we have not found it
 
         # check the normal places
-        my $found_bin = $self->find_bin( bin => $bin, fatal => 0, debug => 0 );
+        my $found_bin = $self->find_bin( $bin, fatal => 0, debug => 0 );
         $bin = $found_bin if $found_bin && -x $found_bin;
 
         return $log->error( "cmd: $cmd\t bin: $bin is not found", %std_args)
@@ -2233,6 +2229,7 @@ sub syscmd {
         $r = `$cmd 2>&1`;
         #$r = system $cmd;
     }
+    $log->audit( "r: $r" ) if $debug;
 
     my $exit_code = sprintf ("%d", $CHILD_ERROR >> 8);
 
@@ -2719,11 +2716,11 @@ Example:
 
 Check all the "normal" locations for a binary that should be on the system and returns the full path to the binary.
 
-   $utility->find_bin( bin=>'dos2unix', dir=>'/opt/local/bin' );
+   $utility->find_bin( 'dos2unix', dir=>'/opt/local/bin' );
 
 Example: 
 
-   my $apachectl = $utility->find_bin( bin=>"apachectl", dir=>"/usr/local/sbin" );
+   my $apachectl = $utility->find_bin( "apachectl", dir=>"/usr/local/sbin" );
 
 
  arguments required:

@@ -16,22 +16,24 @@ my $prov = Provision::Unix->new( debug => 0 );
 my $util = Provision::Unix::Utility->new( prov => $prov, debug => 0);
 
 Getopt::Long::GetOptions(
-    'action=s'       => \my $action,
-    'name=s'         => \my $name,
-    'ip=s'           => \my $ip,
+    'action=s'        => \my $action,
+    'name=s'          => \my $name,
+    'ip=s'            => \my $ip,
 
-    'template=s'     => \my $template,
-    'config=s'       => \my $config,
-    'disk_root=s'    => \my $disk_root,
-    'disk_size=s'    => \my $disk_size,
-    'hostname=s'     => \my $hostname,
-    'password=s'     => \my $password,
-    'nameservers=s'  => \my $nameservers,
-    'searchdomain=s' => \my $searchdomain,
+    'template=s'      => \my $template,
+    'config=s'        => \my $config,
+    'disk_root=s'     => \my $disk_root,
+    'disk_size=s'     => \my $disk_size,
+    'hostname=s'      => \my $hostname,
+    'password=s'      => \my $password,
+    'nameservers=s'   => \my $nameservers,
+    'searchdomain=s'  => \my $searchdomain,
 
-    'verbose'        => \my $debug,
-    'version'        => \my $version,
-    'help'           => \my $help,
+    'new_node=s'      => \my $new_node,
+    'connection_test' => \my $connection_test,
+    'verbose'         => \my $debug,
+    'version'         => \my $version,
+    'help'            => \my $help,
 ) or die 'error parsing command line options';
 
 pod2usage( { -verbose => 3 } ) if $help;
@@ -63,8 +65,9 @@ $action = lc($action);
 pod2usage( { -verbose => 1 } ) if !$actions{$action};
 
 $name ||= $util->ask( $questions->{name} );
+$debug = defined $debug ? $debug : 0;
 
-my %request = ( debug => 0, fatal => 0, name => lc($name) );
+my %request = ( debug => $debug, fatal => 0, name => lc($name) );
 
   $action eq 'create'   ? create()
 : $action eq 'destroy'  ? destroy()
@@ -157,8 +160,8 @@ sub set_password {
     print Dumper( $vos->set_password( %request ) );
 }
 sub migrate {
-    $request{new_node} = $util->ask( "the destination HW node hostname or IP" );
-    $request{connection_test} = $util->ask( "only test the connection", default => 0 );
+    $request{new_node} = $new_node || $util->ask( "the destination HW node hostname or IP" );
+    $request{connection_test} = $connection_test || $util->ask( "only test the connection", default => 0 );
     foreach ( keys %request ) { delete $request{$_} if ! defined $request{$_}; };
     print Dumper( $vos->migrate_virtualos( %request ) );
 }

@@ -84,7 +84,7 @@ sub create {
     $prov->audit("user->create: backed up master.passwd to $bak");
 
     # pw creates accounts using defaults from /etc/pw.conf
-    my $pw = $util->find_bin( bin => "pw", debug => 0 );
+    my $pw = $util->find_bin( "pw", debug => 0 );
     my $pwcmd = "$pw useradd -n $username ";
 
     $pwcmd .= "-d $homedir "    if $homedir;
@@ -149,7 +149,7 @@ sub create_group {
     $prov->audit("create_group: installing $p{group} on $OSNAME");
 
     # use the pw tool to add the user
-    my $pw = $util->find_bin( bin => "pw", debug => $p{debug} );
+    my $pw = $util->find_bin( "pw", debug => $p{debug} );
     $pw .= " groupadd -n $p{group}";
     $pw .= " -g $p{gid}" if $p{gid};
 
@@ -197,7 +197,7 @@ sub destroy {
     );
     $prov->progress( num => 2, desc => "backed up master.passwd." );
 
-    my $pw = $util->find_bin( bin => 'pw', debug => 0 );
+    my $pw = $util->find_bin( 'pw', debug => 0 );
     $pw .= " userdel -n $p{username} -r";
 
     my $r = $util->syscmd( $pw, debug => $p{debug},
@@ -253,7 +253,7 @@ sub destroy_group {
     );
     $prov->progress( num => 2, desc => "backed up /etc/group" );
 
-    my $pw = $util->find_bin( bin => 'pw', debug => 0 );
+    my $pw = $util->find_bin( 'pw', debug => 0 );
     $pw .= " groupdel -n $p{group}";
 
     my $r = $util->syscmd( $cmd, debug => $p{debug} );
@@ -388,8 +388,8 @@ returns a boolean.
 
     my ( $self, $user, $debug ) = @_;
 
-    my $tar = $util->find_bin( bin => "tar" );
-    my $rm  = $util->find_bin( bin => "rm" );
+    my $tar = $util->find_bin( "tar" );
+    my $rm  = $util->find_bin( "rm" );
 
     if ( !$self->exists($user) ) {
         $prov->error( "user $user does not exist!" );

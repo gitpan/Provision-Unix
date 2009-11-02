@@ -71,7 +71,7 @@ sub create {
     $user->_is_valid_username( $username ) or return;
     my $group = $p{gid} || $self->exists_group( $username );
 
-    my $cmd = $util->find_bin( bin => 'useradd', debug => 0 );
+    my $cmd = $util->find_bin( 'useradd', debug => 0 );
     $cmd .= " -c $p{gecos}"   if $p{gecos};
     $cmd .= " -d $p{homedir}" if $p{homedir};
     $cmd .= " -e $p{expire}"  if $p{expire};
@@ -84,7 +84,7 @@ sub create {
     $util->syscmd( $cmd, debug => 0, fatal => 0 ) or return;
 
     if ( $password ) {
-        my $passwd = $util->find_bin( bin => 'passwd', debug => $p{debug} );
+        my $passwd = $util->find_bin( 'passwd', debug => $p{debug} );
         ## no critic
         my $FH;
         unless ( open $FH, "| $passwd --stdin $username" ) {
@@ -123,7 +123,7 @@ sub create_group {
 
     $prov->audit("create_group: installing $p{group} on $OSNAME");
 
-    my $cmd = $util->find_bin( bin => 'groupadd', debug => $p{debug} );
+    my $cmd = $util->find_bin( 'groupadd', debug => $p{debug} );
     $cmd .= " -g $p{gid}" if $p{gid};
     $cmd .= " $p{group}";
 
@@ -160,7 +160,7 @@ sub destroy {
         );
     }
 
-    my $cmd = $util->find_bin( bin => 'userdel', debug => $p{debug} );
+    my $cmd = $util->find_bin( 'userdel', debug => $p{debug} );
     $cmd .= " -f -r $p{username}";
 
     my $r = $util->syscmd( $cmd, debug => 0, fatal => $p{fatal} );
@@ -206,7 +206,7 @@ sub destroy_group {
         return 1;
     }
 
-    my $cmd = $util->find_bin( bin => 'groupdel', debug => 0 );
+    my $cmd = $util->find_bin( 'groupdel', debug => 0 );
     $cmd .= " $group";
 
     return 1 if $p{test_mode};
@@ -365,7 +365,7 @@ sub restart_nscd {
     my $pid = `cat $nscd`; chomp $pid;
     return if ! $pid;
 
-    $nscd = $util->find_bin( bin => 'nscd', debug => 0 );
+    $nscd = $util->find_bin( 'nscd', debug => 0 );
     return if ! -x $nscd;
 
     `killall -w nscd`;

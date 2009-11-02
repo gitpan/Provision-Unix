@@ -1,7 +1,7 @@
 
 use strict;
 use warnings;
-use Test::More tests => 9;
+use Test::More tests => 8;
 
 sub not_in_file_ok {
     my ( $filename, %regex ) = @_;
@@ -50,7 +50,6 @@ TODO: {
     module_boilerplate_ok('lib/Provision/Unix.pm');
     module_boilerplate_ok('lib/Provision/Unix/User.pm');
     module_boilerplate_ok('lib/Provision/Unix/DNS.pm');
-    module_boilerplate_ok('lib/Provision/Unix/Mail.pm');
     module_boilerplate_ok('lib/Provision/Unix/Web.pm');
     module_boilerplate_ok('lib/Provision/Unix/Utility.pm');
     module_boilerplate_ok('lib/Provision/Unix/VirtualOS.pm');

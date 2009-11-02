@@ -1,5 +1,18 @@
 Revision history for Provision-Unix
 
+0.75 Oct
+  - completed xen VPS migration feature
+  - added option to archive a VPS when disabling it (xen only, for now)
+  - added Xen::unmount_snapshot
+  - other additions for migration support
+  - allow create requests to use a URL for the template (as ovz does)
+  - added P:U:V:L:Xen::create_snapshot, creates Xen snapshots
+  - added Xen::destroy_snapshot, and mount_snapshot.
+  - removed Mail.pm and Mail/* stubs. No ETA for start or completion.
+  - added new_node & connection_test options to prov_virtual, for use with
+    --migrate feature.
+  - updated syntax for find_bin to make the binary a positional argument
+
 0.74 Oct 26, 2009
   - initial changes to support migrating Xen VEs between HW nodes.
   - more robust detection of when a xen VE is actually shut down (versus when 

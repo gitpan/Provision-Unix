@@ -70,7 +70,7 @@ sub create_virtualos {
 #/usr/sbin/vzctl create 72000 --pkgset centos-4 --config vps.256MB
 
     # build the shell command to create
-    my $cmd = $util->find_bin( bin => 'vzctl', debug => 0 );
+    my $cmd = $util->find_bin( 'vzctl', debug => 0 );
 
     $cmd .= " create $ctid";
     $cmd .= " --root $vos->{disk_root}" if $vos->{disk_root};

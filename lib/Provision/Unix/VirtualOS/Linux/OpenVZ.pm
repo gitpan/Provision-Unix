@@ -65,7 +65,7 @@ sub create_virtualos {
     $prov->audit("\tctid '$ctid' does not exist, creating...");
 
     # build the shell create command 
-    my $cmd = $util->find_bin( bin => 'vzctl', %std_opts );
+    my $cmd = $util->find_bin( 'vzctl', %std_opts );
 
     $cmd .= " create $ctid";
     if ( $vos->{disk_root} ) {
@@ -176,7 +176,7 @@ sub destroy_virtualos {
 
     $prov->audit("\tdestroying $name...");
 
-    my $cmd = $util->find_bin( bin => 'vzctl', debug => 0 );
+    my $cmd = $util->find_bin( 'vzctl', debug => 0 );
     $cmd .= " destroy $name";
 
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
@@ -214,7 +214,7 @@ sub start_virtualos {
         return 1;
     };
 
-    my $cmd = $util->find_bin( bin => 'vzctl', debug => 0 );
+    my $cmd = $util->find_bin( 'vzctl', debug => 0 );
 
     $cmd .= ' start';
     $cmd .= " $vos->{name}";
@@ -260,7 +260,7 @@ sub stop_virtualos {
         return 1;
     };
 
-    my $cmd = $util->find_bin( bin => 'vzctl', debug => 0 );
+    my $cmd = $util->find_bin( 'vzctl', debug => 0 );
     $cmd .= " stop $vos->{name}";
 
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
@@ -457,7 +457,7 @@ sub unmount_disk_image {
         );
     }
 
-    my $cmd = $util->find_bin( bin => 'vzctl', debug => 0 );
+    my $cmd = $util->find_bin( 'vzctl', debug => 0 );
     $cmd .= " umount $vos->{name}";
 
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
@@ -585,7 +585,7 @@ sub get_console {
     my ($prov, $vos, $util) = ($self->{prov}, $self->{vos}, $self->{util});
 
     my $ctid = $vos->{name};
-    my $cmd = $util->find_bin( bin => 'vzctl', debug => 0 );
+    my $cmd = $util->find_bin( 'vzctl', debug => 0 );
     exec "$cmd enter $ctid";
 };
 
@@ -599,7 +599,7 @@ sub get_disk_usage {
         );
 
     my $name = $vos->{name};
-    my $vzquota = $util->find_bin( bin => 'vzquota', debug => 0, fatal => 0 );
+    my $vzquota = $util->find_bin( 'vzquota', debug => 0, fatal => 0 );
     $vzquota or return $prov->error( "Cannot find vzquota.", fatal => 0 );
 
     $vzquota .= " show $name";
@@ -632,7 +632,7 @@ sub get_os_template {
 
     my $config = $self->get_config();
     return if ! -f $config;
-    my $grep = $util->find_bin(bin=>'grep', debug => 0, fatal => 0);
+    my $grep = $util->find_bin( 'grep', debug => 0, fatal => 0);
     my $r = `$grep OSTEMPLATE $config*`;
     my ($template) = $r =~ /OSTEMPLATE="(.+)"/i;
     return $template;
@@ -653,7 +653,7 @@ sub get_status {
         fatal   => 0
         );
 
-    my $vzctl = $util->find_bin( bin => 'vzctl', debug => 0, fatal => 0 );
+    my $vzctl = $util->find_bin( 'vzctl', debug => 0, fatal => 0 );
     $vzctl or 
         return $prov->error( "Cannot find vzctl.", fatal => 0 );
 
@@ -689,7 +689,7 @@ sub get_status {
     $prov->audit("found VE in state $ve_info{state}");
 
     if ( $ve_info{state} =~ /running|shutdown/ ) {
-        my $vzlist = $util->find_bin( bin => 'vzlist', debug => 0, fatal => 0 );
+        my $vzlist = $util->find_bin( 'vzlist', debug => 0, fatal => 0 );
         if ( $vzlist ) {
             my $vzs = `$vzlist --all`;
 
@@ -789,7 +789,7 @@ sub set_ips {
         return;
     };
 
-    my $cmd = $util->find_bin( bin => 'vzctl', debug => 0 );
+    my $cmd = $util->find_bin( 'vzctl', debug => 0 );
     $cmd .= " set $vos->{name}";
 
     @$ips > 0
@@ -809,7 +809,7 @@ sub set_password {
     my $self = shift;
     my ($prov, $vos, $util) = ($self->{prov}, $self->{vos}, $self->{util});
 
-    my $cmd = $util->find_bin( bin => 'vzctl', debug => 0 );
+    my $cmd = $util->find_bin( 'vzctl', debug => 0 );
     $cmd .= " set $vos->{name}";
 
     my $username = $vos->{user} || 'root';
@@ -844,7 +844,7 @@ sub set_nameservers {
     my $self = shift;
     my ($prov, $vos, $util) = ($self->{prov}, $self->{vos}, $self->{util});
 
-    my $cmd = $util->find_bin( bin => 'vzctl', debug => 0 );
+    my $cmd = $util->find_bin( 'vzctl', debug => 0 );
     $cmd .= " set $vos->{name}";
 
     my $search      = $vos->{searchdomain};
@@ -872,7 +872,7 @@ sub set_hostname {
         debug   => $vos->{debug},
         );
 
-    my $cmd = $util->find_bin( bin => 'vzctl', debug => 0 );
+    my $cmd = $util->find_bin( 'vzctl', debug => 0 );
     $cmd .= " set $vos->{name}";
     $cmd .= " --hostname $hostname --save";
 

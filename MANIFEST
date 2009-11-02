@@ -22,11 +22,6 @@ lib/Provision/Unix/DNS.pm
 lib/Provision/Unix/DNS/BIND.pm
 lib/Provision/Unix/DNS/NicTool.pm
 lib/Provision/Unix/DNS/tinydns.pm
-lib/Provision/Unix/Mail.pm
-lib/Provision/Unix/Mail/Qmail.pm
-lib/Provision/Unix/Mail/Sendmail.pm
-lib/Provision/Unix/Mail/Vpopmail.pm
-lib/Provision/Unix/Mail/Zimbra.pm
 lib/Provision/Unix/User.pm
 lib/Provision/Unix/User/Darwin.pm
 lib/Provision/Unix/User/FreeBSD.pm

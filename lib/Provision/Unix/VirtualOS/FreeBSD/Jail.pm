@@ -66,7 +66,7 @@ sub is_present {
 sub get_console {
     my $self = shift;
     my $ctid = $vos->{name};
-    my $cmd = $util->find_bin( bin => 'jexec', debug => 0 );
+    my $cmd = $util->find_bin( 'jexec', debug => 0 );
     exec "$cmd $ctid su";
 };
 

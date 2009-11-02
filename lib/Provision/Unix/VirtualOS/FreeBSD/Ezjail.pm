@@ -37,7 +37,7 @@ sub create_virtualos {
     # ezjail-admin create -f default [-r jailroot] [-i|c -s 512]
     # ezjail-admin create -a archive
 
-    my $admin = $util->find_bin( bin => 'ezjail-admin', debug => 0 );
+    my $admin = $util->find_bin( 'ezjail-admin', debug => 0 );
 
     my $jails_root = _get_jails_root() || '/usr/jails';
 
@@ -80,7 +80,7 @@ sub is_present {
 sub get_console {
     my $self = shift;
     my $ctid = $vos->{name};
-    my $cmd = $util->find_bin( bin => 'ezjail-admin', debug => 0 );
+    my $cmd = $util->find_bin( 'ezjail-admin', debug => 0 );
     exec "$cmd console $ctid";
 };
 

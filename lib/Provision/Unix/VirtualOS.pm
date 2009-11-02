@@ -107,7 +107,7 @@ sub create_virtualos {
     $self->{name} = $self->set_name( $p{name} );
     $self->{ip}   = $self->get_ips( $p{ip} ) or return;
 
-    foreach ( @opt_scalars, @std_opts ) {
+    foreach ( @opt_scalars, @opt_bools, @std_opts ) {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
@@ -847,7 +847,7 @@ sub _get_virt_type {
     return $self->_get_virt_type_linux( %p ) if lc($OSNAME) eq 'linux';
 
     if ( lc( $OSNAME) eq 'freebsd' ) {
-        my $ezjail = $util->find_bin( bin => 'ezjail-admin', fatal => 0, debug => 0 );
+        my $ezjail = $util->find_bin( 'ezjail-admin', fatal => 0, debug => 0 );
         if ( $ezjail ) {
             require Provision::Unix::VirtualOS::FreeBSD::Ezjail;
             return Provision::Unix::VirtualOS::FreeBSD::Ezjail->new( vos => $self );
@@ -869,8 +869,8 @@ sub _get_virt_type_linux {
     my %p = validate( @_, { %std_opts });
 
     my $err_before = scalar @{ $prov->{errors} };
-    my $xm = $util->find_bin( bin=> 'xm', fatal => 0, debug => 0);
-    my $vzctl = $util->find_bin( bin=> 'vzctl', fatal => 0, debug => 0);
+    my $xm = $util->find_bin( 'xm', fatal => 0, debug => 0);
+    my $vzctl = $util->find_bin( 'vzctl', fatal => 0, debug => 0);
     if ( scalar @{$prov->{errors}} > $err_before ) {
         delete $prov->{errors}[-1];  # clear the last error
         delete $prov->{errors}[-1] if scalar @{$prov->{errors}} > $err_before;

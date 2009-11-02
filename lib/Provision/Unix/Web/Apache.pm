@@ -179,8 +179,7 @@ sub conf_get_dir {
     my $apachectl = "$prefix/sbin/apachectl";
 
     unless ( -x $apachectl ) {
-        $apachectl = $util->find_bin(
-            bin   => "apachectl",
+        $apachectl = $util->find_bin( "apachectl",
             debug => 0,
             fatal => 0
         );
@@ -261,7 +260,7 @@ sub restart {
         $util->syscmd( "/usr/local/etc/rc.d/apache.sh start" );
     }
     else {
-        my $apachectl = $util->find_bin( bin => "apachectl" );
+        my $apachectl = $util->find_bin( "apachectl" );
         if ( -x $apachectl ) {
             $util->syscmd( "$apachectl graceful" );
         }
@@ -328,7 +327,7 @@ sub enable {
 
         # chmod 755 the documentroot directory
         if ( $vals->{'documentroot'} && -d $vals->{'documentroot'} ) {
-            my $chmod = $util->find_bin( bin => "chmod" );
+            my $chmod = $util->find_bin( "chmod" );
             $util->syscmd( "$chmod 755 $vals->{'documentroot'}" );
         }
     }
@@ -398,7 +397,7 @@ sub disable {
             move( "$vhosts_conf.new", $vhosts_conf );
         }
         else {
-            my $mv = $util->find_bin( bin => "move" );
+            my $mv = $util->find_bin( "move" );
             $util->syscmd( "$mv $vhosts_conf.new $vhosts_conf" );
         }
     }
@@ -414,7 +413,7 @@ sub disable {
 
     # chmod 0 the HTML directory
     if ( $vals->{'documentroot'} && -d $vals->{'documentroot'} ) {
-        my $chmod = $util->find_bin( bin => "chmod" );
+        my $chmod = $util->find_bin( "chmod" );
         $util->syscmd( "$chmod 0 $vals->{'documentroot'}" );
     }
 

@@ -99,7 +99,7 @@ my %requires_template = map { $_ => 1 } qw/ xen ovz openvz virtuozzo /;
 
 if ( defined $required_bin ) {
     my $found_bin
-        = $util->find_bin( bin => $required_bin, fatal => 0, debug => 0 );
+        = $util->find_bin( $required_bin, fatal => 0, debug => 0 );
     if ( !$found_bin || !-x $found_bin ) {
         print
             "Skipped tests b/c virtual type $virt_type chosen but $required_bin not found.\n";

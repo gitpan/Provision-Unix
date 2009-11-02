@@ -587,8 +587,8 @@ EO_C_CODE
         %std_opts 
     ) or return;
 
-    my $chroot = $util->find_bin( bin=>'chroot', %std_opts ) or return;
-    my $gcc = $util->find_bin( bin=>'gcc', %std_opts ) or return;
+    my $chroot = $util->find_bin( 'chroot', %std_opts ) or return;
+    my $gcc = $util->find_bin( 'gcc', %std_opts ) or return;
     my $cmd = "$chroot $fs_root $gcc -m32 -o /bin/autologin /tmp/autologin.c";
     $util->syscmd( $cmd, %std_opts ) or return;
     unlink "$fs_root/tmp/autologin.c";

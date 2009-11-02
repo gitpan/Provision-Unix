@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::Xen;
 
-our $VERSION = '0.47';
+our $VERSION = '0.49';
 
 use warnings;
 use strict;
@@ -52,11 +52,11 @@ sub create_virtualos {
     return $log->error( "VE $ctid already exists", fatal => 0 ) 
         if $self->is_present();
 
-    return $log->error( "no valid template specified", fatal => 0 )
-        if ! $self->is_valid_template();
+    my $template = $self->is_valid_template() or 
+        return $log->error( "no valid template specified", fatal => 0 );
 
     my $err_count_before = @{ $prov->{errors} };
-    my $xm = $util->find_bin( bin => 'xm', debug => 0, fatal => 1 );
+    my $xm = $util->find_bin( 'xm', debug => 0, fatal => 1 );
 
     return $log->audit("test mode early exit") if $vos->{test_mode};
 
@@ -68,7 +68,6 @@ sub create_virtualos {
     my $r;
     $self->extract_template() or $self->unmount_disk_image() and return;
 
-    my $template = $vos->{template};
     my $fs_root  = $self->get_fs_root();
     eval {
         $linux->install_kernel_modules( 
@@ -165,8 +164,8 @@ sub destroy_virtualos {
 
     $self->destroy_console_user();
     if ( -d $ve_home ) {
-        my $cmd = $util->find_bin( bin => 'rm', debug => 0 );
-        $util->syscmd( "$cmd -rf $ve_home",
+        my $rm = $util->find_bin( 'rm', debug => 0 );
+        $util->syscmd( "$rm -rf $ve_home",
             debug => 0,
             fatal => $vos->{fatal},
         );
@@ -212,7 +211,7 @@ sub start_virtualos {
 
 # -c option to xm create will start the vm in a console window. Could be useful
 # when doing test VEs to look for errors
-    my $cmd = $util->find_bin( bin => 'xm', debug => 0 );
+    my $cmd = $util->find_bin( 'xm', debug => 0 );
     $cmd .= " create $config_file";
     $util->syscmd( $cmd, debug => 0, fatal => $fatal )
         or $log->error( "unable to start $ctid" );
@@ -245,7 +244,7 @@ sub stop_virtualos {
     };
 
     my $ve_name = $self->get_ve_name();
-    my $xm = $util->find_bin( bin => 'xm', debug => 0 );
+    my $xm = $util->find_bin( 'xm', debug => 0 );
 
     # try a 'friendly' shutdown for 15 seconds
     $util->syscmd( "$xm shutdown -w $ve_name",
@@ -337,6 +336,17 @@ sub disable_virtualos {
         debug   => $vos->{debug},
         );
 
+    if ( $vos->{archive} ) {
+        my $tar = $util->find_bin( 'tar' );
+        my $ve_home = $self->get_ve_home();
+        my $fs_root = $self->get_fs_root();
+        $self->mount_disk_image();
+        system "$tar -czPf $ve_home/2000590.tar.gz $fs_root";
+        $self->unmount_disk_image();
+        $self->destroy_disk_image();
+        $self->destroy_swap_image();
+    };
+
     $log->audit("\tdisabled $ctid.");
     return 1;
 }
@@ -377,6 +387,17 @@ sub enable_virtualos {
         debug   => $vos->{debug},
         );
 
+    if ( $vos->{archive} ) {
+#        my $tar = $util->find_bin( 'tar' );
+#        my $ve_home = $self->get_ve_home();
+#        my $fs_root = $self->get_fs_root();
+#        $self->create_disk_image() or return;
+#        $self->create_swap_image() or return;
+#        $self->mount_disk_image() or return;
+#        system "$tar -xzf $ve_home/2000590.tar.gz -C $fs_root";
+#        $self->unmount_disk_image();
+    };
+
     return $self->start_virtualos();
 }
 
@@ -386,9 +407,51 @@ sub migrate_virtualos {
     my $ctid = $vos->{name};
     my $new_node = $vos->{new_node};
 
-    $self->do_connectivity_test() or return;
+    if ( $vos->{connection_test} ) {
+        $self->do_connectivity_test() or return;
+        return 1;
+    };
+
+    my $running = $self->is_running();
+
+# mount disk or snapshot
+    if ( $running ) {
+        $self->create_snapshot() or return;
+        $self->mount_snapshot() or do {
+            $self->destroy_snapshot();
+            return $log->error("failed to mount snapshot", fatal => 0);
+        };
+    }
+    else {
+        $self->mount_disk_image();
+    };
+
+# mount remote disk image
+    my $ssh = $util->find_bin( 'ssh', debug => 0 );
+    my $r_cmd = "$ssh $new_node /usr/bin/prov_virtual --name=$ctid";
+    $util->syscmd( "$r_cmd --action=mount", debug => 1 );
+
+# rsync disk contents to new node
+    my $fs_root = $self->get_fs_root();
+    my $rsync = $util->find_bin( 'rsync', debug => 0 );
+    $rsync .= " -aHAX $fs_root $new_node:$fs_root";
+    $util->syscmd( $rsync, debug => $vos->{debug}, fatal => 0 ) or return;
+
+    if ( $running ) {
+        $self->destroy_snapshot();
+        $self->stop_virtualos();
+        $self->mount_disk_image();
+    };
+    $util->syscmd( $rsync, debug => $vos->{debug}, fatal => 0 ) or return;
+
+# start up remote VPS
+    $util->syscmd( "$r_cmd --action=start", debug => 1 );
+
+    $vos->{archive} = 1;   # tell disable to archive the VPS
+    $self->disable_virtualos();
 
     $log->audit( "all done" );
+    return 1;
 };
 
 sub modify_virtualos {
@@ -533,19 +596,61 @@ sub create_disk_image {
     $size = $size - ( $ram * 2 );   # subtract swap from their disk allotment
 
     # create the disk image
-    my $cmd = $util->find_bin( bin => 'lvcreate', debug => 0, fatal => 0 ) or return;
+    my $cmd = $util->find_bin( 'lvcreate', debug => 0, fatal => 0 ) or return;
     $cmd .= " --size=${size}M --name=${image_name} vol00";
     $util->syscmd( $cmd, debug => 0, fatal => 0 )
         or return $log->error( "unable to create $image_name with: $cmd", fatal => 0 );
 
     # format as ext3 file system
-    my $mkfs = $util->find_bin( bin => 'mkfs.ext3', debug => 0, fatal => 0 ) or return;
+    my $mkfs = $util->find_bin( 'mkfs.ext3', debug => 0, fatal => 0 ) or return;
     $util->syscmd( "$mkfs $image_path", debug => 0, fatal => 0 )
         or return $log->error( "unable for format disk image", fatal => 0);
 
     $log->audit("disk image for $vos->{name} created");
     return 1;
 }
+
+sub create_snapshot {
+    my $self = shift;
+    my $ve_name = $self->get_ve_name();
+
+    my $err;
+    my $vol  = $self->get_disk_image();
+    my $snap = $vol . '_snap';
+
+    my $xm_bin   = $util->find_bin('xm');
+    my $lvremove = $util->find_bin('lvremove');
+    my $lvcreate = $util->find_bin('lvcreate');
+
+    # cleanup
+    my $snapimg = "/dev/vol00/$snap";
+    $self->destroy_snapshot() if -e $snapimg;
+    
+    # Sync and pause domain
+    my $sync_cmd = "$xm_bin sysrq $ve_name s";
+    $log->audit( "syncing domain with: $sync_cmd");
+    system $sync_cmd;
+    return $log->error( "unable to sync dom $ve_name: $!" ) if $CHILD_ERROR;
+
+    my $pause_cmd = "$xm_bin pause $ve_name";
+    $log->audit( "pause VE with: $pause_cmd");
+    system $pause_cmd;
+    return $log->error( "unable to pause dom $ve_name: $!" ) if $CHILD_ERROR;
+    
+    # create the snapshot
+    my $vol_create = "$lvcreate -l 32 -s -n $snap /dev/vol00/$vol";
+    $log->audit( "$vol_create");
+    system "$vol_create" and do {
+        system "$xm_bin unpause $ve_name";
+        return $log->error( "unable to create snapshot of /dev/vol00/$vol: $!" );
+    };
+
+    # Unpause domain
+    my $resume_cmd = "$xm_bin unpause $ve_name";
+    $log->audit( "$resume_cmd" );
+    system "$resume_cmd" and $log->error( "unable to unpause domain $ve_name: $!" );
+    return 1;
+};
 
 sub create_swap_image {
     my $self = shift;
@@ -556,13 +661,13 @@ sub create_swap_image {
     my $size      = $ram * 2;
 
     # create the swap image
-    my $cmd = $util->find_bin( bin => 'lvcreate', debug => 0, fatal => 0 ) or return;
+    my $cmd = $util->find_bin( 'lvcreate', debug => 0, fatal => 0 ) or return;
     $cmd .= " --size=${size}M --name=${swap_name} vol00";
     $util->syscmd( $cmd, debug => 0, fatal => 0 )
         or return $log->error( "unable to create $swap_name", fatal => 0 );
 
     # format the swap file system
-    my $mkswap = $util->find_bin( bin => 'mkswap', debug => 0, fatal => 0) or return;
+    my $mkswap = $util->find_bin( 'mkswap', debug => 0, fatal => 0) or return;
     $util->syscmd( "$mkswap $swap_path", debug => 0, fatal => 0 )
         or return $log->error( "unable to format $swap_name", fatal => 0 );
 
@@ -608,7 +713,7 @@ sub destroy_disk_image {
 
     $log->audit("My name is Inigo Montoya. You killed my father. Prepare to die!");
 
-    my $lvrm  = $util->find_bin( bin => 'lvremove', debug => 0 );
+    my $lvrm  = $util->find_bin( 'lvremove', debug => 0 );
        $lvrm .= " -f vol00/${image_name}";
     my $r = $util->syscmd( $lvrm, debug => 0, fatal => 0 );
     if ( ! $r ) {
@@ -621,15 +726,37 @@ sub destroy_disk_image {
     return 1;
 }
 
+sub destroy_snapshot {
+    my $self = shift;
+    my $ve_name = $self->get_ve_name();
+
+    my $vol  = $self->get_disk_image();
+    my $snap = $vol . '_snap';
+
+    $self->unmount_snapshot() if $self->is_mounted( $snap );
+
+    # cleanup
+    my $snapimg = "/dev/vol00/$snap";
+    if ( -e $snapimg ) {
+        my $lvremove = $util->find_bin('lvremove', debug => 0);
+        system "$lvremove -f $snapimg";
+        return $log->error("could not remove $snapimg") if $CHILD_ERROR;
+    }
+    return 1;
+};
+
 sub destroy_swap_image {
     my $self = shift;
 
     my $img_name = $self->get_swap_image();
     my $img_path = $self->get_swap_image(1);
 
-    return $log->audit("swap image $img_name does not exist") if ! -e $img_path;
+    if ( ! -e $img_path ) {
+        $log->audit("swap image $img_name does not exist");
+        return 1;
+    };
 
-    my $lvrm = $util->find_bin( bin => 'lvremove', debug => 0 );
+    my $lvrm = $util->find_bin( 'lvremove', debug => 0 );
     $util->syscmd( "$lvrm -f vol00/$img_name", debug => 0, fatal => 0 )
         or return $log->error( "unable to destroy swap $img_name", fatal => 0 );
     return 1;
@@ -641,8 +768,9 @@ sub do_connectivity_test {
     return 1 if ! $vos->{connection_test};
 
     my $new_node = $vos->{new_node};
-    my $ssh = $util->find_bin( bin => 'ssh', debug => 0 );
-    my $r = $util->syscmd( "$ssh $new_node uname -a; whoami; /usr/bin/test -e /etc/hosts", debug => 1, fatal => 0)
+    my $debug = $vos->{debug};
+    my $ssh = $util->find_bin( 'ssh', debug => $debug );
+    my $r = $util->syscmd( "$ssh $new_node /bin/uname -a", debug => $debug, fatal => 0)
         or return $log->error("could not validation connectivity to $new_node", fatal => 0);
     $log->audit("connectivity to $new_node is good");
     return 1;
@@ -652,7 +780,7 @@ sub do_fsck {
     my $self = shift;
     my $image_path = $self->get_disk_image(1);
 
-    my $fsck  = $util->find_bin( bin => 'e2fsck', debug => 0 );
+    my $fsck  = $util->find_bin( 'e2fsck', debug => 0 );
     $util->syscmd( "$fsck -y -f $image_path", debug => 0, fatal => 0 ) or return;
     return 1;
 };
@@ -660,20 +788,19 @@ sub do_fsck {
 sub extract_template {
     my $self = shift;
 
-    $self->is_valid_template()
+    my $template = $self->is_valid_template()
         or return $log->error( "no valid template specified", fatal => 0 );
 
     my $ve_name = $self->get_ve_name();
     my $fs_root = $self->get_fs_root();
-    my $template = $vos->{template};
     my $template_dir = $self->get_template_dir();
 
     #tar -zxf $template_dir/$OSTEMPLATE.tar.gz -C /home/xen/$ve_name/mnt
 
     # untar the template
-    my $cmd = $util->find_bin( bin => 'tar', debug => 0, fatal => 0 ) or return;
-    $cmd .= " -zxf $template_dir/$template.tar.gz -C $fs_root";
-    $util->syscmd( $cmd, debug => 0, fatal => 0 )
+    my $tar = $util->find_bin( 'tar', debug => 0, fatal => 0 ) or return;
+    $tar .= " -zxf $template_dir/$template.tar.gz -C $fs_root";
+    $util->syscmd( $tar, debug => 0, fatal => 0 )
         or return $log->error( "unable to extract template $template. Do you have enough disk space?",
             fatal => 0
         );
@@ -682,9 +809,9 @@ sub extract_template {
 
 sub get_console {
     my $self = shift;
-    my $ctid = $vos->{name} . '.vm';
-    my $cmd = $util->find_bin( bin => 'xm', debug => 0 );
-    exec "$cmd console $ctid";
+    my $ve_name = $self->get_ve_name();
+    my $cmd = $util->find_bin( 'xm', debug => 0 );
+    exec "$cmd console $ve_name";
 };
 
 sub get_console_username {
@@ -707,7 +834,7 @@ sub get_disk_usage {
     my $self = shift;
     my $image = shift or return;
 
-    my $cmd = $util->find_bin( bin => 'dumpe2fs', fatal => 0, debug => 0 );
+    my $cmd = $util->find_bin( 'dumpe2fs', fatal => 0, debug => 0 );
     return if ! -x $cmd;
 
     $cmd .= " -h $image";
@@ -805,9 +932,12 @@ sub get_status {
         $disk_usage = $self->get_disk_usage($image);
     };
 
-    my $cmd = $util->find_bin( bin => 'xm', debug => 0 );
+    my $cmd = $util->find_bin( 'xm', debug => 0 );
     $cmd .= " list $ve_name";
     my $r = `$cmd 2>&1`;
+
+    my $exit_code = $? >> 8;
+# xm exit codes: 0=success, 1=fail, 2=unknown
 
     if ( $r =~ /does not exist/ ) {
 
@@ -942,7 +1072,7 @@ sub get_ve_passwd_file {
 
 sub is_mounted {
     my $self = shift;
-    my $image_name = $self->get_disk_image();
+    my $image_name = shift || $self->get_disk_image();
 
     my $found = `/bin/mount | grep $image_name`; chomp $found;
     if ( $found ) {
@@ -1038,7 +1168,7 @@ sub lvm_in_use {
     my $image_name = $self->get_disk_image();
     my $image_path = $self->get_disk_image(1);
 
-    my $lvdisplay = $util->find_bin( bin => 'lvdisplay', debug => 0 );
+    my $lvdisplay = $util->find_bin( 'lvdisplay', debug => 0 );
     my $r = `$lvdisplay $image_path`;
     my ($count) = $r =~ m/# open\s+([0-9])\s+/;
 
@@ -1072,9 +1202,24 @@ sub mount_disk_image {
     $self->do_fsck();
 
     # mount /dev/vol00/${VE}_rootimg /home/xen/$VE/mnt
-    my $mount = $util->find_bin( bin => 'mount', debug => 0, fatal => 0 ) or return;
+    my $mount = $util->find_bin( 'mount', debug => 0, fatal => 0 ) or return;
     $util->syscmd( "$mount $image_path $fs_root", debug => 0, fatal => 0 )
         or return $log->error( "unable to mount $image_name", fatal => 0 );
+    return 1;
+}
+
+sub mount_snapshot {
+    my $self = shift;
+
+    my $image_path = $self->get_disk_image(1);
+    my $fs_root    = $self->get_fs_root();
+
+    my $snap_path = $image_path . '_snap';
+
+    # mount /dev/vol00/${VE}_rootimg_snap /home/xen/$VE/mnt
+    my $mount = $util->find_bin( 'mount', debug => 0, fatal => 0 ) or return;
+    $util->syscmd( "$mount $snap_path $fs_root", debug => 0, fatal => 0 )
+        or return $log->error( "unable to mount snapshot", fatal => 0 );
     return 1;
 }
 
@@ -1105,8 +1250,8 @@ sub resize_disk_image {
     return $log->audit( "disk partition is close enough: $current_size vs $target_size" ) 
         if $percent_diff < 5;
 
-    my $pvscan = $util->find_bin( bin => 'pvscan', debug => 0);
-    my $resize2fs = $util->find_bin( bin => 'resize2fs', debug => 0 );
+    my $pvscan = $util->find_bin( 'pvscan', debug => 0);
+    my $resize2fs = $util->find_bin( 'resize2fs', debug => 0 );
 
     # if new size is bigger
     if ( $target_size > $current_size ) {
@@ -1143,7 +1288,7 @@ sub resize_disk_image {
         system $cmd and $log->error( " Unable to resize filesystem $image_name" );
         $log->audit("reduced file system");
 
-        $cmd  = $util->find_bin( bin => 'lvresize', debug => 0 );
+        $cmd  = $util->find_bin( 'lvresize', debug => 0 );
         $cmd .= " --size=${target_size}M $image_path";
         $log->audit($cmd);
         #system $cmd and $log->error( "Error:  Unable to reduce filesystem on $image_name" );
@@ -1361,17 +1506,30 @@ sub unmount_disk_image {
     my $image_name = $self->get_disk_image();
     my $image_path = $self->get_disk_image(1);
 
-    my $umount = $util->find_bin( bin => 'umount', debug => 0, fatal => $fatal )
+    my $umount = $util->find_bin( 'umount', debug => 0, fatal => $fatal )
         or return $log->error( "unable to find 'umount' program");
-    $umount .= " $image_path";
 
-    my $r = $util->syscmd( $umount, debug => 0, fatal => $fatal );
-    if ( ! $r && ! $quiet ) {
-        $log->error( "unable to unmount $image_name" );
-    };
+    my $r = $util->syscmd( "$umount $image_path", debug => 0, fatal => $fatal )
+        or do {
+            $log->error( "unable to unmount $image_name" ) if ! $quiet;
+            return;
+        };
     $self->do_fsck();
     return $r;
 }
+
+sub unmount_snapshot {
+    my $self = shift;
+    my $image_path = $self->get_disk_image(1);
+    my $fs_root    = $self->get_fs_root();
+
+    my $snap_path = $image_path . '_snap';
+
+    my $umount = $util->find_bin( 'umount', debug => 0, fatal => 0 ) or return;
+    $util->syscmd( "$umount $snap_path", debug => 0, fatal => 0 )
+        or return $log->error( "unable to mount snapshot", fatal => 0 );
+    return 1;
+};
 
 sub gen_config {
     my $self = shift;
@@ -1451,8 +1609,13 @@ sub is_valid_template {
         my @path_bits = grep { /\w/ } @segments;  # ignore empty fields
         my $file = $segments[-1];
 
+        $prov->audit("fetching $file from " . $uri->host);
         $util->file_get( url => $template, dir => $template_dir, fatal => 0, debug => 0 );
-        return $file if -f "$template_dir/$file";
+
+        if ( -f "$template_dir/$file" ) {
+            ($file) = $file =~ /^(.*)\.tar\.gz$/;
+            return $file;
+        };
     }
 
     return $template if -f "$template_dir/$template.tar.gz";
