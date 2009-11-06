@@ -16,18 +16,13 @@ like this:
    |   |- BIND
    |   |- NicTool
    |   |- tinydns
-   |- Mail
-   |   |- postfix
-   |   |- qmail
-   |   |- sendmail
-   |   |- vpopmail
-   |   |- zimbra
    |- User
    |   |- Darwin
    |   |- FreeBSD
    |   |- Linux
    |- VirtualOS
    |   |- FreeBSD
+   |   |   |- Ezjail
    |   |   |- Jail
    |   |- Linux
    |   |   |- OpenVZ
@@ -40,7 +35,7 @@ like this:
 
 There is not yet an API for Provision::Unix but a command line interface exists. In the bin directory are prov_* applications (prov_dns, prov_user, prov_mail, etc) that can be used to provision accounts and services. 
 
-The general classes are dispatchers that send your provision requests to the appropriate modules, based on the environment and settings in provision.conf. Provision::Unix::Mail contains all the general methods for performing operations on email accounts. Subclasses contain implementation specific information such as how to provision an email account for sendmail, postfix, qmail, ezmlm, or vpopmail. New subclasses can be easily added by following the example of a completed one.
+The general classes are dispatchers that send your provision requests to the appropriate modules, based on the environment and settings in provision.conf. Provision::Unix::VirtualOS contains all the general methods for performing operations on virtual private servers. Subclasses contain implementation specific information such as how to provision an VPS for xen, openvz, or freebsd jails. New subclasses can be easily added by following the example of a completed one.
 
 INSTALLATION
 

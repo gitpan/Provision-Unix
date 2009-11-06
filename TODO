@@ -15,15 +15,6 @@ Provision/Unix/DNS.pm
     - add delete_zone_record function
 Provision/Unix/DNS/BIND.pm
   - needs to be authored
-Provision/Unix/Mail/Qmail.pm - needs to be authored
-Provision/Unix/Mail/Sendmail.pm
-  - needs to be authored
-Provision/Unix/Mail/Vpopmail.pm
-  - needs to be authored
-Provision/Unix/Mail/Zimbra.pm
-  - needs to be authored
-Provision/Unix/Mail.pm
-  - needs to be authored
 Provision/Unix/User.pm
   - finish & test quota support
   - write tests for creategroup and destroygroup

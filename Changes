@@ -1,6 +1,15 @@
 Revision history for Provision-Unix
 
-0.75 Oct
+0.76 Nov 05, 2009
+  - when doing migration, don't try to preserve ACL and ATTR during initial
+    rsync. Do try on the final rsync. (seems to fail the first time, for
+    unknown reasons).
+  - removed test for deprecated P:U:V:Mail
+  - fixed bug in P:U:V:L:Xen::set_hostname, was passing invalid arg to method
+  - moved do_connectivity_test to P:U:V from P:U:V:L:Xen (shared method)
+  - added support for OpenVZ migrations (untested)
+
+0.75 Nov 02, 2009
   - completed xen VPS migration feature
   - added option to archive a VPS when disabling it (xen only, for now)
   - added Xen::unmount_snapshot

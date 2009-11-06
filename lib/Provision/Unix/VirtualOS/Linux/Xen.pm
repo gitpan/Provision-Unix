@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::Xen;
 
-our $VERSION = '0.49';
+our $VERSION = '0.51';
 
 use warnings;
 use strict;
@@ -408,7 +408,7 @@ sub migrate_virtualos {
     my $new_node = $vos->{new_node};
 
     if ( $vos->{connection_test} ) {
-        $self->do_connectivity_test() or return;
+        $vos->do_connectivity_test() or return;
         return 1;
     };
 
@@ -434,20 +434,26 @@ sub migrate_virtualos {
 # rsync disk contents to new node
     my $fs_root = $self->get_fs_root();
     my $rsync = $util->find_bin( 'rsync', debug => 0 );
-    $rsync .= " -aHAX $fs_root $new_node:$fs_root";
-    $util->syscmd( $rsync, debug => $vos->{debug}, fatal => 0 ) or return;
+    $util->syscmd( "$rsync -a --delete $fs_root/ $new_node:$fs_root/", 
+        debug => $vos->{debug}, fatal => 0 ) or return;
 
     if ( $running ) {
         $self->destroy_snapshot();
         $self->stop_virtualos();
         $self->mount_disk_image();
     };
-    $util->syscmd( $rsync, debug => $vos->{debug}, fatal => 0 ) or return;
+
+    $util->syscmd( "$rsync -aHAX --delete $fs_root/ $new_node:$fs_root/",
+        debug => $vos->{debug}, fatal => 0 ) or return;
 
 # start up remote VPS
     $util->syscmd( "$r_cmd --action=start", debug => 1 );
 
-    $vos->{archive} = 1;   # tell disable to archive the VPS
+    if ( $running ) {
+        $self->unmount_disk_image();
+    };
+
+#   $vos->{archive} = 1;   # tell disable to archive the VPS
     $self->disable_virtualos();
 
     $log->audit( "all done" );
@@ -591,9 +597,8 @@ sub create_disk_image {
 
     my $image_name = $self->get_disk_image();
     my $image_path = $self->get_disk_image(1);
-    my $size = $self->get_ve_disk_size();
+    my $size = $self->get_disk_size();
     my $ram  = $self->get_ve_ram();
-    $size = $size - ( $ram * 2 );   # subtract swap from their disk allotment
 
     # create the disk image
     my $cmd = $util->find_bin( 'lvcreate', debug => 0, fatal => 0 ) or return;
@@ -762,20 +767,6 @@ sub destroy_swap_image {
     return 1;
 }
 
-sub do_connectivity_test {
-    my $self = shift;
-
-    return 1 if ! $vos->{connection_test};
-
-    my $new_node = $vos->{new_node};
-    my $debug = $vos->{debug};
-    my $ssh = $util->find_bin( 'ssh', debug => $debug );
-    my $r = $util->syscmd( "$ssh $new_node /bin/uname -a", debug => $debug, fatal => 0)
-        or return $log->error("could not validation connectivity to $new_node", fatal => 0);
-    $log->audit("connectivity to $new_node is good");
-    return 1;
-};
-
 sub do_fsck {
     my $self = shift;
     my $image_path = $self->get_disk_image(1);
@@ -828,6 +819,14 @@ sub get_disk_image {
     my $image_name = $name . '_rootimg';
     $image_name = '/dev/vol00/' . $image_name if $path;
     return $image_name;
+};
+
+sub get_disk_size {
+    my $self = shift;
+    my $ram = $self->get_ve_ram();
+    my $swap = $ram * 2;
+    my $allocation = $vos->{disk_size} || 2500;
+    return $allocation - $swap; # subtract swap from their disk allotment
 };
 
 sub get_disk_usage {
@@ -1016,14 +1015,6 @@ sub get_ve_config_path {
 sub get_ve_ram {
     my $self = shift;
     return $vos->{ram} || 256;
-};
-
-sub get_ve_disk_size {
-    my $self = shift;
-    my $ram = $self->get_ve_ram();
-    my $swap = $ram * 2;
-    my $allocation = $vos->{disk_size} || 2500;
-    return $allocation - $swap;
 };
 
 sub get_fs_root {
@@ -1233,7 +1224,7 @@ sub resize_disk_image {
 
     my $image_name = $self->get_disk_image();
     my $image_path = $self->get_disk_image(1);
-    my $target_size = $self->get_ve_disk_size();
+    my $target_size = $self->get_disk_size();
 
     # check existing disk size.
     $self->mount_disk_image() or $log->error( "unable to mount disk image" );
@@ -1310,7 +1301,6 @@ sub set_hostname {
     $linux->set_hostname( 
         host    => $vos->{hostname},
         fs_root => $self->get_fs_root(),
-        fatal   => 0,
     )
     or $log->error("unable to set hostname", fatal => 0);
 

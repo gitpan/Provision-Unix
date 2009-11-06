@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::OpenVZ;
 
-our $VERSION = '0.45';
+our $VERSION = '0.46';
 
 use warnings;
 use strict;
@@ -389,6 +389,43 @@ sub enable_virtualos {
 
     return $self->start_virtualos();
 }
+
+sub migrate_virtualos {
+    my $self = shift;
+    my ($prov, $vos, $util) = ($self->{prov}, $self->{vos}, $self->{util});
+
+    my $ctid = $vos->{name};
+    my $new_node = $vos->{new_node};
+
+    if ( $vos->{connection_test} ) {
+        $vos->do_connectivity_test() or return;
+        return 1;
+    };
+
+    my $running = $self->is_running();
+
+# rsync disk contents to new node
+    my $fs_root = $self->get_fs_root();
+    my $rsync = $util->find_bin( 'rsync', debug => 0 );
+    $util->syscmd( "$rsync -a --delete $fs_root/ $new_node:$fs_root/", 
+        debug => $vos->{debug}, fatal => 0 ) or return;
+
+    $self->stop_virtualos() if $running;
+
+    $util->syscmd( "$rsync -aHAX --delete $fs_root/ $new_node:$fs_root/",
+        debug => $vos->{debug}, fatal => 0 ) or return;
+
+# start up remote VPS
+    my $ssh = $util->find_bin( 'ssh', debug => 0 );
+    my $r_cmd = "$ssh $new_node /usr/bin/prov_virtual --name=$ctid";
+    $util->syscmd( "$r_cmd --action=start", debug => 1 );
+
+#   $vos->{archive} = 1;   # tell disable to archive the VPS
+    $self->disable_virtualos();
+
+    $prov->audit( "all done" );
+    return 1;
+};
 
 sub modify_virtualos {
     my $self = shift;

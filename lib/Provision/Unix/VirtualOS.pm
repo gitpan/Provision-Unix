@@ -342,8 +342,8 @@ sub reinstall_virtualos {
 #            : ip        - IP address(es), space delimited
 #   Optional : hostname  - the FQDN of the virtual OS
 #            : disk_root - the root directory of the virt os
-#            : disk_size - disk space allotment
-#            : ram
+#            : disk_size - disk space allotment (MB)
+#            : ram       - (MB)
 #            : config    - a config file with virtual specific settings
 #            : password  - the root/admin password for the virtual
 #            : nameservers -
@@ -420,6 +420,20 @@ sub unmount_disk_image {
     };
 
     $self->{vtype}->unmount_disk_image();
+};
+
+sub do_connectivity_test {
+    my $self = shift;
+
+    return 1 if ! $self->{connection_test};
+
+    my $new_node = $self->{new_node};
+    my $debug = $self->{debug};
+    my $ssh = $util->find_bin( 'ssh', debug => $debug );
+    my $r = $util->syscmd( "$ssh $new_node /bin/uname -a", debug => $debug, fatal => 0)
+        or return $prov->error("could not validate connectivity to $new_node", fatal => 0);
+    $prov->audit("connectivity to $new_node is good");
+    return 1;
 };
 
 sub gen_config {

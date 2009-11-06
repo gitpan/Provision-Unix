@@ -1,6 +1,6 @@
 package Provision::Unix;
 
-our $VERSION = '0.75';
+our $VERSION = '0.76';
 
 use warnings;
 use strict;
@@ -322,15 +322,15 @@ class including a standard set of operations. All classes support at least
 create and destroy operations.  Additional common operations are: modify, 
 enable, and disable.
 
-Each class (DNS, Mail, User, VirtualOS, Web) has a general module that 
+Each class (DNS, User, VirtualOS, Web) has a general module that 
 contains the logic for selecting and dispatching requests to sub-classes which
 are implementation specific. Selecting and dispatching is done based on the
 environment and configuration file settings at run time.
 
-For example, Provision::Unix::Mail contains all the general logic for email
-operations (create a vhost, mailbox, alias, etc). Subclasses contain 
-specific information such as how to provision a mailbox for sendmail,
-postfix, qmail, ezmlm, or vpopmail.
+For example, Provision::Unix::DNS contains all the general logic for dns
+operations (create a zone, record, alias, etc). Subclasses contain 
+specific information such as how to provision a DNS record for nictool,
+BIND, or tinydns.
 
 Browse the perl modules to see which modules are available.
 
