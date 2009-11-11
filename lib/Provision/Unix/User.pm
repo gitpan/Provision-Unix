@@ -315,7 +315,7 @@ sub install_ssh_key {
 
     my $line;
     $line .= "command=\"$restricted\",no-port-forwarding,no-X11-forwarding,no-agent-forwarding "
-        if $restricted
+        if $restricted;
     $line .= "$key\n";
     $util->file_write(
         file => "$ssh_dir/authorized_keys",
