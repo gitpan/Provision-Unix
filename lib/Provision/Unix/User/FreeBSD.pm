@@ -3,7 +3,7 @@ package Provision::Unix::User::FreeBSD;
 use warnings;
 use strict;
 
-our $VERSION = '0.09';
+our $VERSION = '0.10';
 
 use English qw( -no_match_vars );
 use Carp;
@@ -256,7 +256,7 @@ sub destroy_group {
     my $pw = $util->find_bin( 'pw', debug => 0 );
     $pw .= " groupdel -n $p{group}";
 
-    my $r = $util->syscmd( $cmd, debug => $p{debug} );
+    my $r = $util->syscmd( $pw, debug => $p{debug} );
     $prov->progress( num => 3, desc => "deleted group" );
 
     # validate that the group was removed

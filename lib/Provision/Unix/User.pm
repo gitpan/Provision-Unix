@@ -1,6 +1,6 @@
 package Provision::Unix::User;
 
-our $VERSION = '0.24';
+our $VERSION = '0.26';
 
 use strict;
 use warnings;
@@ -208,7 +208,7 @@ Disable an /etc/passwd user by expiring their account.
 
     my $r;
 
-    my $pw = $util->find_bin( "pw" ) || '/usr/sbin/pw';
+    my $pw = $util->find_bin( 'pw' ) || '/usr/sbin/pw';
 
     if ( getpwnam($user) && getpwnam($user) > 0 )    # Make sure user exists
     {
@@ -287,11 +287,12 @@ returns a hashref with error_code and error_desc
 sub install_ssh_key {
     my $self = shift;
     my %p = validate( @_, {
-            homedir => { type => SCALAR },
-            ssh_key => { type => SCALAR },
+            homedir  => { type => SCALAR },
+            ssh_key  => { type => SCALAR },
             ssh_restricted => { type => SCALAR|UNDEF, optional => 1 },
-            debug   => { type => BOOLEAN, optional => 1 },
-            fatal   => { type => BOOLEAN, optional => 1 },
+            debug    => { type => BOOLEAN, optional => 1 },
+            fatal    => { type => BOOLEAN, optional => 1 },
+            username => { type => SCALAR,  optional => 1 },
         }
     );
 
@@ -313,16 +314,21 @@ sub install_ssh_key {
     -d $ssh_dir or return $prov->error( "unable to create $ssh_dir", fatal => $fatal );
 
     my $line;
-    $line .= "command=\"$restricted\",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty "
-        if $restricted;
+    $line .= "command=\"$restricted\",no-port-forwarding,no-X11-forwarding,no-agent-forwarding "
+        if $restricted
     $line .= "$key\n";
-    return $util->file_write(
+    $util->file_write(
         file => "$ssh_dir/authorized_keys",
         lines => [ $line ], 
         mode  => '0600',
         debug => 0,
         fatal => 0,
-    );
+    ) or return;
+
+    if ( $p{username} ) {
+        my $chown = $util->find_bin( 'chown', debug => 0 );
+        $util->syscmd( "$chown -R $p{username} $homedir/.ssh", fatal => 0, debug => 0 );
+    };
 };
 
 sub is_valid_password {

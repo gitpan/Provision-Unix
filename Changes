@@ -1,5 +1,14 @@
 Revision history for Provision-Unix
 
+0.77 Nov 10, 2009
+  - fixed a bug causing Xen password updates to fail
+  - when migrating, set new VE to same state as initial VE
+  - added mount,unmount, and console to prov_virtual CLI prompt
+  - always unmount disk image after Xen migration
+  - abstracted duplicate xen VE password logic into set_password_ methods
+  - xen console ssh key auth wasn't working b/c .ssh dir didn't have owner set
+  - if hypervm is installed, use lxxen for console login shell
+
 0.76 Nov 05, 2009
   - when doing migration, don't try to preserve ACL and ATTR during initial
     rsync. Do try on the final rsync. (seems to fail the first time, for

@@ -1,6 +1,6 @@
 package Provision::Unix::User::Linux;
 
-our $VERSION = '0.17';
+our $VERSION = '0.18';
 
 use warnings;
 use strict;
@@ -307,13 +307,13 @@ sub set_password {
     my $self = shift;
     my %p = validate(
         @_,
-        {   'username'  => { type => SCALAR },
-            'password'  => { type => SCALAR, optional => 1 },
-            'ssh_key'   => { type => SCALAR, optional => 1 },
+        {   username   => { type => SCALAR },
+            password   => { type => SCALAR, optional => 1 },
+            ssh_key    => { type => SCALAR, optional => 1 },
             ssh_restricted => { type => SCALAR, optional => 1 },
-            'debug'     => { type => SCALAR, optional => 1, default => 1 },
-            'fatal'     => { type => SCALAR, optional => 1, default => 1 },
-            'test_mode' => { type => SCALAR, optional => 1 },
+            debug      => { type => SCALAR, optional => 1, default => 1 },
+            fatal      => { type => SCALAR, optional => 1, default => 1 },
+            test_mode  => { type => SCALAR, optional => 1 },
         }
     );
 
@@ -348,10 +348,11 @@ sub set_password {
         $homedir && -d $homedir or 
             return $prov->error("unable to determine home directory for $username", fatal => 0);
         $user->install_ssh_key( 
-            homedir => $homedir, 
-            ssh_key => $p{ssh_key}, 
+            homedir  => $homedir, 
+            ssh_key  => $p{ssh_key}, 
             ssh_restricted => $p{ssh_restricted},
-            fatal   => $fatal,
+            username => $username,
+            fatal    => $fatal,
         );
     };
     return 1;

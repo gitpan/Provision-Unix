@@ -1,6 +1,6 @@
 package Provision::Unix::Utility;
 
-our $VERSION = '5.26';
+our $VERSION = '5.27';
 
 use strict;
 use warnings;
@@ -532,14 +532,16 @@ sub file_get {
     $log->audit( "fetching $url" );
     eval { $response = LWP::Simple::mirror($url, $file_path ); };
 
-    if ( $response == 404 ) {
-        return $log->error( "file not found ($url)", fatal => $fatal );
-    }
-    elsif ($response == 304 ) {
-        $log->audit( "result 304: file is up-to-date" );
-    }
-    elsif ( $response == 200 ) {
-        $log->audit( "result 200: file download ok" );
+    if ( $response ) {
+        if ( $response == 404 ) {
+            return $log->error( "file not found ($url)", fatal => $fatal );
+        }
+        elsif ($response == 304 ) {
+            $log->audit( "result 304: file is up-to-date" );
+        }
+        elsif ( $response == 200 ) {
+            $log->audit( "result 200: file download ok" );
+        };
     };
 
     return if ! -e $file_path;

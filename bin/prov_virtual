@@ -45,7 +45,7 @@ my %actions = map { $_ => 1 } qw/ create destroy start stop restart disable
      enable modify probe mount unmount console set_password migrate /;
 
 my $questions = {
-    action    => "the action to perform: \n\tcreate, destroy, start, stop, restart, disable, enable, modify, probe", 
+    action    => "the action to perform: \n\tcreate, destroy\n\tstart, stop, restart\n\tdisable, enable, mount, unmount, modify, console, probe",
     name      => "the virtual environment name/ID",
     ip        => "the IP address[es] (space delimited)",
 

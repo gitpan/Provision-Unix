@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::Xen;
 
-our $VERSION = '0.51';
+our $VERSION = '0.53';
 
 use warnings;
 use strict;
@@ -138,12 +138,10 @@ sub destroy_virtualos {
 
     my $ctid = $vos->{name};
 
-    if ( !$self->is_present( debug => 0 ) ) {
-        return $log->error( "container $ctid does not exist",
-            fatal   => $vos->{fatal},
-            debug   => $vos->{debug},
-        ); 
-    };
+    return $log->error( "container $ctid does not exist",
+        fatal   => $vos->{fatal},
+        debug   => $vos->{debug},
+    ) if !$self->is_present( debug => 0 );
 
     return $log->audit("\ttest mode early exit") if $vos->{test_mode};
 
@@ -231,17 +229,14 @@ sub stop_virtualos {
 
     $log->audit("shutting down $ctid");
 
-    if ( !$self->is_present() ) {
-        return $log->error( "$ctid does not exist",
-            fatal   => $vos->{fatal},
-            debug   => $vos->{debug},
-        ); 
-    };
+    return $log->error( "$ctid does not exist",
+        fatal   => $vos->{fatal},
+        debug   => $vos->{debug},
+    ) 
+    if !$self->is_present();
 
-    if ( ! $self->is_running() ) {
-        $log->audit("$ctid is already shutdown.");
-        return 1;
-    };
+    return $log->audit("$ctid is already shutdown.")
+        if ! $self->is_running();
 
     my $ve_name = $self->get_ve_name();
     my $xm = $util->find_bin( 'xm', debug => 0 );
@@ -412,7 +407,9 @@ sub migrate_virtualos {
         return 1;
     };
 
-    my $running = $self->is_running();
+    my $status  = $self->get_status();
+    my $state   = $status->{state};
+    my $running = $state eq 'running' ? 1 : 0;
 
 # mount disk or snapshot
     if ( $running ) {
@@ -446,12 +443,18 @@ sub migrate_virtualos {
     $util->syscmd( "$rsync -aHAX --delete $fs_root/ $new_node:$fs_root/",
         debug => $vos->{debug}, fatal => 0 ) or return;
 
-# start up remote VPS
-    $util->syscmd( "$r_cmd --action=start", debug => 1 );
-
-    if ( $running ) {
-        $self->unmount_disk_image();
+# restore state to new VE
+    if ( $state eq 'running' ) {
+        $util->syscmd( "$r_cmd --action=start", debug => 0 );
+    }
+    elsif ( $state eq 'disabled' ) {
+        $util->syscmd( "$r_cmd --action=disable", debug => 0 );
+    }
+    else {
+        $util->syscmd( "$r_cmd --action=unmount", debug => 0 );
     };
+
+    $self->unmount_disk_image();
 
 #   $vos->{archive} = 1;   # tell disable to archive the VPS
     $self->disable_virtualos();
@@ -481,30 +484,8 @@ sub modify_virtualos {
     $user ||= Provision::Unix::User->new( prov => $prov );
 
     if ( $user ) {
-        $user->install_ssh_key(
-            homedir => "$fs_root/root",
-            ssh_key => $vos->{ssh_key},
-            debug   => $vos->{debug},
-        ) 
-        if $vos->{ssh_key};
-
-        my $pass = $vos->{password};
-        if ( $pass ) {
-            my $pass_file = $self->get_ve_passwd_file( $fs_root );
-            my @lines = $util->file_read( file => $pass_file, fatal => 0 );
-            grep { /^root:/ } @lines 
-                or $log->error( "\tcould not find root in $pass_file!", fatal => 0);
-
-            my $crypted = $user->get_crypted_password($pass);
-
-            foreach ( @lines ) {
-                s/root\:.*?\:/root\:$crypted\:/ if m/^root\:/;
-            };
-            $util->file_write( 
-                file => $pass_file, lines => \@lines, 
-                debug => $vos->{debug}, fatal => 0,
-            );
-        };
+        $self->set_password_root();
+        $self->set_ssh_key();
     };
 
     $self->gen_config();
@@ -548,7 +529,7 @@ sub create_console_user {
             username => $username,
             password => $vos->{password},
             homedir  => $ve_home,
-            shell    => '',
+            shell    => -x '/usr/bin/lxxen' ? '/usr/bin/lxxen' : '',
             debug    => $debug,
         )
         or return $log->error( "unable to create console user $username", fatal => 0 ); 
@@ -895,11 +876,7 @@ sub get_status {
 
     $self->{status} = {};    # reset status
 
-    if ( ! $self->is_present() ) {
-        $log->audit( "The xen VE $ve_name does not exist", fatal => 0 );
-        $self->{status}{$ve_name} = { state => 'non-existent' };
-        return $self->{status}{$ve_name};
-    };
+    return $self->{status}{$ve_name} if ! $self->is_present();
 
     # get IPs and disks from the containers config file
     my ($ips, $disks, $disk_usage );
@@ -1046,15 +1023,15 @@ sub get_ve_name {
 
 sub get_ve_passwd_file {
     my $self = shift;
-    my $ve_home = shift || '';
+    my $fs_root = shift || $self->get_fs_root();
 
-    my $pass_file = "$ve_home/mnt/etc/shadow";  # SYS 5
+    my $pass_file = "$fs_root/etc/shadow";  # SYS 5
     return $pass_file if -f $pass_file;
 
-    $pass_file = "$ve_home/mnt/etc/master.passwd";  # BSD
+    $pass_file = "$fs_root/etc/master.passwd";  # BSD
     return $pass_file if -f $pass_file;
 
-    $pass_file = "$ve_home/mnt/etc/passwd";
+    $pass_file = "$fs_root/etc/passwd";
     return $pass_file if -f $pass_file;
 
     $log->error( "\tcould not find password file", fatal => 0);
@@ -1100,6 +1077,8 @@ sub is_present {
             return $path;
         }
     }
+
+    $self->{status}{$name} = { state => 'non-existent' };
 
     $log->audit("\tVE $name does not exist");
     return;
@@ -1292,6 +1271,30 @@ sub resize_disk_image {
     };
 };
 
+sub set_fstab {
+    my $self = shift;
+
+    my $contents = <<EOFSTAB
+/dev/sda1               /                       ext3    defaults,noatime 1 1
+/dev/sda2               none                    swap    sw       0 0
+none                    /dev/pts                devpts  gid=5,mode=620 0 0
+none                    /dev/shm                tmpfs   defaults 0 0
+none                    /proc                   proc    defaults 0 0
+none                    /sys                    sysfs   defaults 0 0
+EOFSTAB
+;
+
+    my $ve_home = $self->get_ve_home();
+    $util->file_write( 
+        file => "$ve_home/mnt/etc/fstab", 
+        lines => [ $contents ],
+        debug => 0,
+        fatal => 0,
+    ) or return;
+    $log->audit("installed /etc/fstab");
+    return 1;
+};
+
 sub set_hostname {
     my $self = shift;
 
@@ -1385,7 +1388,6 @@ sub set_password {
     my $arg = shift;
 
     my $ve_name = $self->get_ve_name();
-    my $ve_home = $self->get_ve_home();
     my $pass    = $vos->{password}
         or return $log->error( 'no password provided', fatal => 0 );
 
@@ -1407,49 +1409,9 @@ sub set_password {
     my $errors;
 
     # set the VE root password
-    my $pass_file = $self->get_ve_passwd_file( $ve_home ) or $errors++;
-
-    $user ||= Provision::Unix::User->new( prov => $prov );
-    if ( ! $errors ) {
-        my @lines = $util->file_read( file => $pass_file, fatal => 0 );
-        grep { /^root:/ } @lines 
-            or $log->error( "\tcould not find root password entry in $pass_file!", fatal => 0);
-
-        my $crypted = $user->get_crypted_password($pass);
-
-        foreach ( @lines ) {
-            s/root\:.*?\:/root\:$crypted\:/ if m/^root\:/;
-        };
-        $util->file_write( 
-            file => $pass_file, lines => \@lines, 
-            debug => $vos->{debug}, fatal => 0,
-        );
-
-        # install the SSH key
-        if ( $vos->{ssh_key} ) {
-            $log->audit("installing ssh key");
-            eval {
-                $user->install_ssh_key(
-                    homedir => "$ve_home/mnt/root",
-                    ssh_key => $vos->{ssh_key},
-                );
-            };
-            $log->error( $@, fatal => 0 ) if $@;
-        };
-        $log->audit( "VE root password configured." );
-    };
-
-    # create the VE console user
-    $log->audit( "creating the console account and password." );
-    my %request = ( username => $ve_name, password => $pass );
-    $request{username} =~ s/\.//g;  # strip the . out of the veid name: NNNNN.vm
-    if ( $user->exists( $request{username} ) ) {  # see if user exists
-        if ( $vos->{ssh_key} ) {
-            $request{ssh_key} = $vos->{ssh_key};
-            $request{ssh_restricted} = "sudo /usr/sbin/xm console $ve_name";
-        };
-        $user->set_password( %request, fatal => 0, debug => 0 ) or $errors++;
-    };
+    $self->set_password_root() or $errors++;
+    $self->set_ssh_key()       or $errors++;
+    $self->set_password_console() or $errors++;
 
     if ( ! $arg || $arg ne 'setup' ) {
         $self->unmount_disk_image() if $i_mounted;
@@ -1459,27 +1421,75 @@ sub set_password {
     return;
 };
 
-sub set_fstab {
+sub set_password_console {
     my $self = shift;
 
-    my $contents = <<EOFSTAB
-/dev/sda1               /                       ext3    defaults,noatime 1 1
-/dev/sda2               none                    swap    sw       0 0
-none                    /dev/pts                devpts  gid=5,mode=620 0 0
-none                    /dev/shm                tmpfs   defaults 0 0
-none                    /proc                   proc    defaults 0 0
-none                    /sys                    sysfs   defaults 0 0
-EOFSTAB
-;
+    my $ve_name = $self->get_ve_name();
+    my $pass    = $vos->{password} or return 1;
 
-    my $ve_home = $self->get_ve_home();
-    $util->file_write( 
-        file => "$ve_home/mnt/etc/fstab", 
-        lines => [ $contents ],
-        debug => 0,
-        fatal => 0,
-    ) or return;
-    $log->audit("installed /etc/fstab");
+    $user ||= Provision::Unix::User->new( prov => $prov );
+
+    $log->audit( "creating the console account and password." );
+
+    my $username = $ve_name;
+    $username =~ s/\.//g;  # strip the . out of the veid name: NNNNN.vm
+
+    return if ! $user->exists( $username );
+
+    my %request = ( username => $username, password => $pass );
+
+    if ( $vos->{ssh_key} ) {
+        $request{ssh_key} = $vos->{ssh_key};
+        $request{ssh_restricted} = "sudo /usr/sbin/xm console $ve_name";
+    };
+
+    $user->set_password( %request, fatal => 0, debug => 0 ) or return;
+    return 1;
+};
+
+sub set_password_root {
+    my $self = shift;
+
+    my $pass = $vos->{password} or return 1;  # no change requested
+    my $debug = $vos->{debug};
+
+    $user ||= Provision::Unix::User->new( prov => $prov );
+
+    my $pass_file = $self->get_ve_passwd_file() or return;
+    my @lines     = $util->file_read( file => $pass_file, fatal => 0 );
+
+    grep { /^root:/ } @lines 
+        or return $log->error( "\tcould not find root password entry in $pass_file!", fatal => 0);
+
+    my $crypted = $user->get_crypted_password($pass);
+
+    foreach ( @lines ) {
+        s/root\:.*?\:/root\:$crypted\:/ if m/^root\:/;
+    };
+
+    $util->file_write( file => $pass_file, lines => \@lines, debug => $debug, fatal => 0 );
+    $log->audit( "VE root password set." );
+    return 1;
+};
+
+sub set_ssh_key {
+    my $self = shift;
+
+    # install the SSH key
+    return if ! $vos->{ssh_key};
+
+    $user ||= Provision::Unix::User->new( prov => $prov );
+
+    my $fs_root = $self->get_fs_root();
+    eval {
+        $user->install_ssh_key(
+            homedir => "$fs_root/root",
+            ssh_key => $vos->{ssh_key},
+            debug   => $vos->{debug},
+        );
+    };
+    return $log->error( $@, fatal => 0 ) if $@;
+    $log->audit("installed ssh key");
     return 1;
 };
 
