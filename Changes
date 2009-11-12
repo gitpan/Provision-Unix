@@ -1,6 +1,23 @@
 Revision history for Provision-Unix
 
-0.77 Nov 10, 2009
+0.79 Nov 11, 2009
+  - suppress some unnecessary debug output
+  - remoteagent was exiting improperly when a request exited improperly but
+    did not throw an exception.
+  - fixed a bug causing set_password to exit with an error, despite succeeding
+  - when deleting a user, don't remove homedir if it's set to /tmp (sigh)
+  - added VirtualOS::set_ssh_key (allow setting the SSH key independently of
+    the root password.
+  - when referring to a VE/VPS/container/jail, consistently use the term 'VE'
+  - renamed $vos->*_virtualos to $vos->* (dropped the _virtualos suffix)
+  - removed a bunch of .pl suffixes from scriptnames in pod docs (match change
+    made to script filenames a while back).
+  - P:U:V:modify method had disk_size listed in required and optional scalars
+  - add POD docs to P:U:V class
+  - added additional pod docs to P:U class
+  - added t/01-syntax.t
+
+0.78 Nov 10, 2009
   - fixed a bug causing Xen password updates to fail
   - when migrating, set new VE to same state as initial VE
   - added mount,unmount, and console to prov_virtual CLI prompt
@@ -139,7 +156,7 @@ Revision history for Provision-Unix
   - added method P:U:V:L:set_hostname_gentoo
   - modify upstart serial file and disable so console works properly
   - added P:U:dump_errors
-  - added optional kernel_version parameter to create_virtualos method
+  - added optional kernel_version parameter to P:U:V:create method
   - pass the kernel version in calls to P:U:V:L::install_kernel_modules
   - added methods P:U:V:L:X:get_kernel_dir & get_kernel_version
   - kernel modules tarballs are now relative, provide the full path to tar -C
@@ -149,7 +166,7 @@ Revision history for Provision-Unix
   - allow passing in of MAC address to Xen creates
   - if Xen volume destroy fails, wait 3 secs and try again
   - cleaned up a bunch more errors there weren't properly handled
-  - added optional mac_address to P:U:V:create_virtualos method
+  - added optional mac_address to P:U:V:create method
   - add all IPs to Xen vif config section (previously only added the first)
   - added method P:U:V:L:setup_autologin 
   - added ssh key restrictions for console logins
@@ -191,7 +208,7 @@ Revision history for Provision-Unix
 0.62  Jul 21, 2009
   - added pod docs to bin/prov_virtual
   - added OpenVZ gen_config method
-  - added OpenVZ upgrade_virtualos method
+  - added OpenVZ upgrade method
   - worked around a bug where Proc::ProcessTable would load but not work
   - added OpenVZ unmount_disk_image and is_mounted methods. Before a reinstall
     and disable actions, check if disk is mounted and unmount it.
@@ -347,7 +364,7 @@ Revision history for Provision-Unix
   - added template selection based on contents of template cache instead of
     hard coded template names
   - syscmd now traps STDERR output and only displays it if the command failed
-  - added a custom create_virtualos for V:L:Virtuozzo. It requires a
+  - added a custom create for V:L:Virtuozzo. It requires a
     different invocation for container creation than OpenVZ
 
 0.41  Jan 29, 2009
@@ -420,7 +437,7 @@ Revision history for Provision-Unix
   added is_enabled method to Xen.pm
   added P:U:V:Linux.pm class
   added supporting code for Xen provisioning
-  added options to create_virtualos: nameservers, searchdomain, ram
+  added options to create: nameservers, searchdomain, ram
   added $prov->{etc_dir} setting
   P:U->audit returns audit arrayref when called
 
@@ -441,7 +458,7 @@ Revision history for Provision-Unix
   added license=>'perl' to Makefile.PL
   initial coding of VirtualOS module begun
   added Virtual::OS::FreeBSD::Ezjail
-  created Ezjail->create_virtualos
+  created Ezjail->create
 
 0.29    Oct 19, 2008
   added bin/prov_dns.pl, add zones & records, delete zones

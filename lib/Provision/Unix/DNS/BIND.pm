@@ -5,11 +5,6 @@ use strict;
 
 our $VERSION = '0.02';
 
-sub function1 {
-}
-
-sub function2 {
-}
 
 1;
 
@@ -18,10 +13,6 @@ __END__
 =head1 NAME
 
 Provision::Unix::DNS::BIND - Provision BIND DNS entries
-
-=head1 VERSION
-
-Version 0.02
 
 =head1 SYNOPSIS
 
@@ -35,16 +26,6 @@ file, but what about database backend? subclass them? (probably)
     ...
 
 
-=head1 FUNCTIONS
-
-=head2 function1
-
-=cut
-
-=head2 function2
-
-=cut
-
 =head1 AUTHOR
 
 Matt Simerson, C<< <matt at tnpi.net> >>
@@ -52,7 +33,6 @@ Matt Simerson, C<< <matt at tnpi.net> >>
 =head1 BUGS
 
 Please report any bugs or feature requests to C<bug-unix-provision-dns at rt.cpan.org>, or through the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Provision-Unix>.  I will be notified, and then you'll automatically be notified of progress on your bug as I make changes.
-
 
 
 =head1 SUPPORT
@@ -83,9 +63,6 @@ L<http://cpanratings.perl.org/d/Provision-Unix>
 L<http://search.cpan.org/dist/Provision-Unix>
 
 =back
-
-
-=head1 ACKNOWLEDGEMENTS
 
 
 =head1 COPYRIGHT & LICENSE

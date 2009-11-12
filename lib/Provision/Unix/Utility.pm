@@ -42,7 +42,7 @@ sub new {
         fatal => $p{fatal},
     };
     bless $self, $class;
-    $log->audit( $class . sprintf( " loaded by %s, %s, %s", caller ) );
+    #$log->audit( $class . sprintf( " loaded by %s, %s, %s", caller ) );
     return $self;
 }
 

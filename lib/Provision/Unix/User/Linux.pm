@@ -1,6 +1,6 @@
 package Provision::Unix::User::Linux;
 
-our $VERSION = '0.18';
+our $VERSION = '0.19';
 
 use warnings;
 use strict;
@@ -131,7 +131,6 @@ sub create_group {
 }
 
 sub destroy {
-
     my $self = shift;
     my %p = validate(
         @_,
@@ -145,9 +144,11 @@ sub destroy {
         },
     );
 
-    $prov->audit("removing user $p{username} on $OSNAME");
+    my $username = $p{username};
+    $prov->audit("removing user $username on $OSNAME");
 
-    $user->_is_valid_username( $p{username} ) or return;
+    $user->_is_valid_username( $username ) or return;
+    my $homedir = ( getpwnam( $username ) )[7];
 
     return $prov->audit("\ttest mode early exit") if $p{test_mode};
 
@@ -156,27 +157,30 @@ sub destroy {
         return $prov->progress(
             num  => 10,
             desc => 'error',
-            err  => "\tno such user '$p{username}'",
+            err  => "\tno such user '$username'",
         );
     }
 
-    my $cmd = $util->find_bin( 'userdel', debug => $p{debug} );
-    $cmd .= " -f -r $p{username}";
+    my $userdel = $util->find_bin( 'userdel', debug => $p{debug} );
 
-    my $r = $util->syscmd( $cmd, debug => 0, fatal => $p{fatal} );
+    my $opts = " -f";
+    $opts .= " -r" if -d $homedir && $homedir ne '/tmp';
+    $opts .= " $username";
+
+    my $r = $util->syscmd( "$userdel $opts", debug => 0, fatal => $p{fatal} );
 
     # validate that the user was removed
     if ( !$self->exists() ) {
         return $prov->progress(
             num  => 10,
-            desc => "\tdeleted user $p{username}"
+            desc => "\tdeleted user $username"
         );
     }
 
     return $prov->progress(
         num   => 10,
         desc  => 'error',
-        'err' => "\tfailed to remove user '$p{username}'",
+        'err' => "\tfailed to remove user '$username'",
     );
 }
 

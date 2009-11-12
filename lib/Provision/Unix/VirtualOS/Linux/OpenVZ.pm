@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::OpenVZ;
 
-our $VERSION = '0.46';
+our $VERSION = '0.47';
 
 use warnings;
 use strict;
@@ -37,7 +37,7 @@ sub new {
     return $self;
 }
 
-sub create_virtualos {
+sub create {
 
     my $self = shift;
     my ($prov, $vos, $util) = ($self->{prov}, $self->{vos}, $self->{util});
@@ -108,11 +108,11 @@ sub create_virtualos {
     sleep 1;
     $self->set_password()    if $vos->{password};
     sleep 1;
-    $self->start_virtualos() if ! $vos->{skip_start};
+    $self->start() if ! $vos->{skip_start};
     return $prov->audit("\tvirtual os created and launched");
 }
 
-sub destroy_virtualos {
+sub destroy {
 
     my $self = shift;
     my ($prov, $vos, $util) = ($self->{prov}, $self->{vos}, $self->{util});
@@ -122,8 +122,8 @@ sub destroy_virtualos {
 
     my $name = $vos->{name};
 
-    # make sure container name/ID exists
-    return $prov->error( "container $name does not exist",
+    # make sure VE name/ID exists
+    return $prov->error( "VE $name does not exist",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
     ) if !$self->is_present();
@@ -149,8 +149,8 @@ sub destroy_virtualos {
 
     # if VE is running, shut it down
     if ( $self->is_running( refresh => 0 ) ) {
-        $prov->audit("\tcontainer '$name' is running, stopping...");
-        $self->stop_virtualos() 
+        $prov->audit("\tVE '$name' is running, stopping...");
+        $self->stop() 
             or return
             $prov->error( "shut down failed. I cannot continue.",
                 fatal   => $vos->{fatal},
@@ -160,7 +160,7 @@ sub destroy_virtualos {
 
     # if VE is mounted, unmount it
     if ( $self->is_mounted( refresh => 0 ) ) {
-        $prov->audit("\tcontainer '$name' is mounted, unmounting...");
+        $prov->audit("\tVE '$name' is mounted, unmounting...");
         $self->unmount_disk_image() 
             or return
             $prov->error( "unmount failed. I cannot continue.",
@@ -185,7 +185,7 @@ sub destroy_virtualos {
 
     # we have learned better than to trust the return codes of vzctl
     if ( ! $self->is_present() ) {
-        return $prov->audit("\tdestroyed container");
+        return $prov->audit("\tdestroyed VE");
     };
 
     return $prov->error( "destroy failed, unknown error",
@@ -194,7 +194,7 @@ sub destroy_virtualos {
     );
 }
 
-sub start_virtualos {
+sub start {
 
     my $self = shift;
     my ($prov, $vos, $util) = ($self->{prov}, $self->{vos}, $self->{util});
@@ -203,7 +203,7 @@ sub start_virtualos {
     $prov->audit("starting $ctid");
 
     if ( !$self->is_present() ) {
-        return $prov->error( "container $ctid does not exist",
+        return $prov->error( "VE $ctid does not exist",
             fatal   => $vos->{fatal},
             debug   => $vos->{debug},
         ) 
@@ -239,7 +239,7 @@ sub start_virtualos {
     );
 }
 
-sub stop_virtualos {
+sub stop {
 
     my $self = shift;
     my ($prov, $vos, $util) = ($self->{prov}, $self->{vos}, $self->{util});
@@ -278,21 +278,21 @@ sub stop_virtualos {
     );
 }
 
-sub restart_virtualos {
+sub restart {
     my $self = shift;
     my ($prov, $vos, $util) = ($self->{prov}, $self->{vos}, $self->{util});
 
-    $self->stop_virtualos()
+    $self->stop()
         or
         return $prov->error( "unable to restart virtual $vos->{name}, failed to stop VE",
             fatal   => $vos->{fatal},
             debug   => $vos->{debug},
         );
 
-    return $self->start_virtualos();
+    return $self->start();
 }
 
-sub disable_virtualos {
+sub disable {
 
     my $self = shift;
     my ($prov, $vos, $util) = ($self->{prov}, $self->{vos}, $self->{util});
@@ -309,7 +309,7 @@ sub disable_virtualos {
     # is it already disabled?
     my $config = $self->get_config();
     if ( ! -e $config && ( -e "$config.suspend" || -e "$config.suspended" ) ) {
-        $prov->audit( "container is already disabled." );
+        $prov->audit( "VE is already disabled." );
         return 1;
     };
 
@@ -324,7 +324,7 @@ sub disable_virtualos {
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
 
     # see if VE is running, and if so, stop it
-    $self->stop_virtualos() if $self->is_running( refresh => 0 );
+    $self->stop() if $self->is_running( refresh => 0 );
 
     $self->unmount_disk_image() if $self->is_mounted( refresh => 0 );
 
@@ -339,7 +339,7 @@ sub disable_virtualos {
     return 1;
 }
 
-sub enable_virtualos {
+sub enable {
 
     my $self = shift;
     my ($prov, $vos, $util) = ($self->{prov}, $self->{vos}, $self->{util});
@@ -357,7 +357,7 @@ sub enable_virtualos {
     my $config = $self->get_config();
     if ( -e $config ) {
         $prov->audit("\t$ctid is already enabled");
-        return $self->start_virtualos();
+        return $self->start();
     };
 
     # make sure config file exists
@@ -370,10 +370,10 @@ sub enable_virtualos {
         );
     }
 
-    # make sure container directory exists
+    # make sure VE directory exists
     my $ct_dir = $self->get_ve_home();  # "/vz/private/$ctid";
     if ( !-e $ct_dir ) {
-        return $prov->error( "container directory '$ct_dir' for $ctid does not exist",
+        return $prov->error( "VE directory '$ct_dir' for $ctid does not exist",
             fatal => $vos->{fatal},
             debug => $vos->{debug},
         );
@@ -387,10 +387,10 @@ sub enable_virtualos {
         debug   => $vos->{debug},
         );
 
-    return $self->start_virtualos();
+    return $self->start();
 }
 
-sub migrate_virtualos {
+sub migrate {
     my $self = shift;
     my ($prov, $vos, $util) = ($self->{prov}, $self->{vos}, $self->{util});
 
@@ -410,7 +410,7 @@ sub migrate_virtualos {
     $util->syscmd( "$rsync -a --delete $fs_root/ $new_node:$fs_root/", 
         debug => $vos->{debug}, fatal => 0 ) or return;
 
-    $self->stop_virtualos() if $running;
+    $self->stop() if $running;
 
     $util->syscmd( "$rsync -aHAX --delete $fs_root/ $new_node:$fs_root/",
         debug => $vos->{debug}, fatal => 0 ) or return;
@@ -421,13 +421,13 @@ sub migrate_virtualos {
     $util->syscmd( "$r_cmd --action=start", debug => 1 );
 
 #   $vos->{archive} = 1;   # tell disable to archive the VPS
-    $self->disable_virtualos();
+    $self->disable();
 
     $prov->audit( "all done" );
     return 1;
 };
 
-sub modify_virtualos {
+sub modify {
     my $self = shift;
     my ($prov, $vos, $util) = ($self->{prov}, $self->{vos}, $self->{util});
 
@@ -436,7 +436,7 @@ sub modify_virtualos {
 
     my $ctid = $vos->{name};
 
-    $self->stop_virtualos() or return;
+    $self->stop() or return;
 
     $prov->audit("\tVE '$ctid' exists and shut down, making changes");
 
@@ -449,29 +449,23 @@ sub modify_virtualos {
     $self->set_ips();
 
     $prov->audit("\tVE modified");
-    $self->start_virtualos() or return;
+    $self->start() or return;
     return 1;
 }
 
-sub reinstall_virtualos {
+sub reinstall {
     my $self = shift;
     my ($prov, $vos, $util) = ($self->{prov}, $self->{vos}, $self->{util});
 
-    $self->destroy_virtualos()
+    $self->destroy()
         or
         return $prov->error( "unable to destroy virtual $vos->{name}",
             fatal   => $vos->{fatal},
             debug   => $vos->{debug},
         );
 
-    return $self->create_virtualos();
+    return $self->create();
 }
-
-sub upgrade_virtualos {
-# delete after 11/01/09
-    my $self = shift;
-    return $self->modify_virtualos();
-};
 
 sub unmount_disk_image {
     my $self = shift;
@@ -481,14 +475,14 @@ sub unmount_disk_image {
     $prov->audit("unmounting virtual $ctid");
 
     # make sure CTID exists
-    return $prov->error( "container $ctid does not exist",
+    return $prov->error( "VE $ctid does not exist",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
     ) if !$self->is_present();
 
     # see if VE is mounted
     if ( !$self->is_mounted( refresh => 0 ) ) {
-        return $prov->error( "container $ctid is not mounted",
+        return $prov->error( "VE $ctid is not mounted",
             fatal   => $vos->{fatal},
             debug   => $vos->{debug},
         );
@@ -817,7 +811,7 @@ sub set_ips {
     my $ips = $vos->{ip};
 
     my (undef,undef,undef,$calling_sub) = caller(1);
-    if ( $calling_sub eq 'modify_virtualos' ) {
+    if ( $calling_sub eq 'modify' ) {
         $prov->audit("using linux method to set ips");
         $linux->set_ips( 
             ips     => $ips, 
@@ -864,16 +858,28 @@ sub set_password {
     system( $cmd );
     # has the added advantage that we don't log the VPS password in the audit log
 
-    if ( $vos->{ssh_key} ) {
-        my $user = Provision::Unix::User->new( prov => $prov );
-        my $ve_home = $self->get_ve_home();  # "/vz/private/$ctid"
-        $user->install_ssh_key( 
+    $self->set_ssh_key();
+    return 1;
+}
+
+sub set_ssh_key {
+    my $self = shift;
+    my ($prov, $vos, $util) = ($self->{prov}, $self->{vos}, $self->{util});
+
+    return 1 if ! $vos->{ssh_key};
+
+    my $user = Provision::Unix::User->new( prov => $prov );
+    my $ve_home = $self->get_ve_home();  # "/vz/private/$ctid"
+
+    eval {
+        $user->install_ssh_key(
             homedir => "$ve_home/root",
             ssh_key => $vos->{ssh_key},
             debug   => $vos->{debug},
         );
     };
-
+    return $prov->error( $@, fatal => 0 ) if $@;
+    $prov->audit("installed ssh key");
     return 1;
 }
 
@@ -1098,76 +1104,4 @@ EOCONFIG
 1
 
 __END__
-
-=head1 NAME
-
-Provision::Unix::VirtualOS::Linux::OpenVZ - 
-
-=head1 SYNOPSIS
-
-Quick summary of what the module does.
-
-Perhaps a little code snippet.
-
-    use Provision::Unix::VirtualOS::OpenVZ;
-
-    my $foo = Provision::Unix::VirtualOS::OpenVZ->new();
-    ...
-
-=head1 FUNCTIONS
-
-=head2 function1
-
-
-=head1 AUTHOR
-
-Matt Simerson, C<< <matt at tnpi.net> >>
-
-=head1 BUGS
-
-Please report any bugs or feature requests to C<bug-unix-provision-virtualos at rt.cpan.org>, or through the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Provision-Unix>.  I will be notified, and then you'll automatically be notified of progress on your bug as I make changes.
-
-
-=head1 SUPPORT
-
-You can find documentation for this module with the perldoc command.
-
-    perldoc Provision::Unix
-
-
-You can also look for information at:
-
-=over 4
-
-=item * RT: CPAN's request tracker
-
-L<http://rt.cpan.org/NoAuth/Bugs.html?Dist=Provision-Unix>
-
-=item * AnnoCPAN: Annotated CPAN documentation
-
-L<http://annocpan.org/dist/Provision-Unix>
-
-=item * CPAN Ratings
-
-L<http://cpanratings.perl.org/d/Provision-Unix>
-
-=item * Search CPAN
-
-L<http://search.cpan.org/dist/Provision-Unix>
-
-=back
-
-
-=head1 ACKNOWLEDGEMENTS
-
-
-=head1 COPYRIGHT & LICENSE
-
-Copyright 2008 Matt Simerson
-
-This program is free software; you can redistribute it and/or modify it
-under the same terms as Perl itself.
-
-
-=cut
 

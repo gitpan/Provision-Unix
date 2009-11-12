@@ -34,7 +34,7 @@ my @parts = split /::/, $virt_class;
 my $virt_type = lc( $parts[-1] );
 ok( $virt_type, "virtualization type: $virt_type");
 
-my $container_id_or_name
+my $ve_id_or_name
  = $virt_type eq 'openvz'    ? 72000
  : $virt_type eq 'ovz'       ? 72000
  : $virt_type eq 'virtuozzo' ? 72000
@@ -43,12 +43,12 @@ my $container_id_or_name
  : $virt_type eq 'jails'     ? 'test1'
  :                             undef;
 
-exit if ! $container_id_or_name;
+exit if ! $ve_id_or_name;
 
 my $r;
 
-if ( $vos->is_present( name => $container_id_or_name ) ) {
-    $r = $vos->get_status( name => $container_id_or_name );
+if ( $vos->is_present( name => $ve_id_or_name ) ) {
+    $r = $vos->get_status( name => $ve_id_or_name );
     ok( $r, 'get_status' );
 };
 

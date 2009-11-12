@@ -74,7 +74,7 @@ if ( $virt_type =~ /virtuozzo|ovz|openvz|xen/ ) {
     };
 };
 
-my $container_id_or_name
+my $ve_id_or_name
     = $virt_type eq 'openvz'    ? 72000
     : $virt_type eq 'ovz'       ? 72000
     : $virt_type eq 'virtuozzo' ? 72000
@@ -84,7 +84,7 @@ my $container_id_or_name
     :                             undef;
 
 my %common = (
-    name  => $container_id_or_name,
+    name  => $ve_id_or_name,
     debug => 0,
     fatal => 0,
 );
@@ -118,34 +118,35 @@ ok(  $vos->is_valid_ip('2.1.1.1'),         'is_valid_ip +' );
 #ok( $vos->_check_template( 'non-existing' ), '_check_default' );
 #ok( $vos->_check_template( $template_that_exists), '_check_default' );
 
-my $fs_root = $vos->get_fs_root( $container_id_or_name );
-if ( -d "$fs_root/etc" ) {
-    print "\n$fs_root/etc/resolv.conf\n";
-    my $r = $vos->set_nameservers( 
-        %common,
-        nameservers  => '67.223.251.133 64.79.200.113',  # nyc
-        #nameservers  => '64.79.200.111 64.79.200.113',  # tuk
-        #searchdomain => 'example.com',
-        test_mode    => 1,
-    );
-    ok( $r, "set_nameservers" );
-};
+my $fs_root = $vos->get_fs_root( $ve_id_or_name );
 
 # these are expensive tests.
 SKIP: {
-    skip "you are not root", 12 if $EFFECTIVE_USER_ID != 0;
-    skip "could not determine a valid name", 12 if ! $container_id_or_name;
+    skip "you are not root", 13 if $EFFECTIVE_USER_ID != 0;
+    skip "could not determine a valid name", 12 if ! $ve_id_or_name;
 
 my $r;
 
-    if ( $vos->is_present( name => $container_id_or_name ) ) {
-        $r = $vos->get_status( name => $container_id_or_name );
+    if ( -d "$fs_root/etc" ) {
+        print "\n$fs_root/etc/resolv.conf\n";
+        $r = $vos->set_nameservers( 
+            %common,
+            nameservers  => '67.223.251.133 64.79.200.113',  # nyc
+            #nameservers  => '64.79.200.111 64.79.200.113',  # tuk
+            #searchdomain => 'example.com',
+            test_mode    => 1,
+        );
+        ok( $r, "set_nameservers" );
+    };
+
+    if ( $vos->is_present( name => $ve_id_or_name ) ) {
+        $r = $vos->get_status( name => $ve_id_or_name );
         ok( $r, 'get_status' );
     };
 
     if ( $virt_type eq 'xen' ) {
         # $r = $vos->install_config_file();
-        # ok( $vos->is_running( name => $container_id_or_name ), 'is_running');
+        # ok( $vos->is_running( name => $ve_id_or_name ), 'is_running');
     }
 
     my %request = ( %common );
@@ -153,11 +154,11 @@ my $r;
     if ( $vos->is_present( %common ) ) {
 
         if ( $vos->is_running( %common ) ) {
-            ok( $vos->stop_virtualos( %common), 'stop_virtualos');
+            ok( $vos->stop( %common), 'stop');
         };
 
         $request{test_mode} = 0;
-        ok( $vos->destroy_virtualos( %common ), 'destroy_virtualos');
+        ok( $vos->destroy( %common ), 'destroy');
         sleep 1;
     }
 
@@ -166,21 +167,21 @@ my $r;
     $request{test_mode} = 1;
     $request{ip}        = '10.0.1.68';
 
-    $r = $vos->create_virtualos( %request );
+    $r = $vos->create( %request );
 
     if ( $requires_template{$virt_type} ) {
-        ok( !$r, 'create_virtualos, no template' );
+        ok( !$r, 'create, no template' );
     }
     else {
-        ok( $r, 'create_virtualos, no template' );
+        ok( $r, 'create, no template' );
     }
 
     $request{ip} = '10.0.1.';
-    ok( !$vos->create_virtualos( %request ), 'create_virtualos, no valid IPs');
+    ok( !$vos->create( %request ), 'create, no valid IPs');
 
     $request{ip} = '10.0.1.70';
     $request{template} = 'non-existing';
-    ok( !$vos->create_virtualos( %request ), 'create_virtualos, invalid template');
+    ok( !$vos->create( %request ), 'create, invalid template');
 
     if ( $requires_template{$virt_type} ) {
         $request{template} = $template_that_exists;
@@ -192,26 +193,26 @@ my $r;
     $request{ip}       = '10.0.1.73 10.0.1.74 10.0.1.75';
     $request{password} = 'p_u_t3stlng';
     $request{ssh_key}  = 'ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAv6f4BW89Afnsx51BkxGvPbLeqDK+o6RXp+82KSIhoiWzCJp/dwhB7xNBR0W7Lt/n7KJUGYdlP7h5YlmgvpdJayzMkbsoBW2Hj9/7MkFraUlWYIU9QtAUCOARBPQWC3JIkslVvInGBxMxH5vcCO0/3TM/FFZylPTXjyqmsVDgnY4C1zFW3SdGDh7+1NCDh4Jsved+UVE5KwN/ZGyWKpWXLqMlEFTTxJ1aRk563p8wW3F7cPQ59tLP+a3iHdH9sE09ynbI/I/tnAHcbZncwmdLy0vMA6Jp3rWwjXoxHJQLOfrLJzit8wzG867+RYDfm6SZWg7iYZYUlps1LSXSnUxuTQ== matt@SpryBook-Pro.local';
-    ok( $vos->create_virtualos( %request ),
-        "create_virtualos, valid template ($template_that_exists), test mode"
+    ok( $vos->create( %request ),
+        "create, valid template ($template_that_exists), test mode"
     );
 
     $request{hostname} = 'test1.example.com';
     $request{nameservers} = '64.79.200.111 64.79.200.113';
     $request{test_mode} = 0;
-    ok( $vos->create_virtualos( %request ), 'create_virtualos, valid request')
+    ok( $vos->create( %request ), 'create, valid request')
         or do {
             $request{debug} = 1;
             warn Dumper(\%request);
-            diag $vos->create_virtualos( %request );
+            diag $vos->create( %request );
         };
 
-    ok( $vos->start_virtualos( %common), 'start_virtualos');
+    ok( $vos->start( %common), 'start');
 
 #exit;
 #$prov->error( 'dump' );
 
-    ok( $vos->restart_virtualos( %common), 'restart_virtualos');
+    ok( $vos->restart( %common), 'restart');
 
     ok( $vos->set_password(
             %common,
@@ -222,13 +223,13 @@ my $r;
         'set_password'
     );
 
-    ok( $vos->disable_virtualos( %common ), 'disable_virtualos');
-    ok( $vos->enable_virtualos( %common ), 'enable_virtualos');
-    ok( $vos->stop_virtualos( %common ), 'stop_virtualos');
+    ok( $vos->disable( %common ), 'disable');
+    ok( $vos->enable( %common ), 'enable');
+    ok( $vos->stop( %common ), 'stop');
 
 #exit;
 
-    ok( $vos->destroy_virtualos( %common, test_mode => 0), 'destroy_virtualos');
+    ok( $vos->destroy( %common, test_mode => 0), 'destroy');
 };
 
 #$prov->error( 'dump' );

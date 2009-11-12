@@ -71,11 +71,11 @@ die "\n$0 must be run as root!\n\n" if $EFFECTIVE_USER_ID != 0;
 
 =head1 NAME 
 
-prov_web.pl - a command line interface for provisioning web accounts
+prov_web - a command line interface for provisioning web accounts
 
 =head1 SYNOPSIS
 
-  	prov_web.pl --action [--vhost example.com]
+  	prov_web --action [--vhost example.com]
 
 Action is one of the following:
 
@@ -109,14 +109,14 @@ optional arguments:
 
 =head1 USAGE
  
- prov_web.pl --create --vhost=www.example.com
- prov_web.pl --destroy --vhost=www.example.com
- prov_web.pl --modify  --vhost=www.example.com --options='Indexes ExecCGI'
+ prov_web --create --vhost=www.example.com
+ prov_web --destroy --vhost=www.example.com
+ prov_web --modify  --vhost=www.example.com --options='Indexes ExecCGI'
 
 
 =head1 DESCRIPTION
  
-prov_web.pl is a command line interface to the Provision::Web provisioning modules. 
+prov_web is a command line interface to the Provision::Web provisioning modules. 
 
  
 =head1 CONFIGURATION AND ENVIRONMENT

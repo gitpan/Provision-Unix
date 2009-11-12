@@ -6,7 +6,7 @@ bin/prov_user
 bin/prov_virtual
 bin/prov_web
 bin/remoteagent
-bin/set_vps_password.pl
+bin/set_vps_password
 bin/update_prov_unix
 Changes
 inc/Module/Install.pm
@@ -44,6 +44,7 @@ META.yml
 provision.conf-dist
 README
 t/00-load.t
+t/01-syntax.t
 t/boilerplate.t
 t/DNS.t
 t/Group.t

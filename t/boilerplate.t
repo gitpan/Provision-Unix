@@ -1,7 +1,7 @@
 
 use strict;
 use warnings;
-use Test::More tests => 8;
+use Test::More tests => 19;
 
 sub not_in_file_ok {
     my ( $filename, %regex ) = @_;
@@ -49,10 +49,20 @@ TODO: {
 
     module_boilerplate_ok('lib/Provision/Unix.pm');
     module_boilerplate_ok('lib/Provision/Unix/User.pm');
+    module_boilerplate_ok('lib/Provision/Unix/User/Darwin.pm');
+    module_boilerplate_ok('lib/Provision/Unix/User/FreeBSD.pm');
+    module_boilerplate_ok('lib/Provision/Unix/User/Linux.pm');
     module_boilerplate_ok('lib/Provision/Unix/DNS.pm');
+    module_boilerplate_ok('lib/Provision/Unix/DNS/BIND.pm');
+    module_boilerplate_ok('lib/Provision/Unix/DNS/NicTool.pm');
+    module_boilerplate_ok('lib/Provision/Unix/DNS/tinydns.pm');
     module_boilerplate_ok('lib/Provision/Unix/Web.pm');
     module_boilerplate_ok('lib/Provision/Unix/Utility.pm');
     module_boilerplate_ok('lib/Provision/Unix/VirtualOS.pm');
-
+    module_boilerplate_ok('lib/Provision/Unix/VirtualOS/Linux.pm');
+    module_boilerplate_ok('lib/Provision/Unix/VirtualOS/Linux/Xen.pm');
+    module_boilerplate_ok('lib/Provision/Unix/VirtualOS/Linux/OpenVZ.pm');
+    module_boilerplate_ok('lib/Provision/Unix/VirtualOS/FreeBSD/Jail.pm');
+    module_boilerplate_ok('lib/Provision/Unix/VirtualOS/FreeBSD/Ezjail.pm');
 }
 

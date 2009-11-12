@@ -146,11 +146,11 @@ sub group_destroy {
 
 =head1 NAME 
 
-prov_user.pl - a command line interface for provisioning users and groups
+prov_user - a command line interface for provisioning users and groups
 
 =head1 SYNOPSIS
 
-  prov_user.pl --action=[]
+  prov_user --action=[]
 
 Action is one of the following:
 
@@ -177,14 +177,14 @@ Other parameters are optional. Unless you specify --noprompt, you will be prompt
 
 =head1 USAGE
  
- prov_user.pl --action create  --user=matt --pass='neat0app!'
- prov_user.pl --action destroy --user=matt
- prov_user.pl --action modify  --user=matt --quota=500
+ prov_user --action create  --user=matt --pass='neat0app!'
+ prov_user --action destroy --user=matt
+ prov_user --action modify  --user=matt --quota=500
  
 
 =head1 DESCRIPTION
  
-prov_user.pl is a command line interface to the Provision::User provisioning modules. 
+prov_user is a command line interface to the Provision::User provisioning modules. 
 
  
 =head1 CONFIGURATION AND ENVIRONMENT

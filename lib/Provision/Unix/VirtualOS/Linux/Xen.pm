@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::Xen;
 
-our $VERSION = '0.53';
+our $VERSION = '0.55';
 
 use warnings;
 use strict;
@@ -41,7 +41,7 @@ sub new {
     return $self;
 }
 
-sub create_virtualos {
+sub create {
     my $self = shift;
 
     $EUID == 0
@@ -122,14 +122,14 @@ sub create_virtualos {
         or return $log->error( "unable to install config file", fatal => 0 );
 
     my $err_count_after = @{ $prov->{errors} };
-    $self->start_virtualos() if ! $vos->{skip_start};
+    $self->start() if ! $vos->{skip_start};
 
     return if $err_count_after > $err_count_before;
     return 1;
 
 }
 
-sub destroy_virtualos {
+sub destroy {
 
     my $self = shift;
 
@@ -138,7 +138,7 @@ sub destroy_virtualos {
 
     my $ctid = $vos->{name};
 
-    return $log->error( "container $ctid does not exist",
+    return $log->error( "VE $ctid does not exist",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
     ) if !$self->is_present( debug => 0 );
@@ -146,7 +146,7 @@ sub destroy_virtualos {
     return $log->audit("\ttest mode early exit") if $vos->{test_mode};
 
     if ( $self->is_running( debug => 0 ) ) {
-        $self->stop_virtualos() or return;
+        $self->stop() or return;
     };
 
     $self->unmount_disk_image() or return $log->error("could not unmount disk image");
@@ -156,7 +156,7 @@ sub destroy_virtualos {
     $self->destroy_swap_image() or return;
 
     my $ve_home = $self->get_ve_home() or
-        $log->error( "could not deduce the containers home dir" );
+        $log->error( "could not deduce the VE home dir" );
 
     return 1 if ! -d $ve_home;
 
@@ -179,10 +179,10 @@ sub destroy_virtualos {
     return 1;
 }
 
-sub start_virtualos {
+sub start {
     my $self = shift;
 
-    my $ctid  = $vos->{name} or die "name of container missing!\n";
+    my $ctid  = $vos->{name} or die "name of VE missing!\n";
     my $debug = $vos->{debug};
     my $fatal = $vos->{fatal};
 
@@ -192,7 +192,7 @@ sub start_virtualos {
         fatal => $fatal,
         debug => $debug,
     )
-    if !$self->is_present();
+    if !$self->is_present( debug => 0 );
 
     if ( $self->is_running() ) {
         $log->audit("$ctid is already running.");
@@ -222,10 +222,10 @@ sub start_virtualos {
     return;
 }
 
-sub stop_virtualos {
+sub stop {
     my $self = shift;
 
-    my $ctid = $vos->{name} or die "name of container missing!\n";
+    my $ctid = $vos->{name} or die "name of VE missing!\n";
 
     $log->audit("shutting down $ctid");
 
@@ -233,7 +233,7 @@ sub stop_virtualos {
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
     ) 
-    if !$self->is_present();
+    if !$self->is_present( debug => 0 );
 
     return $log->audit("$ctid is already shutdown.")
         if ! $self->is_running();
@@ -251,7 +251,7 @@ sub stop_virtualos {
     # xm shutdown may exit before the VE is stopped.
     # wait up to 15 more seconds for VE to shutdown
     foreach ( 1..15 ) {
-        last if ! $self->is_running();
+        last if ! $self->is_running( debug => 0 );
         sleep 1;   
     };
 
@@ -266,7 +266,7 @@ sub stop_virtualos {
         # xm destroy may exit before the VE is stopped.
         # wait 15 more seconds for it to finish shutting down
         foreach ( 1..15 ) {
-            last if ! $self->is_running();
+            last if ! $self->is_running( debug => 0 );
             sleep 1;   
         };
     };
@@ -282,16 +282,16 @@ sub stop_virtualos {
     return;
 }
 
-sub restart_virtualos {
+sub restart {
     my $self = shift;
 
     my $ve_name = $self->get_ve_name();
 
-    $self->stop_virtualos() or return;
-    return $self->start_virtualos();
+    $self->stop() or return;
+    return $self->start();
 }
 
-sub disable_virtualos {
+sub disable {
     my $self = shift;
 
     my $ctid = $vos->{name};
@@ -301,12 +301,12 @@ sub disable_virtualos {
     return $log->error( "$ctid does not exist",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
-    ) if !$self->is_present();
+    ) if !$self->is_present( debug => 0 );
 
     # is it already disabled?
     my $config = $self->get_ve_config_path();
     if ( !-e $config && -e "$config.suspend" ) {
-        $log->audit( "container is already disabled." );
+        $log->audit( "VE is already disabled." );
         return 1;
     };
 
@@ -322,7 +322,7 @@ sub disable_virtualos {
 
     # see if VE is running, and if so, stop it
     if ( $self->is_running() ) {
-        $self->stop_virtualos() or return; 
+        $self->stop() or return; 
     };
 
     move( $config, "$config.suspend" )
@@ -346,7 +346,7 @@ sub disable_virtualos {
     return 1;
 }
 
-sub enable_virtualos {
+sub enable {
 
     my $self = shift;
 
@@ -357,12 +357,12 @@ sub enable_virtualos {
     return $log->error( "$ctid does not exist",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
-    ) if !$self->is_present();
+    ) if !$self->is_present( debug => 0 );
 
     # is it already enabled?
     if ( $self->is_enabled() ) {
         $log->audit("\t$ctid is already enabled");
-        return $self->start_virtualos();
+        return $self->start();
     };
 
     # make sure config file exists
@@ -393,10 +393,10 @@ sub enable_virtualos {
 #        $self->unmount_disk_image();
     };
 
-    return $self->start_virtualos();
+    return $self->start();
 }
 
-sub migrate_virtualos {
+sub migrate {
     my $self = shift;
 
     my $ctid = $vos->{name};
@@ -436,7 +436,7 @@ sub migrate_virtualos {
 
     if ( $running ) {
         $self->destroy_snapshot();
-        $self->stop_virtualos();
+        $self->stop();
         $self->mount_disk_image();
     };
 
@@ -457,13 +457,13 @@ sub migrate_virtualos {
     $self->unmount_disk_image();
 
 #   $vos->{archive} = 1;   # tell disable to archive the VPS
-    $self->disable_virtualos();
+    $self->disable();
 
     $log->audit( "all done" );
     return 1;
 };
 
-sub modify_virtualos {
+sub modify {
     my $self = shift;
 
     my $ctid = $vos->{name};
@@ -471,7 +471,7 @@ sub modify_virtualos {
 
     # hostname ips nameservers searchdomain disk_size ram config 
 
-    $self->stop_virtualos() or return;
+    $self->stop() or return;
     $self->mount_disk_image() or return;
 
     my $fs_root = $self->get_fs_root();
@@ -491,27 +491,21 @@ sub modify_virtualos {
     $self->gen_config();
     $self->unmount_disk_image() or return;
     $self->resize_disk_image();
-    $self->start_virtualos() or return;
+    $self->start() or return;
     return 1;
 }
 
-sub upgrade_virtualos {
-# temp placeholder, delete after 11/01/09
-    my $self = shift;
-    return $self->modify_virtualos();
-};
-
-sub reinstall_virtualos {
+sub reinstall {
     my $self = shift;
 
-    $self->destroy_virtualos()
+    $self->destroy()
         or
         return $log->error( "unable to destroy virtual $vos->{name}",
             fatal => $vos->{fatal},
             debug => $vos->{debug},
         );
 
-    return $self->create_virtualos();
+    return $self->create();
 }
 
 sub create_console_user {
@@ -674,6 +668,7 @@ sub destroy_console_user {
             username => $username,
             homedir  => $ve_home,
             debug    => 0,
+            fatal    => 0,
         )
         or return $log->error( "unable to destroy console user $username", fatal => 0 ); 
         $log->audit( "deleted system user $username" );
@@ -779,6 +774,68 @@ sub extract_template {
     return 1;
 }
 
+sub gen_config {
+    my $self = shift;
+
+    my $ctid        = $vos->{name};
+    my $ve_name     = $self->get_ve_name();
+    my $config_file = $self->get_ve_config_path();
+    #warn "config file: $config_file\n" if $vos->{debug};
+
+    my $ram      = $self->get_ve_ram();
+    my $hostname = $vos->{hostname} || $ctid;
+
+    my @ips      = @{ $vos->{ip} };
+    my $ip_list  = shift @ips;
+    foreach ( @ips ) { $ip_list .= " $_"; };
+    my $mac      = $self->get_mac_address();
+
+    my $image_path = $self->get_disk_image(1);
+    my $swap_path  = $self->get_swap_image(1);
+    my $kernel_dir = $self->get_kernel_dir();
+    my $kernel_version = $self->get_kernel_version();
+
+    my ($kernel) = <$kernel_dir/vmlinuz*$kernel_version*>;
+    my ($ramdisk) = <$kernel_dir/initrd*$kernel_version*>;
+    ($kernel) ||= </boot/vmlinuz-*xen>;
+    ($ramdisk) ||= </boot/initrd-*xen.img>;
+    my $cpu = $vos->{cpu} || 1;
+    my $time_dt = $prov->get_datetime_from_epoch();
+
+    my $config = <<"EOCONF"
+# Config file generated by Provision::Unix at $time_dt
+kernel     = '$kernel'
+ramdisk    = '$ramdisk'
+memory     = $ram
+name       = '$ve_name'
+hostname   = '$hostname'
+vif        = ['ip=$ip_list, vifname=vif${ctid},  mac=$mac']
+vnc        = 0
+vncviewer  = 0
+serial     = 'pty'
+disk       = ['phy:$image_path,sda1,w', 'phy:$swap_path,sda2,w']
+root       = '/dev/sda1 ro'
+extra      = 'console=xvc0'
+vcpus      = $cpu
+EOCONF
+;
+
+    # These can also be set in the config file.
+    #console    =
+    #nics       =
+    #dhcp       =
+
+    $util->file_write( 
+        file => $config_file, 
+        lines => [$config],
+        debug => 0,
+        fatal => 0,
+    ) or return $log->error("unable to install VE config file", fatal => 0);
+
+    link $config_file, "/etc/xen/auto/$ve_name.cfg";
+    return 1;
+}
+
 sub get_console {
     my $self = shift;
     my $ve_name = $self->get_ve_name();
@@ -871,14 +928,17 @@ sub get_mac_address {
 
 sub get_status {
     my $self = shift;
+    my %p = validate( @_, { debug => { type => BOOLEAN, optional => 1 } } );
+
+    my $debug = defined $p{debug} ? $p{debug} : $vos->{debug};
 
     my $ve_name = $self->get_ve_name();
 
     $self->{status} = {};    # reset status
 
-    return $self->{status}{$ve_name} if ! $self->is_present();
+    return $self->{status}{$ve_name} if ! $self->is_present( debug => $debug );
 
-    # get IPs and disks from the containers config file
+    # get IPs and disks from the VE config file
     my ($ips, $disks, $disk_usage );
     my $config_file = $self->get_ve_config_path();
     if ( ! -e $config_file ) {
@@ -1053,11 +1113,7 @@ sub is_mounted {
 
 sub is_present {
     my $self = shift;
-    my %p = validate(
-        @_,
-        {   debug => { type => BOOLEAN, optional => 1 },
-        }
-    );
+    my %p = validate( @_, { debug => { type => BOOLEAN, optional => 1 } } );
 
     my $debug   = defined $p{debug} ? $p{debug} : $vos->{debug};
     my $name    = $self->get_ve_name();
@@ -1073,7 +1129,7 @@ sub is_present {
     foreach my $path (@possible_paths) {
         #$log->audit("\tchecking at $path") if $debug;
         if ( -e $path ) {
-            $log->audit("\tfound $name at $path");
+            $log->audit("\tfound $name at $path") if $debug;
             return $path;
         }
     }
@@ -1089,12 +1145,12 @@ sub is_running {
     my %p = validate(
         @_, 
         {   refresh => { type => SCALAR,  optional => 1, default => 1 }, 
-            debug   => { type => BOOLEAN, optional => 1, default => 1 },
+            debug   => { type => BOOLEAN, optional => 1 },
         }
     );
 
-    $self->get_status() if $p{refresh};
     my $debug = defined $p{debug} ? $p{debug} : $vos->{debug};
+    $self->get_status( debug => $debug ) if $p{refresh};
 
     my $ve_name = $self->get_ve_name();
 
@@ -1122,7 +1178,7 @@ sub is_enabled {
     my $ve_name     = $p{name} || $self->get_ve_name();
     my $config_file = $self->get_ve_config_path();
 
-    $log->audit("testing if virtual container $ve_name is enabled");
+    $log->audit("testing if virtual VE $ve_name is enabled");
 
     if ( -e $config_file ) {
         $log->audit("\tfound $ve_name at $config_file") if $p{debug};
@@ -1131,6 +1187,39 @@ sub is_enabled {
 
     $log->audit("\tdid not find $config_file");
     return;
+}
+
+sub is_valid_template {
+
+    my $self = shift;
+    my $template = shift || $vos->{template} or return;
+
+    my $template_dir = $self->get_template_dir();
+    return $template if -f "$template_dir/$template.tar.gz";
+
+    # is $template a URL?
+    if ( $template =~ /http|rsync/ ) {
+        $log->audit("fetching $template");
+        my $uri = URI->new($template);
+        my @segments = $uri->path_segments;
+        my @path_bits = grep { /\w/ } @segments;  # ignore empty fields
+        my $file = $segments[-1];
+
+        $prov->audit("fetching $file from " . $uri->host);
+        $util->file_get( url => $template, dir => $template_dir, fatal => 0, debug => 0 );
+
+        if ( -f "$template_dir/$file" ) {
+            ($file) = $file =~ /^(.*)\.tar\.gz$/;
+            return $file;
+        };
+    }
+
+    return $template if -f "$template_dir/$template.tar.gz";
+
+    return $log->error( "template '$template' does not exist and is not a valid URL",
+        debug => $vos->{debug},
+        fatal => $vos->{fatal},
+    );
 }
 
 sub lvm_in_use {
@@ -1298,7 +1387,7 @@ EOFSTAB
 sub set_hostname {
     my $self = shift;
 
-    $self->stop_virtualos() or return;
+    $self->stop() or return;
     $self->mount_disk_image() or return;
 
     $linux->set_hostname( 
@@ -1308,7 +1397,7 @@ sub set_hostname {
     or $log->error("unable to set hostname", fatal => 0);
 
     $self->unmount_disk_image();
-    $self->start_virtualos() or return;
+    $self->start() or return;
     return 1;
 };
 
@@ -1398,7 +1487,7 @@ sub set_password {
 
     if ( ! $arg || $arg ne 'setup' ) {
         if ( $self->is_running( debug => 0 ) ) {
-            $self->stop_virtualos() or return;
+            $self->stop() or return;
             $i_stopped++;
         };
     
@@ -1409,13 +1498,13 @@ sub set_password {
     my $errors;
 
     # set the VE root password
-    $self->set_password_root() or $errors++;
-    $self->set_ssh_key()       or $errors++;
+    $self->set_password_root()    or $errors++;
+    $self->set_ssh_key()          or $errors++;
     $self->set_password_console() or $errors++;
 
     if ( ! $arg || $arg ne 'setup' ) {
         $self->unmount_disk_image() if $i_mounted;
-        $self->start_virtualos() if $i_stopped;
+        $self->start() if $i_stopped;
     };
     return 1 if ! $errors;
     return;
@@ -1424,8 +1513,8 @@ sub set_password {
 sub set_password_console {
     my $self = shift;
 
-    my $ve_name = $self->get_ve_name();
     my $pass    = $vos->{password} or return 1;
+    my $ve_name = $self->get_ve_name();
 
     $user ||= Provision::Unix::User->new( prov => $prov );
 
@@ -1467,7 +1556,7 @@ sub set_password_root {
         s/root\:.*?\:/root\:$crypted\:/ if m/^root\:/;
     };
 
-    $util->file_write( file => $pass_file, lines => \@lines, debug => $debug, fatal => 0 );
+    $util->file_write( file => $pass_file, lines => \@lines, debug => $debug, fatal => 0 ) or return;
     $log->audit( "VE root password set." );
     return 1;
 };
@@ -1476,7 +1565,7 @@ sub set_ssh_key {
     my $self = shift;
 
     # install the SSH key
-    return if ! $vos->{ssh_key};
+    return 1 if ! $vos->{ssh_key};
 
     $user ||= Provision::Unix::User->new( prov => $prov );
 
@@ -1531,113 +1620,15 @@ sub unmount_snapshot {
     return 1;
 };
 
-sub gen_config {
-    my $self = shift;
-
-    my $ctid        = $vos->{name};
-    my $ve_name     = $self->get_ve_name();
-    my $config_file = $self->get_ve_config_path();
-    #warn "config file: $config_file\n" if $vos->{debug};
-
-    my $ram      = $self->get_ve_ram();
-    my $hostname = $vos->{hostname} || $ctid;
-
-    my @ips      = @{ $vos->{ip} };
-    my $ip_list  = shift @ips;
-    foreach ( @ips ) { $ip_list .= " $_"; };
-    my $mac      = $self->get_mac_address();
-
-    my $image_path = $self->get_disk_image(1);
-    my $swap_path  = $self->get_swap_image(1);
-    my $kernel_dir = $self->get_kernel_dir();
-    my $kernel_version = $self->get_kernel_version();
-
-    my ($kernel) = <$kernel_dir/vmlinuz*$kernel_version*>;
-    my ($ramdisk) = <$kernel_dir/initrd*$kernel_version*>;
-    ($kernel) ||= </boot/vmlinuz-*xen>;
-    ($ramdisk) ||= </boot/initrd-*xen.img>;
-    my $cpu = $vos->{cpu} || 1;
-    my $time_dt = $prov->get_datetime_from_epoch();
-
-    my $config = <<"EOCONF"
-# Config file generated by Provision::Unix at $time_dt
-kernel     = '$kernel'
-ramdisk    = '$ramdisk'
-memory     = $ram
-name       = '$ve_name'
-hostname   = '$hostname'
-vif        = ['ip=$ip_list, vifname=vif${ctid},  mac=$mac']
-vnc        = 0
-vncviewer  = 0
-serial     = 'pty'
-disk       = ['phy:$image_path,sda1,w', 'phy:$swap_path,sda2,w']
-root       = '/dev/sda1 ro'
-extra      = 'console=xvc0'
-vcpus      = $cpu
-EOCONF
-;
-
-    # These can also be set in the config file.
-    #console    =
-    #nics       =
-    #dhcp       =
-
-    $util->file_write( 
-        file => $config_file, 
-        lines => [$config],
-        debug => 0,
-        fatal => 0,
-    ) or return $log->error("unable to install VE config file", fatal => 0);
-
-    link $config_file, "/etc/xen/auto/$ve_name.cfg";
-    return 1;
-}
-
-sub is_valid_template {
-
-    my $self = shift;
-    my $template = shift || $vos->{template} or return;
-
-    my $template_dir = $self->get_template_dir();
-    return $template if -f "$template_dir/$template.tar.gz";
-
-    # is $template a URL?
-    if ( $template =~ /http|rsync/ ) {
-        $log->audit("fetching $template");
-        my $uri = URI->new($template);
-        my @segments = $uri->path_segments;
-        my @path_bits = grep { /\w/ } @segments;  # ignore empty fields
-        my $file = $segments[-1];
-
-        $prov->audit("fetching $file from " . $uri->host);
-        $util->file_get( url => $template, dir => $template_dir, fatal => 0, debug => 0 );
-
-        if ( -f "$template_dir/$file" ) {
-            ($file) = $file =~ /^(.*)\.tar\.gz$/;
-            return $file;
-        };
-    }
-
-    return $template if -f "$template_dir/$template.tar.gz";
-
-    return $log->error( "template '$template' does not exist and is not a valid URL",
-        debug => $vos->{debug},
-        fatal => $vos->{fatal},
-    );
-}
-
 1;
 
 __END__
 
 =head1 NAME
 
-Provision::Unix::VirtualOS::Linux::Xen - Provision Xen containers
+Provision::Unix::VirtualOS::Linux::Xen - Provision Xen VEs
 
 =head1 SYNOPSIS
-
-
-=head1 FUNCTIONS
 
 
 =head1 AUTHOR

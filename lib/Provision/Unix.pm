@@ -1,6 +1,6 @@
 package Provision::Unix;
 
-our $VERSION = '0.78';
+our $VERSION = '0.79';
 
 use warnings;
 use strict;
@@ -57,7 +57,7 @@ sub audit {
 
     if ($mess) {
         push @{ $self->{audit} }, $mess;
-        warn "$mess\n" if $self->{debug};
+        print STDERR "$mess\n" if $self->{debug};
     }
 
     return $self->{audit};
@@ -94,6 +94,7 @@ sub dump_errors {
         next if $i < $last_line;
         print STDERR "ERROR: '$_->{errmsg}' \t\t at $_->{errloc}\n";
     };
+    print "\n";
     $self->{last_error} = $i;
     return;
 };
@@ -310,35 +311,46 @@ Provision::Unix - provision accounts on unix systems
 
 =head1 SYNOPSIS
 
-Provision::Unix is an application to create, modify, and destroy accounts
-on Unix systems in a reliable and consistent manner. 
+    use Provision::Unix;
 
-    prov_user.pl --action=create --username=matt --pass='neat0app!'
-    prov_dns.pl  --action=create --zone=example.com
-    prov_web.pl  --action=create --vhost=www.example.com
+    my $foo = Provision::Unix->new();
+    ...
+
+    prov_dns     --action=create --zone=example.com
+    prov_user    --action=create --username=matt --pass='neat0app!'
+    prov_virtual --action=create --name=testVPS
+    prov_web     --action=create --vhost=www.example.com
+
+=head1 DESCRIPTION
+
+Provision::Unix is a suite of applications to create, modify, and destroy 
+accounts on Unix systems in a reliable and consistent manner.
+
+Command line scripts are provided for humans to perform provisioning actions 
+by hand. See the documentation included in each of the prov_* scripts. 
+Programmers and automated systems should be loading the Provision::Unix 
+modules and calling the methods directly. The API provided by each method is
+stable and only changes when additional parameters are added.
 
 The types of accounts that can be provisioned are organized by class with each
-class including a standard set of operations. All classes support at least
-create and destroy operations.  Additional common operations are: modify, 
-enable, and disable.
+class including a standard set of methods. All classes support at least
+create and destroy. Additional common methods are: modify, enable, and disable.
 
 Each class (DNS, User, VirtualOS, Web) has a general module that 
 contains the logic for selecting and dispatching requests to sub-classes which
 are implementation specific. Selecting and dispatching is done based on the
-environment and configuration file settings at run time.
+environment and configuration file settings at run time. 
 
 For example, Provision::Unix::DNS contains all the general logic for dns
 operations (create a zone, record, alias, etc). Subclasses contain 
 specific information such as how to provision a DNS record for nictool,
 BIND, or tinydns.
 
+Not all specific modules are fully implemented yet. 
+Ex: Provision::Unix::VirtualOS::Linux::Xen is fully implemented, 
+where Provision::Unix::VirtualOS::FreeBSD::Jail is not.
+
 Browse the perl modules to see which modules are available.
-
-    use Provision::Unix;
-
-    my $foo = Provision::Unix->new();
-    ...
-
 
 =head1 Programming Conventions
 
@@ -346,7 +358,7 @@ All functions/methods adhere to the following:
 
 =head2 Exception Handling
 
-Errors throw exceptions. This can be overridden by calling the method with fatal=>0. If you do so, you must write code to handle the errors. 
+Errors throw exceptions. This can be overridden by calling the method with fatal=0. If you do so, you must write code to handle the errors. 
 
 This call will throw an exception since it cannot find the file. 
 
@@ -358,14 +370,15 @@ Setting fatal will cause it to return undef instead:
 
 =head2 Warnings and Messages
 
-Methods have an optional debug parameter that defaults to enabled. Often, that means methods spit out more messages than you want to see. You can supress them by setting debug=>0.
+Methods have an optional debug parameter that defaults to enabled. Often, that means methods spit out more messages than you want. Supress them by setting debug=0.
 
 Supressed messages are not lost! All error messages are stored in $prov->errors and all status messages are in $prov->audit. You can dump those arrays any time to to inspect the status or error messages. A handy way to do so is:
 
   $prov->error('test breakpoint');
 
-That will dump the contents of $prov->audit and $prov->errors and then terminate your program. If you want your program to continue after calling $prov->error, just set fatal=>0. 
+That will dump the contents of $prov->audit and $prov->errors and then terminate your program. If you want your program to continue after calling $prov->error, just set fatal=0. 
 
+  $prov->error('test breakpoint', fatal => 0);
 
 =head1 FUNCTIONS
 
@@ -375,12 +388,24 @@ Creates and returns a new Provision::Unix object.
 
 As part of initialization, new() finds and reads in provision.conf from /[opt/usr]/local/etc, /etc, and the current working directory. 
 
-=head2 find_config
 
-Searches in common etc directories for a named configuration file.
+=head2 audit
 
-  my $config = $self->find_config( file => 'provision.conf', debug=>0 );
+audit is a method that appends messages to an internal audit log. Rather than spewing messages to stdout or stderr, they are stored as a list. The list can can be inspected by calling $prov->audit or it can be printed by calling $prov->dump_audit.
 
+  $prov->audit("knob fitzerbaum twiddled to setting 5");
+
+If the debug option is set ($prov->{debug}), audit messages are also printed to stderr. 
+
+returns an arrayref of audit messages.
+
+=head2 dump_audit
+
+dump_audit prints out any audit/status messages that have accumulated since the last time dump_audit was called. It is particularly useful for RPC agents that poll for status updates during long running processes.
+
+=head2 dump_error
+
+Same as dump_audit, except dumps the error history report.
 
 =head2 error
 
@@ -390,7 +415,7 @@ Examples:
 
  $prov->error( 'could not write to file /etc/passwd' );
 
-This error is fatal and will throw an exception, after dumping the contents of $prov->audit and the last error message from $prov->errors to stderr. 
+This error is fatal and will throw an exception, after printing the contents of the audit log and the last error message to stderr. 
 
 A very helpful thing to do is call error with a location as well:
 
@@ -398,13 +423,18 @@ A very helpful thing to do is call error with a location as well:
     location => join( ", ", caller ),
  );
 
-Doing so will tell you where the error message was encountered as well as what called the method. The latter is more likely where the error exists, making location a very beneficial thing to pass along.
+Doing so will tell reveal in the error log exactly where the error was encountered as well as who called the method. The latter is more likely where the error exists, making location a very beneficial parameter.
 
-=head2 audit
 
-audit is a method that appends messages to an internal audit log. Rather than spewing messages to stdout or stderr, they all get appended to an array. They can then be inspected whenever desired by calling $prov->audit and examining the result. I expect to add additional support to that method for logging the messages to a file or SQL table.
+=head2 find_config
 
-returns an arrayref of audit messages.
+Searches in common etc directories for a named configuration file.
+
+  my $config = $self->find_config( file => 'provision.conf', debug=>0 );
+
+=head2 get_last_error
+
+prints and returns the last error encountered.
 
 =head1 AUTHOR
 

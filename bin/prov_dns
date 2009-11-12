@@ -171,11 +171,11 @@ sub dns_modify {
 
 =head1 NAME 
 
-prov_dns.pl - a command line interface for provisioning dns zones
+prov_dns - a command line interface for provisioning dns zones
 
 =head1 SYNOPSIS
 
-  prov_dns.pl --action=[]
+  prov_dns --action=[]
 
 Action is one of the following:
 
@@ -203,13 +203,13 @@ Other parameters are optional. Unless you specify --noprompt, you will be prompt
 
 =head1 USAGE
  
- prov_dns.pl --action create  
- prov_dns.pl --action delete
+ prov_dns --action create  
+ prov_dns --action delete
  
 
 =head1 DESCRIPTION
  
-prov_dns.pl is a command line interface to the Provision::DNS provisioning modules. 
+prov_dns is a command line interface to the Provision::DNS provisioning modules. 
 
  
 =head1 CONFIGURATION AND ENVIRONMENT

@@ -33,7 +33,7 @@ sub new {
     return $self;
 }
 
-sub create_virtualos {
+sub create {
     my $self = shift;
     my ($prov, $vos, $util) = ($self->{prov}, $self->{vos}, $self->{util});
     my $linux = $self->{linux};
@@ -44,7 +44,7 @@ sub create_virtualos {
         or $prov->error( "That requires root privileges." ); 
 
     # make sure it doesn't exist already
-    return $prov->error( "container $ctid already exists",
+    return $prov->error( "VE $ctid already exists",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
     ) if $self->is_present();
@@ -54,8 +54,8 @@ sub create_virtualos {
     my $min = $prov->{config}{VirtualOS}{id_min};
     my $max = $prov->{config}{VirtualOS}{id_max};    
     if ( $ctid =~ /^\d+$/ ) {
-        $err = "container must be greater than $min" if ( $min && $ctid < $min );
-        $err = "container must be less than $max"    if ( $max && $ctid > $max );
+        $err = "VE must be greater than $min" if ( $min && $ctid < $min );
+        $err = "VE must be less than $max"    if ( $max && $ctid > $max );
     };
 
     if ( $err && $err ne '' ) {
@@ -65,7 +65,7 @@ sub create_virtualos {
         );
     }
 
-    $prov->audit("\tcontainer '$ctid' does not exist, creating...");
+    $prov->audit("\tVE '$ctid' does not exist, creating...");
 
 #/usr/sbin/vzctl create 72000 --pkgset centos-4 --config vps.256MB
 
@@ -112,7 +112,7 @@ sub create_virtualos {
         sleep 1;
         $self->set_password()    if $vos->{password};
         sleep 1;
-        $self->start_virtualos();
+        $self->start();
 
         return $prov->audit("\tvirtual os created");
     }

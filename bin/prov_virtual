@@ -85,7 +85,7 @@ my %request = ( debug => $debug, fatal => 0, name => lc($name) );
 : $action eq 'migrate'  ? migrate()
 : die "oops, the action ($action) is invalid\n";
 
-$prov->error() if $debug;
+$prov->error( fatal => 0 ) if $debug;
 print "done.\n";
 exit;
 
@@ -104,39 +104,39 @@ sub create {
     $prov->audit("dispatching creation request");
 
     foreach ( keys %request ) { delete $request{$_} if ! defined $request{$_}; };
-    print Dumper( $vos->create_virtualos( %request ) );
+    print Dumper( $vos->create( %request ) );
 }
 
 sub destroy {
     foreach ( keys %request ) { delete $request{$_} if ! defined $request{$_}; };
-    print Dumper( $vos->destroy_virtualos( %request ) );
+    print Dumper( $vos->destroy( %request ) );
 }
 sub start {
     foreach ( keys %request ) { delete $request{$_} if ! defined $request{$_}; };
-    print Dumper( $vos->start_virtualos( %request ) );
+    print Dumper( $vos->start( %request ) );
 }
 sub stop {
     foreach ( keys %request ) { delete $request{$_} if ! defined $request{$_}; };
-    print Dumper( $vos->stop_virtualos( %request ) );
+    print Dumper( $vos->stop( %request ) );
 }
 sub restart {
     foreach ( keys %request ) { delete $request{$_} if ! defined $request{$_}; };
-    print Dumper( $vos->restart_virtualos( %request ) );
+    print Dumper( $vos->restart( %request ) );
 }
 sub disable {
     foreach ( keys %request ) { delete $request{$_} if ! defined $request{$_}; };
-    print Dumper( $vos->disable_virtualos( %request ) );
+    print Dumper( $vos->disable( %request ) );
 }
 sub enable {
     foreach ( keys %request ) { delete $request{$_} if ! defined $request{$_}; };
-    print Dumper( $vos->enable_virtualos( %request ) );
+    print Dumper( $vos->enable( %request ) );
 }
 sub modify {
     $request{hostname} = $hostname || $util->ask( $questions->{hostname} );
     $request{password} = $password || $util->ask( $questions->{password} );
     $request{ip}       = $ip       || $util->ask( $questions->{ip} );
     foreach ( keys %request ) { delete $request{$_} if ! defined $request{$_}; };
-    print Dumper( $vos->modify_virtualos( %request ) );
+    print Dumper( $vos->modify( %request ) );
 }
 sub probe {
     foreach ( keys %request ) { delete $request{$_} if ! defined $request{$_}; };
@@ -163,22 +163,22 @@ sub migrate {
     $request{new_node} = $new_node || $util->ask( "the destination HW node hostname or IP" );
     $request{connection_test} = $connection_test || $util->ask( "only test the connection", default => 0 );
     foreach ( keys %request ) { delete $request{$_} if ! defined $request{$_}; };
-    print Dumper( $vos->migrate_virtualos( %request ) );
+    print Dumper( $vos->migrate( %request ) );
 }
 
 __END__
 
 =head1 NAME 
 
-prov_virtual.pl - a command line interface for provisioning virtual machines
+prov_virtual - a command line interface for provisioning virtual machines
 
 =head1 SYNOPSIS
 
-    prov_virtual.pl --action= [--name example.com]
+    prov_virtual --action= [--name example.com]
 
 Action is one of the following:
 
-  create   - creates a new virtual machine/container/server
+  create   - creates a new virtual environment/machine/server
   destroy  - remove a VE from the system
   start    - start up a VE
   stop     - shut down a VE
@@ -196,14 +196,14 @@ optional arguments: ip, hostname, template, config, password, nameservers, searc
 
 =head1 USAGE
  
- prov_virtual.pl --action=create  --name=8675309
- prov_virtual.pl --action=destroy --name=9001
- prov_virtual.pl --action=modify  --name=example.ve
+ prov_virtual --action=create  --name=8675309
+ prov_virtual --action=destroy --name=9001
+ prov_virtual --action=modify  --name=example.ve
 
 
 =head1 DESCRIPTION
  
-prov_virtual.pl is a consistent command line interface for provisioning virtual environments on various virtualization platforms. Support is included for OpenVZ, Xen, and FreeBSD jails.
+prov_virtual is a consistent command line interface for provisioning virtual environments on various virtualization platforms. Support is included for OpenVZ, Xen, and FreeBSD jails.
 
  
 =head1 CONFIGURATION AND ENVIRONMENT

@@ -52,7 +52,7 @@ sub rpc_send {
         die {
             status  => 'error',
             type    => 'protocol',
-            message => 'Remote unexpectedly closed pipe'
+            message => 'Remote unexpectedly closed pipe',
         };
     };
     $outs->print("$msg\n");
@@ -131,7 +131,7 @@ sub run {
             rpc_send( { 
                 status  => 'error',
                 type    => 'syntax',
-                message => 'Malformed message: parse error'
+                message => 'Malformed message: parse error',
             });
             next;
         };
@@ -180,13 +180,17 @@ sub do_prov_call {
     my $suffix = '_' . lc($pkg);
     $pkg = 'Provision::Unix::' . $pkg;
 
+    my %result = (
+        id      => $req->{id},
+        status  => 'error',
+    );
+
     eval "require $pkg;";
     die {
-        status  => 'error',
         type    => 'dispatch',
         message => "Error loading provisioning module $pkg",
         debug   => $@,
-        id      => $req->{id},
+        %result,
     } if $@;
 
     my $params = $req->{params} || {};
@@ -201,30 +205,34 @@ sub do_prov_call {
     }
     else {
         die {
-            status  => 'error',
             type    => 'dispatch',
             message => "Unknown action '$action'",
-            id      => $req->{id},
+            %result,
         };
     }
 
+    $result{status} = 'debug';
     rpc_send( {
-        status  => 'debug',
         message => "Calling '$pkg'::'$method'",
-        id      => $req->{id},
         data    => $params,
+        %result,
     });
+    $result{status} = 'error';
 
     my $rv;
     eval { $rv = $instance->$method( defined $params ? %$params : () ); };
-    die {
-        status    => 'error',
-        type      => 'operation',
-        id        => $req->{id},
-        message   => $prov->get_last_error(),
-        audit     => $prov->audit,
-        exception => $@,
-    } if ! $rv;
+
+    $result{exception} = $@ if $@;
+
+    if ( $@ || ! $rv ) {
+        die {
+            %result,
+            type      => 'operation',
+            message   => $prov->get_last_error(),
+            audit     => $prov->audit,
+        }; 
+    };
+
     return $rv;
 }
 

@@ -3,7 +3,7 @@ package Provision::Unix::VirtualOS;
 use warnings;
 use strict;
 
-our $VERSION = '0.45';
+our $VERSION = '0.46';
 
 use Data::Dumper;
 use English qw( -no_match_vars );
@@ -66,9 +66,9 @@ sub new {
     return $self;
 }
 
-sub create_virtualos {
+sub create {
 
-# Usage      : $virtual->create_virtualos( name => 'mysql', ip=>'127.0.0.2' );
+# Usage      : $virtual->create( name => 'mysql', ip=>'127.0.0.2' );
 # Purpose    : create a virtual OS instance
 # Returns    : true or undef on failure
 # Parameters :
@@ -118,12 +118,12 @@ sub create_virtualos {
 
     my ($delegate) = $self->{vtype} =~ m/^(.*)=HASH/;
     $prov->audit("\tdelegating create request to $delegate");
-    $self->{vtype}->create_virtualos();
+    $self->{vtype}->create();
 }
 
-sub destroy_virtualos {
+sub destroy {
 
-    # Usage      : $virtual->destroy_virtualos( name => 'mysql' );
+    # Usage      : $virtual->destroy( name => 'mysql' );
     # Purpose    : destroy a virtual OS instance
     # Returns    : true or undef on failure
     # Parameters :
@@ -145,12 +145,12 @@ sub destroy_virtualos {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
-    $self->{vtype}->destroy_virtualos();
+    $self->{vtype}->destroy();
 }
 
-sub start_virtualos {
+sub start {
 
-    # Usage      : $virtual->start_virtualos( name => 'mysql' );
+    # Usage      : $virtual->start( name => 'mysql' );
     # Purpose    : start a virtual OS instance
     # Returns    : true or undef on failure
     # Parameters :
@@ -169,12 +169,12 @@ sub start_virtualos {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
-    $self->{vtype}->start_virtualos();
+    $self->{vtype}->start();
 }
 
-sub stop_virtualos {
+sub stop {
 
-    # Usage      : $virtual->stop_virtualos( name => 'mysql' );
+    # Usage      : $virtual->stop( name => 'mysql' );
     # Purpose    : stop a virtual OS instance
     # Returns    : true or undef on failure
     # Parameters :
@@ -194,12 +194,12 @@ sub stop_virtualos {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
-    $self->{vtype}->stop_virtualos();
+    $self->{vtype}->stop();
 }
 
-sub restart_virtualos {
+sub restart {
 
-    # Usage      : $virtual->restart_virtualos( name => 'mysql' );
+    # Usage      : $virtual->restart( name => 'mysql' );
     # Purpose    : restart a virtual OS instance
     # Returns    : true or undef on failure
     # Parameters :
@@ -218,12 +218,12 @@ sub restart_virtualos {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
-    $self->{vtype}->restart_virtualos();
+    $self->{vtype}->restart();
 }
 
-sub disable_virtualos {
+sub disable {
 
-    # Usage      : $virtual->disable_virtualos( name => 'mysql' );
+    # Usage      : $virtual->disable( name => 'mysql' );
     # Purpose    : disable a virtual OS instance
     # Returns    : true or undef on failure
     # Parameters :
@@ -244,12 +244,12 @@ sub disable_virtualos {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
-    $self->{vtype}->disable_virtualos();
+    $self->{vtype}->disable();
 }
 
-sub enable_virtualos {
+sub enable {
 
-    # Usage      : $virtual->enable_virtualos( name => 'mysql' );
+    # Usage      : $virtual->enable( name => 'mysql' );
     # Purpose    : enable/reactivate/unsuspend a virtual OS instance
     # Returns    : true or undef on failure
     # Parameters :
@@ -270,10 +270,10 @@ sub enable_virtualos {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
-    $self->{vtype}->enable_virtualos();
+    $self->{vtype}->enable();
 }
 
-sub migrate_virtualos {
+sub migrate {
     my $self = shift;
     my @req_scalars = qw/ name new_node /;
     my %req_scalars = map { $_ => { type => SCALAR } } @req_scalars;
@@ -298,13 +298,13 @@ sub migrate_virtualos {
 
     $prov->audit("\tdelegating request to $self->{vtype}");
 
-    $self->{vtype}->migrate_virtualos();
+    $self->{vtype}->migrate();
 };
 
-sub modify_virtualos {
+sub modify {
 
-    # Usage      : $virtual->modify_virtualos( name => 'mysql' );
-    # Purpose    : modify a container
+    # Usage      : $virtual->modify( name => 'mysql' );
+    # Purpose    : modify a VE
     # Returns    : true or undef on failure
     # Parameters :
     #   Required : name      - name/ID of the virtual OS
@@ -312,13 +312,13 @@ sub modify_virtualos {
     my $self = shift;
     my @req_scalars = qw/ name disk_size hostname ip ram /;
     my %req_scalars = map { $_ => { type => SCALAR } } @req_scalars;
-    my @opt_scalars = qw/ config cpu disk_root disk_size 
-                          nameservers password searchdomain ssh_key template /;
+    my @opt_scalars = qw/ config cpu disk_root nameservers 
+                          password searchdomain ssh_key template /;
     my %opt_scalars = map { $_ => { type => SCALAR, optional => 1 } } @opt_scalars;
 
     my %p = validate( @_, {   %req_scalars, %opt_scalars, %std_opts, } );
 
-    $prov->audit("initializing request to modify container '$p{name}'");
+    $prov->audit("initializing request to modify VE '$p{name}'");
 
     foreach ( @req_scalars, @opt_scalars, @std_opts ) {
         $self->{$_} = $p{$_} if defined $p{$_};
@@ -328,12 +328,12 @@ sub modify_virtualos {
 
     $prov->audit("\tdelegating request to $self->{vtype}");
 
-    $self->{vtype}->modify_virtualos();
+    $self->{vtype}->modify();
 }
 
-sub reinstall_virtualos {
+sub reinstall {
 
-# Usage      : $virtual->reinstall_virtualos( name => 'mysql', ip=>'127.0.0.2' );
+# Usage      : $virtual->reinstall( name => 'mysql', ip=>'127.0.0.2' );
 # Purpose    : reinstall the OS in virtual machine
 # Returns    : true or undef on failure
 # Parameters :
@@ -375,14 +375,8 @@ sub reinstall_virtualos {
     $self->{nameservers} = $self->get_ips( $p{nameservers} ) if $p{nameservers};
 
     $prov->audit("\tdelegating request to $self->{vtype}");
-    $self->{vtype}->reinstall_virtualos();
+    $self->{vtype}->reinstall();
 }
-
-sub upgrade_virtualos {
-# backwards compat, remove after 11/1/09
-    my $self = shift;
-    $self->modify_virtualos( @_ );
-};
 
 sub mount_disk_image {
     my $self = shift;
@@ -737,6 +731,27 @@ sub set_password {
     return $self->{vtype}->set_password();
 }
 
+sub set_ssh_key {
+    my $self = shift;
+    my %p = validate(
+        @_,
+        {   name      => { type => SCALAR },
+            user      => { type => SCALAR | UNDEF, optional => 1 },
+            disk_root => { type => SCALAR,  optional => 1 },
+            ssh_key   => { type => SCALAR,  optional => 1 },
+            %std_opts,
+        }
+    );
+
+    $self->{user} = $p{user} || 'root';
+
+    foreach ( qw/ name ssh_key disk_root /, @std_opts ) {
+        $self->{$_} = $p{$_} if defined $p{$_};
+    };
+
+    return $self->{vtype}->set_ssh_key();
+}
+
 sub setup_log_files {
     my $self = shift;
 
@@ -900,8 +915,8 @@ sub _get_virt_type_linux {
     if ( $vzctl && ! $xm ) {
         # this could be Virtuozzo or OpenVZ. The way to tell is by
         # checking for the presence of /vz/template/cache (OpenVZ only) 
-        # also, a Virtuozzo container will have a cow directory inside the
-        # container home directory.
+        # also, a Virtuozzo VE will have a cow directory inside the
+        # VE home directory.
         if ( -d "/vz/template" ) {
             if ( -d "/vz/template/cache" ) {
                 require Provision::Unix::VirtualOS::Linux::OpenVZ;
@@ -932,18 +947,105 @@ __END__
 
 =head1 NAME
 
-Provision::Unix::VirtualOS - Provision virtual OS instances (jail|vps|container)
+Provision::Unix::VirtualOS - Provision virtual environments (VEs)
 
 =head1 SYNOPSIS
 
-
+    use Provision::Unix;
     use Provision::Unix::VirtualOS;
 
-    my $foo = Provision::Unix::VirtualOS->new();
-    ...
+    my $prov = Provision::Unix->new();
+    my $vos = Provision::Unix::VirtualOS->new( prov => $prov );
 
+    $vos->create(
+         name        => 42,
+         password    => 't0ps3kretWerD',
+         ip          => '10.1.1.43',
+         hostname    => 'test_debian_5.example.com',
+         disk_size   => 1000,
+         ram         => 512,
+         template    => 'debian-5-i386-default.tar.gz',
+         nameservers => '10.1.1.2 10.1.1.3',
+         searchdomain => 'example.com',
+    )
+    or $prov->error( "unable to create VE" );
+
+
+=head1 DESCRIPTION
+
+Provision::Unix::VirtualOS aims to provide a clean, consistent way to manage virtual machines on a variety of virtualization platforms including Xen, OpenVZ, Vmware, FreeBSD jails, and others. P:U:V provides a command line interface (prov_virtual) and a stable programming interface (API) for provisioning virtual machines on supported platforms. To start a VE on any supported virtualization platform, you run this command:
+
+  prov_virtual --name=42 --action=start
+
+Versus this:
+
+  xen: xm create /home/xen/42/42.cfg
+  ovz: vzctl start 42
+  ezj: ezjail-admin start 42
+
+P:U:V tries very hard to insure that every valid command that can succeed will. There is abundant code for handling common errors, such as unmounting xen volumes before starting a VE, making sure a disk volume is not in use before mounting it, and making sure connectivity to the new HW node exists before attempting to migrate.
+
+In addition to the pre-flight checks, there are also post-action checks to determine if the action succeeded. When actions fail, they provide reasonably good error messages geared towards comprehension by sysadmins. Where feasible, actions that fail are rolled back so that when the problem(s) is corrected, the action can be safely retried.
+
+
+=head1 USAGE
+
+If you are looking for a command line utility, have a look at the docs for prov_virtual. If you are looking to mate an existing Customer Relationship Manager (CRM) or billing system (like Ubersmith, WHMCS, Modernbill, etc..) with a rack full of hardware nodes, this class is it. There are two existing implementations, the prov_virtual CLI, and an RPC agent. The CLI and remote portion of the RPC agent is included in the distribution as bin/remoteagent. 
+
+=head2 CLI
+
+The best way to interface with P:U:V is using a RPC agent to drive this class directly. However, doing so requires a programmer to write an application that accepts/processes requests from your CRMS system and formats them into P:U:V requests. 
+
+If you don't have the resources to write your own RPC agent, and your CRM/billing software supports it, you may be able to dispatch the requests to the HW nodes via a terminal connection. If you do this, your CRM software will need to inspect the result code of the script to determine success or failure. 
+
+P:U calls are quiet by default. If you want to see all the logging, append each CLI request with --verbose. Doing so will dump the audit and error reports to stdout. 
+
+=head2 API
+
+The implementation I use implements RPC over SSH. The billing system we use is rather 'limited' so I wrote a separate request brokering application (maitred). It uses the billing systems API as a trigger to perform basic account management actions (create, destroy, enable, disable). We also provide a control panel so our clients can manage their VEs. The control panel also generates requests (start, stop, install, reinstall, reboot, upgrade, etc). Administrators also have their own control panel which also generates requests.
+
+When a request is initiated, the broker allocates any necessary resources (IPs, licences, a slot on a HW node, etc) and then dispatches the request. The dispatcher builds an appropriate SSH invocation that connects to the remote HW node and runs the remoteagent. Once connected to the remoteagent, the P:U:V class is loaded and its  methods are invoked directly. The RPC agent checks the result code of each call, as well as the audit and error logs, feeding those request events back. The RPC local agent logs the request events into the request brokers database so there's a complete audit trail.
+
+=head2 RPC methods
+
+RPC is often implemented over HTTP, using SOAP or XML::RPC. However, our VEs are deployed with local storage. We needed the ability to move a VE from one node to another. In addition to the broker to node relationship, we would have also need temporary trust relationships between the nodes, in order to move files between them with root permissions. 
+
+The trust relationships are much easier to manage with SSH keys. In our environment, only the request brokers are trusted. In addition to being able to connect to any node, they can also connect from node to node using using ssh-agent and key forwarding. 
+
+=head2 RPC gotcha
+
+The $vos->migrate() function expects to be running as a user that has the ability to initiate a SSH connection from the node on which it's running, to the node on which you are moving the VE. Our RPC agent connects to the HW nodes as the maitred user and then invokes the remoteagent using sudo. Our sudo config on the HW nodes looks like this: 
+
+    Cmnd_Alias MAITRED_CMND=/usr/bin/remoteagent, /usr/bin/prov_virtual
+    maitred     ALL=NOPASSWD: SETENV: MAITRED_CMND
+
+Since the RPC remoteagent is running as root, the request broker has access to a wide variety of tools (tar over ssh pipe, rsync, etc) to move files from one node to another, without the nodes having any sort of trust relationship between them. 
 
 =head1 FUNCTIONS
+
+    $vos->start(   name => 42 );
+    $vos->stop(    name => 42 );
+    $vos->restart( name => 42 );
+
+    $vos->enable(  name => 42 );
+    $vos->disable( name => 42 );
+
+    $vos->set_hostname(    name => 42, hostname => 'new-host.example.com' );
+    $vos->set_nameservers( name => 42, nameservers => '10.1.1.3 10.1.1.4' );
+    $vos->set_password(    name => 42, password    => 't0ps3kretWerD' );
+    $vos->set_ssh_key(     name => 42, ssh_key     => 'ssh-rsa AAAAB3N..' );
+
+    $vos->modify(
+        name      => 42,
+        disk_size => 2000,
+        hostname  => 'new-host.example.com',
+        ip        => '10.1.1.43 10.1.1.44',
+        ram       => 768,
+    );
+
+    $vos->get_status( name => 42 );
+    $vos->migrate( name => 42, new_node => '10.1.1.13' );
+    $vos->destroy( name => 42 );
 
 
 =head1 AUTHOR
@@ -953,7 +1055,6 @@ Matt Simerson, C<< <matt at tnpi.net> >>
 =head1 BUGS
 
 Please report any bugs or feature requests to C<bug-unix-provision-virtualos at rt.cpan.org>, or through the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Provision-Unix>.  I will be notified, and then you'll automatically be notified of progress on your bug as I make changes.  
-
 
 
 =head1 SUPPORT
@@ -984,9 +1085,6 @@ L<http://cpanratings.perl.org/d/Provision-Unix-VirtualOS>
 L<http://search.cpan.org/dist/Provision-Unix-VirtualOS>
 
 =back
-
-
-=head1 ACKNOWLEDGEMENTS
 
 
 =head1 COPYRIGHT & LICENSE

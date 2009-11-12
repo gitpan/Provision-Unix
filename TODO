@@ -5,13 +5,13 @@ Every module in the Provision::Unix package adheres to the following guidelines:
 
 2. Applications (including those distributed in this package) should never call the implementation specific modules.  So long as they abide by this rule, they can be assured of a stable interface. 
 
-3. Each generic class should have a command line application in bin/ that provides an interface to the functionality in the modules. In the case of Provision::Unix::DNS, the command line application would be named bin/prov_dns.pl.
+3. Each generic class should have a command line application in bin/ that provides an interface to the functionality in the modules. In the case of Provision::Unix::DNS, the command line application would be named bin/prov_dns.
 
 4. Every class must have a corresponding suite of tests in t.
 
 
 Provision/Unix/DNS.pm
-  - prov_dns.pl
+  - prov_dns
     - add delete_zone_record function
 Provision/Unix/DNS/BIND.pm
   - needs to be authored
