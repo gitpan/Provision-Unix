@@ -1,5 +1,10 @@
 Revision history for Provision-Unix
 
+0.80 Nov 18, 2009
+  - altered t/01 so that dist passes CPAN tests more reliably
+  - made xen destroy console user throw an error instead of exception
+  - updated P:U:Utility.pm (sync with M:T)
+ 
 0.79 Nov 11, 2009
   - suppress some unnecessary debug output
   - remoteagent was exiting improperly when a request exited improperly but

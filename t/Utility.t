@@ -549,7 +549,6 @@ ok( $util->install_if_changed(
 
 # install_from_source
 ok( $util->install_from_source(
-        conf    => { foo => 1 },
         package => "ripmime-1.4.0.6",
         site    => 'http://www.pldaniels.com',
         url     => '/ripmime',
@@ -563,7 +562,6 @@ ok( $util->install_from_source(
 );
 
 ok( !$util->install_from_source(
-        conf    => { x => 1 },
         debug   => 0,
         package => "mt",
         site    => "mt",

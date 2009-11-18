@@ -1010,7 +1010,7 @@ When a request is initiated, the broker allocates any necessary resources (IPs, 
 
 RPC is often implemented over HTTP, using SOAP or XML::RPC. However, our VEs are deployed with local storage. We needed the ability to move a VE from one node to another. In addition to the broker to node relationship, we would have also need temporary trust relationships between the nodes, in order to move files between them with root permissions. 
 
-The trust relationships are much easier to manage with SSH keys. In our environment, only the request brokers are trusted. In addition to being able to connect to any node, they can also connect from node to node using using ssh-agent and key forwarding. 
+The trust relationships are much easier to manage with SSH keys. In our environment, only the request brokers are trusted. In addition to being able to connect to any node, they can also connect from node to node using ssh-agent and key forwarding. 
 
 =head2 RPC gotcha
 

@@ -1,6 +1,6 @@
 package Provision::Unix;
 
-our $VERSION = '0.79';
+our $VERSION = '0.80';
 
 use warnings;
 use strict;
@@ -425,12 +425,38 @@ A very helpful thing to do is call error with a location as well:
 
 Doing so will tell reveal in the error log exactly where the error was encountered as well as who called the method. The latter is more likely where the error exists, making location a very beneficial parameter.
 
-
 =head2 find_config
 
-Searches in common etc directories for a named configuration file.
+This sub is used to determine which configuration file to use. The general logic is as follows:
 
-  my $config = $self->find_config( file => 'provision.conf', debug=>0 );
+  If the etc dir and file name are provided and the file exists, use it.
+
+If that fails, then go prowling around the drive and look in all the usual places, in order of preference:
+
+  /opt/local/etc/
+  /usr/local/etc/
+  /etc
+
+Finally, if none of those work, then check the working directory for the named .conf file, or a .conf-dist. 
+
+Example:
+  my $conf = $util->find_config (
+      file   => 'example.conf', 
+      etcdir => '/usr/local/etc',
+    )
+
+ arguments required:
+   file - the .conf file to read in
+
+ arguments optional:
+   etcdir - the etc directory to prefer
+   debug
+   fatal
+
+ result:
+   0 - failure
+   the path to $file  
+
 
 =head2 get_last_error
 
