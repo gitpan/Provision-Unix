@@ -1,5 +1,21 @@
 Revision history for Provision-Unix
 
+0.81 Nov 23, 2009
+  - added in P:U:V class, added AUTOLOAD method, which prevents having to add
+    several more to make P:U:V:* subclass methods publicly available, deleted
+    get_console,is_present,is_running (they now use AUTOLOAD).
+  - in P:U:V, renamed mount_disk_image to mount
+  - in P:U:V, renamed unmount_disk_image to unmount
+  - in P:U:V, renamed get_console to console
+  - added P:U:V:probe, which is an alias for get_status
+  - enhanced and expanded documentation in prov_virtual
+  - enhanced and expanded docs in P:U:VirtualOS
+  - added a fix for P:U:V:O:modify, nameserver param wasn't being parsed
+  - P:U:V::modify didn't have mac_address listed as an optional param
+  - added test for 'file', and skip archive_expand test if missing (cygwin)
+  - when creating a VE with prov_virtual, if config is not provided, prompt
+    for RAM and disk space
+
 0.80 Nov 18, 2009
   - altered t/01 so that dist passes CPAN tests more reliably
   - made xen destroy console user throw an error instead of exception

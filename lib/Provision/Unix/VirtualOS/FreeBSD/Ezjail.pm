@@ -77,7 +77,7 @@ sub is_present {
     return;
 };
 
-sub get_console {
+sub console {
     my $self = shift;
     my $ctid = $vos->{name};
     my $cmd = $util->find_bin( 'ezjail-admin', debug => 0 );

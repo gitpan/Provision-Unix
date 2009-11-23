@@ -1,7 +1,7 @@
 package Provision::Unix::VirtualOS::Linux::Virtuozzo;
 use base Provision::Unix::VirtualOS::Linux::OpenVZ;
 
-our $VERSION = '0.09';
+our $VERSION = '0.10';
 
 use warnings;
 use strict;
@@ -163,23 +163,22 @@ __END__
 
 =head1 NAME
 
-Provision::Unix::VirtualOS::Linux::Virtuozzo - 
+Provision::Unix::VirtualOS::Linux::Virtuozzo - Provision a VPS using Virtuozzo 
 
 
 =head1 SYNOPSIS
 
-Quick summary of what the module does.
+See the documentation for Provision::Unix::VirtualOS::Linux::OpenVZ, of which this 
+class is functionally almost identical, containing just a few overrides.  
 
-Perhaps a little code snippet.
-
-    use Provision::Unix::VirtualOS::Virtuozzo;
-
-    my $foo = Provision::Unix::VirtualOS::Virtuozzo->new();
+    use Provision::Unix::VirtualOS::Linux::Virtuozzo;
+    my $vz = Provision::Unix::VirtualOS::Linux::Virtuozzo->new();
     ...
 
 =head1 FUNCTIONS
 
-=head2 function1
+=head2 create
+=head2 is_valid_template
 
 
 =head1 AUTHOR
@@ -195,7 +194,7 @@ Please report any bugs or feature requests to C<bug-unix-provision-virtualos at 
 
 You can find documentation for this module with the perldoc command.
 
-    perldoc Provision::Unix
+    perldoc Provision::Unix::VirtualOS::Linux::Virtuozzo
 
 
 You can also look for information at:

@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::Xen;
 
-our $VERSION = '0.55';
+our $VERSION = '0.56';
 
 use warnings;
 use strict;
@@ -62,11 +62,11 @@ sub create {
 
     $self->create_swap_image() or return;
     $self->create_disk_image() or return;
-    $self->mount_disk_image() or return;
+    $self->mount() or return;
 
 # make sure we trap any errors here and clean up after ourselves.
     my $r;
-    $self->extract_template() or $self->unmount_disk_image() and return;
+    $self->extract_template() or $self->unmount() and return;
 
     my $fs_root  = $self->get_fs_root();
     eval {
@@ -116,7 +116,7 @@ sub create {
     eval { $vos->setup_log_files( fs_root => $fs_root ); };
     $log->error( $@, fatal=>0) if $@;
 
-    $self->unmount_disk_image();
+    $self->unmount();
 
     $self->gen_config()
         or return $log->error( "unable to install config file", fatal => 0 );
@@ -149,7 +149,7 @@ sub destroy {
         $self->stop() or return;
     };
 
-    $self->unmount_disk_image() or return $log->error("could not unmount disk image");
+    $self->unmount() or return $log->error("could not unmount disk image");
 
     $log->audit("\tctid '$ctid' is stopped. Nuking it...");
     $self->destroy_disk_image() or return;
@@ -201,7 +201,7 @@ sub start {
 
 # disk images often get left mounted, preventing a VE from starting. 
 # Try unmounting them, just in case.
-    $self->unmount_disk_image( 'quiet' );
+    $self->unmount( 'quiet' );
 
     my $config_file = $self->get_ve_config_path();
     return $log->error( "config file for $ctid at $config_file is missing.")
@@ -335,9 +335,9 @@ sub disable {
         my $tar = $util->find_bin( 'tar' );
         my $ve_home = $self->get_ve_home();
         my $fs_root = $self->get_fs_root();
-        $self->mount_disk_image();
-        system "$tar -czPf $ve_home/2000590.tar.gz $fs_root";
-        $self->unmount_disk_image();
+        $self->mount();
+        system "$tar -czPf $ve_home/$ctid.tar.gz $fs_root";
+        $self->unmount();
         $self->destroy_disk_image();
         $self->destroy_swap_image();
     };
@@ -388,9 +388,9 @@ sub enable {
 #        my $fs_root = $self->get_fs_root();
 #        $self->create_disk_image() or return;
 #        $self->create_swap_image() or return;
-#        $self->mount_disk_image() or return;
-#        system "$tar -xzf $ve_home/2000590.tar.gz -C $fs_root";
-#        $self->unmount_disk_image();
+#        $self->mount() or return;
+#        system "$tar -xzf $ve_home/$ctid.tar.gz -C $fs_root";
+#        $self->unmount();
     };
 
     return $self->start();
@@ -420,7 +420,7 @@ sub migrate {
         };
     }
     else {
-        $self->mount_disk_image();
+        $self->mount();
     };
 
 # mount remote disk image
@@ -437,12 +437,19 @@ sub migrate {
     if ( $running ) {
         $self->destroy_snapshot();
         $self->stop();
-        $self->mount_disk_image();
+        $self->mount();
     };
 
     $util->syscmd( "$rsync -aHAX --delete $fs_root/ $new_node:$fs_root/",
         debug => $vos->{debug}, fatal => 0 ) or return;
 
+# copy over xen config file if it doesn't exist
+# TODO: test this before enabling (not used in our environment).
+#    my $config  = $self->get_ve_config_path();
+#    my $ve_home = $self->get_ve_home();
+#    $util->syscmd( "$rsync -av --ignore-existing $config $new_node:$ve_home/",
+#        debug => $vos->{debug}, fatal => 0 ) or return;
+   
 # restore state to new VE
     if ( $state eq 'running' ) {
         $util->syscmd( "$r_cmd --action=start", debug => 0 );
@@ -454,7 +461,7 @@ sub migrate {
         $util->syscmd( "$r_cmd --action=unmount", debug => 0 );
     };
 
-    $self->unmount_disk_image();
+    $self->unmount();
 
 #   $vos->{archive} = 1;   # tell disable to archive the VPS
     $self->disable();
@@ -472,7 +479,7 @@ sub modify {
     # hostname ips nameservers searchdomain disk_size ram config 
 
     $self->stop() or return;
-    $self->mount_disk_image() or return;
+    $self->mount() or return;
 
     my $fs_root = $self->get_fs_root();
     my $hostname = $vos->{hostname};
@@ -489,7 +496,7 @@ sub modify {
     };
 
     $self->gen_config();
-    $self->unmount_disk_image() or return;
+    $self->unmount() or return;
     $self->resize_disk_image();
     $self->start() or return;
     return 1;
@@ -507,6 +514,13 @@ sub reinstall {
 
     return $self->create();
 }
+
+sub console {
+    my $self = shift;
+    my $ve_name = $self->get_ve_name();
+    my $cmd = $util->find_bin( 'xm', debug => 0 );
+    exec "$cmd console $ve_name";
+};
 
 sub create_console_user {
     my $self = shift;
@@ -835,13 +849,6 @@ EOCONF
     link $config_file, "/etc/xen/auto/$ve_name.cfg";
     return 1;
 }
-
-sub get_console {
-    my $self = shift;
-    my $ve_name = $self->get_ve_name();
-    my $cmd = $util->find_bin( 'xm', debug => 0 );
-    exec "$cmd console $ve_name";
-};
 
 sub get_console_username {
     my $self = shift;
@@ -1239,7 +1246,7 @@ sub lvm_in_use {
     return;
 };
 
-sub mount_disk_image {
+sub mount {
     my $self = shift;
 
     my $image_name = $self->get_disk_image();
@@ -1254,6 +1261,8 @@ sub mount_disk_image {
 
     return $log->error( "unable to create $fs_root", fatal => 0 )
         if ! -d $fs_root;
+
+    sleep 3 if $self->lvm_in_use();
 
     return $log->error( "LVM is in use, cannot safely mount", fatal => 0 )
         if $self->lvm_in_use();
@@ -1295,11 +1304,11 @@ sub resize_disk_image {
     my $target_size = $self->get_disk_size();
 
     # check existing disk size.
-    $self->mount_disk_image() or $log->error( "unable to mount disk image" );
+    $self->mount() or $log->error( "unable to mount disk image" );
     my $fs_root = $self->get_fs_root();
     my $df_out = qx{/bin/df -m $fs_root | /usr/bin/tail -n1};
     my (undef, $current_size, $df_used, $df_free) = split /\s+/, $df_out;
-    $self->unmount_disk_image();
+    $self->unmount();
 
     my $difference = $target_size - $current_size;
 
@@ -1388,7 +1397,7 @@ sub set_hostname {
     my $self = shift;
 
     $self->stop() or return;
-    $self->mount_disk_image() or return;
+    $self->mount() or return;
 
     $linux->set_hostname( 
         host    => $vos->{hostname},
@@ -1396,7 +1405,7 @@ sub set_hostname {
     )
     or $log->error("unable to set hostname", fatal => 0);
 
-    $self->unmount_disk_image();
+    $self->unmount();
     $self->start() or return;
     return 1;
 };
@@ -1480,6 +1489,12 @@ sub set_password {
     my $pass    = $vos->{password}
         or return $log->error( 'no password provided', fatal => 0 );
 
+    return $log->error( "VE $ve_name does not exist",
+        fatal => $vos->{fatal},
+        debug => $vos->{debug},
+    )
+    if !$self->is_present( debug => 0 );
+
     $log->audit("setting VPS password");
 
     my $i_stopped;
@@ -1491,7 +1506,7 @@ sub set_password {
             $i_stopped++;
         };
     
-        my $r = $self->mount_disk_image();
+        my $r = $self->mount();
         $i_mounted++ if $r == 1;
     }
 
@@ -1503,7 +1518,7 @@ sub set_password {
     $self->set_password_console() or $errors++;
 
     if ( ! $arg || $arg ne 'setup' ) {
-        $self->unmount_disk_image() if $i_mounted;
+        $self->unmount() if $i_mounted;
         $self->start() if $i_stopped;
     };
     return 1 if ! $errors;
@@ -1564,8 +1579,10 @@ sub set_password_root {
 sub set_ssh_key {
     my $self = shift;
 
-    # install the SSH key
     return 1 if ! $vos->{ssh_key};
+
+    return $log->error( "VE does not exist" ) 
+        if !$self->is_present( debug => 0 );
 
     $user ||= Provision::Unix::User->new( prov => $prov );
 
@@ -1582,7 +1599,7 @@ sub set_ssh_key {
     return 1;
 };
 
-sub unmount_disk_image {
+sub unmount {
     my $self = shift;
     my $quiet = shift;
 
@@ -1630,10 +1647,21 @@ Provision::Unix::VirtualOS::Linux::Xen - Provision Xen VEs
 
 =head1 SYNOPSIS
 
+  use Provision::Unix;
+  use Provision::Unix::VirtualOS;
+
+  my $prov = Provision::Unix->new( debug => 0 );
+  my $vos  = Provision::Unix::VirtualOS->new( prov => $prov );
+ 
+  $vos->create()
+  
+General 
 
 =head1 AUTHOR
 
 Matt Simerson, C<< <matt at tnpi.net> >>
+
+
 
 =head1 BUGS
 

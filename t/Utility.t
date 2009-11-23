@@ -81,9 +81,10 @@ SKIP: {
 # archive_expand
 my $gzip = $util->find_bin( "gzip", fatal => 0, debug => 0 );
 my $tar  = $util->find_bin( "tar",  fatal => 0, debug => 0 );
+my $file = $util->find_bin( "file", fatal => 0, debug => 0 );
 
 SKIP: {
-    skip "gzip or tar is missing!\n", 6 unless ( -x $gzip and -x $tar and -d $tmp );
+    skip "gzip or tar is missing!\n", 6 unless ( -x $gzip && -x $tar && -x $file && -d $tmp );
     ok( $util->syscmd( "$tar -cf $tmp/test.tar TODO",
             debug => 0,
             fatal => 0

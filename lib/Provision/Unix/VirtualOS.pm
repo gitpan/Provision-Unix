@@ -3,7 +3,7 @@ package Provision::Unix::VirtualOS;
 use warnings;
 use strict;
 
-our $VERSION = '0.46';
+our $VERSION = '0.55';
 
 use Data::Dumper;
 use English qw( -no_match_vars );
@@ -15,6 +15,8 @@ use Time::Local;
 use lib 'lib';
 use Provision::Unix::Utility;
 
+
+our $AUTOLOAD;
 my ($prov, $util);
 my @std_opts = qw/ test_mode debug fatal /;
 my %std_opts = (
@@ -26,8 +28,8 @@ my %std_opts = (
 
 sub new {
 
-    # Usage      : $virtual->new( prov => $prov );
-    # Purpose    : create a $virtual object
+    # Usage      : $vos->new( prov => $prov );
+    # Purpose    : create a $vos object
     # Returns    : a Provision::Unix::VirtualOS object
     # Parameters :
     #   Required : prov      - a Provision::Unix object
@@ -67,23 +69,6 @@ sub new {
 }
 
 sub create {
-
-# Usage      : $virtual->create( name => 'mysql', ip=>'127.0.0.2' );
-# Purpose    : create a virtual OS instance
-# Returns    : true or undef on failure
-# Parameters :
-#   Required : name      - name/ID of the virtual OS
-#            : ip        - IP address(es), space delimited
-#   Optional : hostname  - the FQDN of the virtual OS
-#            : disk_root - the root directory of the virt os
-#            : disk_size - disk space allotment in MB
-#            : ram       - in MB
-#            : config    - a config file with virtual specific settings
-#            : template  - a 'template' or tarball the OS is patterned after
-#            : password  - the root/admin password for the virtual
-#            : nameservers -
-#            : searchdomain -
-
     my $self = shift;
     my @opt_scalars = qw/ config cpu disk_root disk_size hostname 
             kernel_version mac_address nameservers password ram 
@@ -123,12 +108,6 @@ sub create {
 
 sub destroy {
 
-    # Usage      : $virtual->destroy( name => 'mysql' );
-    # Purpose    : destroy a virtual OS instance
-    # Returns    : true or undef on failure
-    # Parameters :
-    #   Required : name  - name/ID of the virtual OS
-
     my $self = shift;
     my %p = validate(
         @_,
@@ -150,13 +129,6 @@ sub destroy {
 
 sub start {
 
-    # Usage      : $virtual->start( name => 'mysql' );
-    # Purpose    : start a virtual OS instance
-    # Returns    : true or undef on failure
-    # Parameters :
-    #   Required : name      - name/ID of the virtual OS
-    #   Optional : test_mode -
-
     my $self = shift;
     my %p = validate(
         @_,
@@ -173,13 +145,6 @@ sub start {
 }
 
 sub stop {
-
-    # Usage      : $virtual->stop( name => 'mysql' );
-    # Purpose    : stop a virtual OS instance
-    # Returns    : true or undef on failure
-    # Parameters :
-    #   Required : name      - name/ID of the virtual OS
-    #   Optional : test_mode -
 
     my $self = shift;
 
@@ -199,12 +164,6 @@ sub stop {
 
 sub restart {
 
-    # Usage      : $virtual->restart( name => 'mysql' );
-    # Purpose    : restart a virtual OS instance
-    # Returns    : true or undef on failure
-    # Parameters :
-    #   Required : name      - name/ID of the virtual OS
-
     my $self = shift;
 
     my %p = validate(
@@ -222,13 +181,6 @@ sub restart {
 }
 
 sub disable {
-
-    # Usage      : $virtual->disable( name => 'mysql' );
-    # Purpose    : disable a virtual OS instance
-    # Returns    : true or undef on failure
-    # Parameters :
-    #   Required : name      - name/ID of the virtual OS
-    #   Optional : test_mode -
 
     my $self = shift;
 
@@ -248,13 +200,6 @@ sub disable {
 }
 
 sub enable {
-
-    # Usage      : $virtual->enable( name => 'mysql' );
-    # Purpose    : enable/reactivate/unsuspend a virtual OS instance
-    # Returns    : true or undef on failure
-    # Parameters :
-    #   Required : name      - name/ID of the virtual OS
-    #   Optional : test_mode -
 
     my $self = shift;
 
@@ -303,16 +248,10 @@ sub migrate {
 
 sub modify {
 
-    # Usage      : $virtual->modify( name => 'mysql' );
-    # Purpose    : modify a VE
-    # Returns    : true or undef on failure
-    # Parameters :
-    #   Required : name      - name/ID of the virtual OS
-
     my $self = shift;
     my @req_scalars = qw/ name disk_size hostname ip ram /;
     my %req_scalars = map { $_ => { type => SCALAR } } @req_scalars;
-    my @opt_scalars = qw/ config cpu disk_root nameservers 
+    my @opt_scalars = qw/ config cpu disk_root mac_address nameservers
                           password searchdomain ssh_key template /;
     my %opt_scalars = map { $_ => { type => SCALAR, optional => 1 } } @opt_scalars;
 
@@ -324,7 +263,8 @@ sub modify {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
-    $self->{ip} = $self->get_ips( $p{ip} ) if $p{ip};
+    $self->{ip}          = $self->get_ips( $p{ip} ) if $p{ip};
+    $self->{nameservers} = $self->get_ips( $p{nameservers} ) if $p{nameservers};
 
     $prov->audit("\tdelegating request to $self->{vtype}");
 
@@ -333,7 +273,7 @@ sub modify {
 
 sub reinstall {
 
-# Usage      : $virtual->reinstall( name => 'mysql', ip=>'127.0.0.2' );
+# Usage      : $vos->reinstall( name => '42', ip=>'127.0.0.2' );
 # Purpose    : reinstall the OS in virtual machine
 # Returns    : true or undef on failure
 # Parameters :
@@ -378,7 +318,39 @@ sub reinstall {
     $self->{vtype}->reinstall();
 }
 
-sub mount_disk_image {
+sub AUTOLOAD {
+    my $self = shift;
+
+# this AUTOLOAD method works for any methods in P:U:V:* whose only required 
+# argument is the VE name.
+    my %p = validate(
+        @_,
+        {   name      => { type => SCALAR },
+            %std_opts,
+        }
+    );
+    my $fatal = $p{fatal};
+    my $v_type = ref $self->{vtype};
+
+    foreach ( 'name', @std_opts ) {
+        $self->{$_} = $p{$_} if defined $p{$_};
+    };
+
+    my $sub = $AUTOLOAD;
+       $sub =~ s/.*://;  # strip off everything before the last :
+
+    $prov->audit( "initializing request to $sub for ve '$p{name}'");
+
+    ref ($self) || return $prov->error( "invalid call to $sub", fatal => $fatal );
+    return $self->{vtype}->$sub() if $self->{vtype}->can($sub);
+
+    $prov->error( "The VE platform $v_type does not have support for '$sub'", fatal => $fatal);
+    return;
+};
+
+sub DESTROY {};
+
+sub mount {
     my $self = shift;
     my %p = validate(
         @_,
@@ -394,10 +366,10 @@ sub mount_disk_image {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
-    $self->{vtype}->mount_disk_image();
+    $self->{vtype}->mount();
 };
 
-sub unmount_disk_image {
+sub unmount {
     my $self = shift;
     my %p = validate(
         @_,
@@ -413,7 +385,7 @@ sub unmount_disk_image {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
-    $self->{vtype}->unmount_disk_image();
+    $self->{vtype}->unmount();
 };
 
 sub do_connectivity_test {
@@ -456,22 +428,6 @@ sub gen_config {
 
     $self->{vtype}->gen_config();
 };
-
-sub get_console {
-    my $self = shift;
-    my %p = validate( 
-        @_, 
-        {   name  => { type => SCALAR | UNDEF,  optional => 1 },
-            %std_opts,
-        }
-    );
-
-    foreach ( qw/ name /, @std_opts ) {
-        $self->{$_} = $p{$_} if defined $p{$_};
-    };
-
-    $self->{vtype}->get_console();
-}
 
 sub get_fs_root {
     my $self = shift;
@@ -527,7 +483,7 @@ sub get_status {
         }
     );
 
-    foreach ( qw/ name /, @std_opts ) {
+    foreach ( 'name', @std_opts ) {
         $self->{$_} = $p{$_} if defined $p{$_};
     };
 
@@ -639,6 +595,11 @@ sub get_version {
     return $prov->get_version();
 };
 
+sub probe {
+    my $self = shift;
+    return $self->get_status(@_);
+};
+
 sub set_hostname {
     my $self = shift;
     my %p = validate(
@@ -710,7 +671,6 @@ sub set_nameservers {
 
 sub set_password {
     my $self = shift;
-
     my %p = validate(
         @_,
         {   name      => { type => SCALAR },
@@ -736,9 +696,9 @@ sub set_ssh_key {
     my %p = validate(
         @_,
         {   name      => { type => SCALAR },
+            ssh_key   => { type => SCALAR },
             user      => { type => SCALAR | UNDEF, optional => 1 },
             disk_root => { type => SCALAR,  optional => 1 },
-            ssh_key   => { type => SCALAR,  optional => 1 },
             %std_opts,
         }
     );
@@ -786,7 +746,6 @@ sub setup_ssh_host_keys {
 
 sub is_mounted {
     my $self = shift;
-
     my %p = validate(
         @_,
         {   name      => { type => SCALAR },
@@ -800,38 +759,6 @@ sub is_mounted {
     };
 
     $self->{vtype}->is_mounted();
-}
-
-sub is_present {
-    my $self = shift;
-    my %p = validate(
-        @_,
-        {   name      => { type => SCALAR },
-            %std_opts,
-        }
-    );
-
-    foreach ( qw/ name /, @std_opts ) {
-        $self->{$_} = $p{$_} if defined $p{$_};
-    };
-
-    $self->{vtype}->is_present();
-}
-
-sub is_running {
-    my $self = shift;
-    my %p = validate(
-        @_,
-        {   name      => { type => SCALAR },
-            %std_opts
-        }
-    );
-
-    foreach ( qw/ name /, @std_opts ) {
-        $self->{$_} = $p{$_} if defined $p{$_};
-    };
-
-    $self->{vtype}->is_running();
 }
 
 sub is_valid_ip {
@@ -1023,6 +950,17 @@ Since the RPC remoteagent is running as root, the request broker has access to a
 
 =head1 FUNCTIONS
 
+    $vos->create(  
+        name      => 42,
+        ip        => '10.0.0.42',
+        hostname  => 'vps.example.com',
+        disk_size => 4096,   # 4GB
+        ram       => 512,
+        template  => 'debian-5-i386-default',
+        password  => 't0ps3kretWerD',
+        nameservers => '10.0.0.2 10.0.0.3',
+        searchdomain => 'example.com',
+    );
     $vos->start(   name => 42 );
     $vos->stop(    name => 42 );
     $vos->restart( name => 42 );
@@ -1046,6 +984,198 @@ Since the RPC remoteagent is running as root, the request broker has access to a
     $vos->get_status( name => 42 );
     $vos->migrate( name => 42, new_node => '10.1.1.13' );
     $vos->destroy( name => 42 );
+
+=head2 create
+
+ ##############
+ # Usage      : $vos->create( name => '42', ip=>'127.0.0.2' );
+ # Purpose    : create a virtual OS instance
+ # Returns    : true or undef on failure
+ # Parameters :
+ #   Required : name      - name/ID of the virtual OS
+ #            : ip        - IP address(es), space delimited
+ #   Optional : hostname  - the FQDN of the virtual OS
+ #            : disk_root - the root directory of the virt os
+ #            : disk_size - disk space allotment in MB
+ #            : ram       - in MB
+ #            : cpu       - how many CPU cores the VE can use/see
+ #            : template  - a 'template' or tarball the OS is patterned after
+ #            : config    - a config file with virtual specific settings
+ #            : password  - the root/admin password for the virtual
+ #            : ssh_key   - ssh public key for root user
+ #            : mac_address  - the MAC adress to assign to the vif
+ #            : nameservers  -
+ #            : searchdomain -
+ #            : kernel_version -
+ #            : skip_start - do not start the VE after creation
+
+
+=head2 start
+
+ # Usage      : $vos->start( name => '42' );
+ # Purpose    : start a virtual OS instance
+ # Returns    : true or undef on failure
+ # Parameters :
+ #   Required : name
+
+
+=head2 stop
+
+ # Usage      : $vos->stop( name => '42' );
+ # Purpose    : stop a virtual OS instance
+ # Returns    : true or undef on failure
+ # Parameters :
+ #   Required : name
+
+
+=head2 restart
+
+ # Usage      : $vos->restart( name => '42' );
+ # Purpose    : restart a virtual OS instance
+ # Returns    : true or undef on failure
+ # Parameters :
+ #   Required : name
+
+
+=head2 enable
+
+ # Usage      : $vos->enable( name => '42' );
+ # Purpose    : enable/reactivate/unsuspend a virtual OS instance
+ # Returns    : true or undef on failure
+ # Parameters :
+ #   Required : name
+
+
+=head2 disable
+
+ # Usage      : $vos->disable( name => '42' );
+ # Purpose    : disable a virtual OS instance
+ # Returns    : true or undef on failure
+ # Parameters :
+ #   Required : name
+
+
+=head2 set_hostname
+
+ # Usage      : $vos->set_hostname( 
+ #                   name     => '42', 
+ #                   hostname => '42.example.com',
+ #              );
+ # Purpose    : update the hostname of a VE
+ # Returns    : true or undef on failure
+ # Parameters :
+ #   Required : name
+ #            : hostname  - the new FQDN for the virtual OS
+
+
+=head2 set_nameservers
+
+ # Usage      : $vos->set_nameservers( 
+ #                   name        => '42', 
+ #                   nameservers => '10.0.1.4 10.0.1.5',
+ #                   searchdomain => 'example.com',
+ #              );
+ # Purpose    : update the nameservers in /etc/resolv.conf
+ # Returns    : true or undef on failure
+ # Parameters :
+ #   Required : name
+ #            : nameservers  - space delimited list of IPs
+ #   Optional : searchdomain - space delimited list of domain names
+
+=head2 set_password
+
+ # Usage      : $vos->set_password( 
+ #                   name     => '42',
+ #                   password => 't0ps3kretWerD',
+ #              );
+ # Purpose    : update the password of a user inside a VE
+ # Returns    : true or undef on failure
+ # Parameters :
+ #   Required : name
+ #            : password - the plaintext password to store in /etc/shadow|passwd
+ #   Optional : user     - /etc/password user name, defaults to 'root'
+ #            : ssh_key  - an ssh public key, to install in ~/.ssh/authorized_keys
+ #            : disk_root- the full to the VE root (ie, / within the VE)
+
+
+=head2 set_ssh_key
+
+ # Usage      : $vos->set_ssh_key( 
+ #                   name     => '42',
+ #                   ssh_key  => 'ssh-rsa AAAA.....',
+ #              );
+ # Purpose    : install an SSH key for a user inside a VE
+ # Returns    : true or undef on failure
+ # Parameters :
+ #   Required : name
+ #            : ssh_key  - an ssh public key, to install in ~/.ssh/authorized_keys
+ #   Optional : user     - /etc/password user name, defaults to 'root'
+ #            : disk_root- the full to the VE root (ie, / within the VE)
+
+=head2 modify
+
+ # Usage      : $vos->modify( name => '42' );
+ # Purpose    : modify a VE
+ # Returns    : true or undef on failure
+ # Parameters :
+ #   Required : name
+ #            : disk_size
+ #            : hostname  
+ #            : ip        
+ #            : ram        
+ #  Optional  : config
+ #            : cpu
+ #            : disk_root
+ #            : mac_address
+ #            : nameservers
+ #            : password
+ #            : searchdomain
+ #            : ssh_key
+ #            : template
+
+
+=head2 get_status
+
+ # Usage      : $vos->get_status( name => '42' );
+ # Purpose    : get information about a VE
+ # Returns    : a hashref with state info about a VE
+ # Parameters :
+ #   Required : name
+ #
+ # Example result object:
+ # {
+ #    'dom_id'   => '42',
+ #    'disk_use' => 560444,
+ #    'disks'    => [
+ #          'phy:/dev/vol00/42_rootimg,sda1,w',
+ #          'phy:/dev/vol00/42_vmswap,sda2,w'
+ #       ],
+ #    'ips'      => '10.0.1.42',
+ #    'cpu_time' => '2699.9',
+ #    'mem'      => 256,
+ #    'cpus'     => '2',
+ #    'state'    => 'running'
+ # }
+
+
+=head2 migrate
+
+ # Usage      : $vos->migrate( name => '42', new_node => 'xen5' );
+ # Purpose    : move a VE from one HW node to another
+ # Returns    : true or undef on failure
+ # Parameters :
+ #   Required : name
+ #            : new_node  - hostname of the new node
+ #  Optional  : connection_test - don't migrate, just test SSH connectivity
+ #              between the existing and new HW node
+
+=head2 destroy
+
+ # Usage      : $vos->destroy( name => 42 );
+ # Purpose    : destroy a virtual OS instance
+ # Returns    : true or undef on failure
+ # Parameters :
+ #   Required : name
 
 
 =head1 AUTHOR
@@ -1089,7 +1219,7 @@ L<http://search.cpan.org/dist/Provision-Unix-VirtualOS>
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2008 Matt Simerson
+Copyright 2008-2009 Matt Simerson
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

@@ -161,7 +161,7 @@ sub destroy {
     # if VE is mounted, unmount it
     if ( $self->is_mounted( refresh => 0 ) ) {
         $prov->audit("\tVE '$name' is mounted, unmounting...");
-        $self->unmount_disk_image() 
+        $self->unmount() 
             or return
             $prov->error( "unmount failed. I cannot continue.",
                 fatal   => $vos->{fatal},
@@ -324,9 +324,8 @@ sub disable {
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
 
     # see if VE is running, and if so, stop it
-    $self->stop() if $self->is_running( refresh => 0 );
-
-    $self->unmount_disk_image() if $self->is_mounted( refresh => 0 );
+    $self->stop()    if $self->is_running( refresh => 0 );
+    $self->unmount() if $self->is_mounted( refresh => 0 );
 
     move( $config, "$config.suspend" )
         or return $prov->error( "unable to move file '$config' to '$config.suspend': $!",
@@ -467,7 +466,16 @@ sub reinstall {
     return $self->create();
 }
 
-sub unmount_disk_image {
+sub console {
+    my $self = shift;
+    my ($prov, $vos, $util) = ($self->{prov}, $self->{vos}, $self->{util});
+
+    my $ctid = $vos->{name};
+    my $cmd = $util->find_bin( 'vzctl', debug => 0 );
+    exec "$cmd enter $ctid";
+};
+
+sub unmount {
     my $self = shift;
     my ($prov, $vos, $util) = ($self->{prov}, $self->{vos}, $self->{util});
 
@@ -609,15 +617,6 @@ sub get_config {
     my $etc_dir = $prov->{etc_dir} || '/etc/vz/conf';
     my $config = "$etc_dir/$ctid.conf";
     return $config;
-};
-
-sub get_console {
-    my $self = shift;
-    my ($prov, $vos, $util) = ($self->{prov}, $self->{vos}, $self->{util});
-
-    my $ctid = $vos->{name};
-    my $cmd = $util->find_bin( 'vzctl', debug => 0 );
-    exec "$cmd enter $ctid";
 };
 
 sub get_disk_usage {
@@ -915,11 +914,11 @@ sub set_hostname {
         debug   => $vos->{debug},
         );
 
-    my $cmd = $util->find_bin( 'vzctl', debug => 0 );
-    $cmd .= " set $vos->{name}";
-    $cmd .= " --hostname $hostname --save";
+    my $vzctl = $util->find_bin( 'vzctl', debug => 0 );
+    $vzctl .= " set $vos->{name}";
+    $vzctl .= " --hostname $hostname --save";
 
-    return $util->syscmd( $cmd, debug => $vos->{debug}, fatal => $vos->{fatal});
+    return $util->syscmd( $vzctl, debug => $vos->{debug}, fatal => $vos->{fatal});
 }
 
 sub pre_configure {

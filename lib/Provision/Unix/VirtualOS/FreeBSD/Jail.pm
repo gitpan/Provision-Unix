@@ -56,18 +56,18 @@ sub create {
 
 }
 
+sub console {
+    my $self = shift;
+    my $ctid = $vos->{name};
+    my $cmd = $util->find_bin( 'jexec', debug => 0 );
+    exec "$cmd $ctid su";
+};
+
 sub is_present {
     my $self = shift;
     my $homedir = $self->get_ve_home();
     return $homedir if -d $homedir;
     return;
-};
-
-sub get_console {
-    my $self = shift;
-    my $ctid = $vos->{name};
-    my $cmd = $util->find_bin( 'jexec', debug => 0 );
-    exec "$cmd $ctid su";
 };
 
 sub get_ve_home {
