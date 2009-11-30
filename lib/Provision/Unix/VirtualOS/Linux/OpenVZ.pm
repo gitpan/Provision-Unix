@@ -83,8 +83,9 @@ sub create {
         $cmd .= " --config $vos->{config}";
     }
     else {
-        $self->set_config_default();
-        $cmd .= " --config default";
+        $self->gen_config();
+#        $self->set_config_default();
+#        $cmd .= " --config default";
     };
 
     return $prov->error( "template required but not specified", fatal => 0)
@@ -561,7 +562,7 @@ sub gen_config {
                           : [ 6144, 6144 ];
 
     # Disk Resource Limits
-    $config->{DISKSPACE}  = [ int($disk*1024*1024*0.95), int($disk*1024*1024) ]; 
+    $config->{DISKSPACE}  = [ int($disk*1024*0.95), int($disk*1024) ]; 
     $config->{DISKINODES} = [ int($disk*114000), int($disk*120000) ];
     $config->{QUOTAUGIDLIMIT} = [ 3000 ];
     $config->{QUOTATIME}  = [ 0 ];

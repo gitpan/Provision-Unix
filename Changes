@@ -1,5 +1,10 @@
 Revision history for Provision-Unix
 
+0.82 Nov 30, 2009
+  - changed openvz to expect disk_space to be provided in MB (was GB).
+  - if config level not passed to openvz create, use ram & disk to generate
+    config file (previously assigned a default config)
+
 0.81 Nov 23, 2009
   - added in P:U:V class, added AUTOLOAD method, which prevents having to add
     several more to make P:U:V:* subclass methods publicly available, deleted
