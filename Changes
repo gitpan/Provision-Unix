@@ -1,9 +1,21 @@
 Revision history for Provision-Unix
 
+0.83 Dec 02, 2009
+  - skip get_the_date( bump => 1 ) test if day of month > 27
+  - added additional debug messages to remoteagent
+  - when creating a xen VE snapshot, skip sync if VE is not running
+  - declare methods in P:U:V that are eligible to run via remoteagent
+  - RAM and disk were not being passed properly by prov_virtual CLI RT#1581201
+  - added get_config method for Xen & OpenVZ classes, returns config file
+  - added publish_arp method, that updates switch/routers after moving an IP
+  - after migrating an account, run the publish_arp on the new HW node
+  - moved xen snapshot dir from $HOME/mnt to $HOME/snap
+
 0.82 Nov 30, 2009
   - changed openvz to expect disk_space to be provided in MB (was GB).
   - if config level not passed to openvz create, use ram & disk to generate
     config file (previously assigned a default config)
+  - ignore is_process_running test if it fails
 
 0.81 Nov 23, 2009
   - added in P:U:V class, added AUTOLOAD method, which prevents having to add

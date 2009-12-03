@@ -3,7 +3,7 @@ package Provision::Unix::VirtualOS;
 use warnings;
 use strict;
 
-our $VERSION = '0.55';
+our $VERSION = '0.57';
 
 use Data::Dumper;
 use English qw( -no_match_vars );
@@ -349,6 +349,13 @@ sub AUTOLOAD {
 };
 
 sub DESTROY {};
+sub create_snapshot;
+sub destroy_snapshot;
+sub mount_snapshot;
+sub unmount_snapshot;
+sub get_disk_usage;
+sub get_mac_address;
+sub get_config;
 
 sub mount {
     my $self = shift;
@@ -386,6 +393,32 @@ sub unmount {
     };
 
     $self->{vtype}->unmount();
+};
+
+sub publish_arp {
+    my $self = shift;
+    my %p = validate(
+        @_,
+        {   ip   => { type => SCALAR|ARRAYREF },
+            %std_opts,
+        }
+    );
+
+    my $ip = $p{ip};
+    my @ips = ref $ip ? @$ip : $ip;
+
+    my $arpsend = $util->find_bin( 'arpsend', fatal => 0 );
+
+    if ( -x $arpsend ) {
+        foreach ( @ips ) {
+            $prov->audit( "$arpsend -U -c2 -i $_ eth0" );
+            system "$arpsend -U -c2 -i $_ eth0";
+        };
+        return 1;
+    }
+
+    # TODO: try using arping, but I haven't been able to get it to work
+    return;
 };
 
 sub do_connectivity_test {
@@ -1177,6 +1210,35 @@ Since the RPC remoteagent is running as root, the request broker has access to a
  # Parameters :
  #   Required : name
 
+
+=head2 mount
+=head2 unmount
+=head2 publish_arp
+
+ # Usage      : $vos->publish_arp( ip => '10.1.0.42' );
+ # Purpose    : update our neighbors with an ARP request for the provided IP(s)
+ # Parameters :
+ #   Required : ip, can be a string with one IP, or an arrayref
+
+=head2 create_snapshot
+
+Create a snapshot of the VE. Only applies to VEs with logical volumes (LVM)
+
+=head2 destroy_snapshot
+
+Create disk snapshots. Opposite of create_snapshot.
+
+=head2 mount_snapshot
+
+After a snapshot is created, it can be mounted with this method. For xen VEs, the volume is mounted in ~/mnt, which usually looks like this: /home/xen/42/snap
+
+=head2 unmount_snapshot
+
+unmounts a snapshot. 
+
+=head2 get_config
+
+returns an array representing with each line in the VE config file being an element in the array.
 
 =head1 AUTHOR
 

@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::Xen;
 
-our $VERSION = '0.56';
+our $VERSION = '0.59';
 
 use warnings;
 use strict;
@@ -449,7 +449,7 @@ sub migrate {
 #    my $ve_home = $self->get_ve_home();
 #    $util->syscmd( "$rsync -av --ignore-existing $config $new_node:$ve_home/",
 #        debug => $vos->{debug}, fatal => 0 ) or return;
-   
+
 # restore state to new VE
     if ( $state eq 'running' ) {
         $util->syscmd( "$r_cmd --action=start", debug => 0 );
@@ -461,6 +461,7 @@ sub migrate {
         $util->syscmd( "$r_cmd --action=unmount", debug => 0 );
     };
 
+    $self->migrate_arp_update();
     $self->unmount();
 
 #   $vos->{archive} = 1;   # tell disable to archive the VPS
@@ -468,6 +469,20 @@ sub migrate {
 
     $log->audit( "all done" );
     return 1;
+};
+
+sub migrate_arp_update {
+    my $self = shift;
+
+    my $ctid = $vos->{name};
+    my $new_node = $vos->{new_node};
+
+    my $ssh = $util->find_bin( 'ssh', debug => 0 );
+    my @ips = grep { /vif$ctid/ } `netstat -rn`;
+    my $r_cmd = "$ssh $new_node /usr/bin/prov_virtual";
+    foreach my $ip ( @ips ) {
+        $util->syscmd( "$r_cmd --action=publish_arp --ip=$ip" );
+    };
 };
 
 sub modify {
@@ -608,6 +623,10 @@ sub create_snapshot {
     my $self = shift;
     my $ve_name = $self->get_ve_name();
 
+    return $log->error( "VE $ve_name does not exist" )
+        if !$self->is_present( debug => 0 );
+    my $is_running = $self->is_running();
+
     my $err;
     my $vol  = $self->get_disk_image();
     my $snap = $vol . '_snap';
@@ -620,16 +639,18 @@ sub create_snapshot {
     my $snapimg = "/dev/vol00/$snap";
     $self->destroy_snapshot() if -e $snapimg;
     
-    # Sync and pause domain
-    my $sync_cmd = "$xm_bin sysrq $ve_name s";
-    $log->audit( "syncing domain with: $sync_cmd");
-    system $sync_cmd;
-    return $log->error( "unable to sync dom $ve_name: $!" ) if $CHILD_ERROR;
+    if ( $is_running ) {
+        # Sync and pause domain
+        my $sync_cmd = "$xm_bin sysrq $ve_name s";
+        $log->audit( "syncing domain with: $sync_cmd");
+        system $sync_cmd;
+        return $log->error( "unable to sync dom $ve_name: $!" ) if $CHILD_ERROR;
 
-    my $pause_cmd = "$xm_bin pause $ve_name";
-    $log->audit( "pause VE with: $pause_cmd");
-    system $pause_cmd;
-    return $log->error( "unable to pause dom $ve_name: $!" ) if $CHILD_ERROR;
+        my $pause_cmd = "$xm_bin pause $ve_name";
+        $log->audit( "pause VE with: $pause_cmd");
+        system $pause_cmd;
+        return $log->error( "unable to pause dom $ve_name: $!" ) if $CHILD_ERROR;
+    };
     
     # create the snapshot
     my $vol_create = "$lvcreate -l 32 -s -n $snap /dev/vol00/$vol";
@@ -639,10 +660,12 @@ sub create_snapshot {
         return $log->error( "unable to create snapshot of /dev/vol00/$vol: $!" );
     };
 
-    # Unpause domain
-    my $resume_cmd = "$xm_bin unpause $ve_name";
-    $log->audit( "$resume_cmd" );
-    system "$resume_cmd" and $log->error( "unable to unpause domain $ve_name: $!" );
+    if ( $is_running ) {
+        # Unpause domain
+        my $resume_cmd = "$xm_bin unpause $ve_name";
+        $log->audit( "$resume_cmd" );
+        system "$resume_cmd" and $log->error( "unable to unpause domain $ve_name: $!" );
+    };
     return 1;
 };
 
@@ -849,6 +872,19 @@ EOCONF
     link $config_file, "/etc/xen/auto/$ve_name.cfg";
     return 1;
 }
+
+sub get_config {
+    my $self = shift;
+
+    my $config_file = $self->get_ve_config_path();
+
+    return $util->file_read( 
+        file => $config_file, 
+        debug => 0,
+        fatal => 0,
+    ) 
+    or return $log->error("unable to read VE config file", fatal => 0);
+};
 
 sub get_console_username {
     my $self = shift;
@@ -1066,8 +1102,15 @@ sub get_fs_root {
     my @caller = caller;
     my $ve_home = $self->get_ve_home( shift )
         or return $log->error( "VE name unset when called by $caller[0] at $caller[2]");
-    my $fs_root = "$ve_home/mnt";
-    return $fs_root;
+    return "$ve_home/mnt";
+};
+
+sub get_snap_root {
+    my $self = shift;
+    my @caller = caller;
+    my $ve_home = $self->get_ve_home( shift )
+        or return $log->error( "VE name unset when called by $caller[0] at $caller[2]");
+    return "$ve_home/snap";
 };
 
 sub get_ve_home {
@@ -1280,14 +1323,19 @@ sub mount_snapshot {
     my $self = shift;
 
     my $image_path = $self->get_disk_image(1);
-    my $fs_root    = $self->get_fs_root();
+    my $snap_root  = $self->get_snap_root();
+    my $snap_path  = $image_path . '_snap';
 
-    my $snap_path = $image_path . '_snap';
+    if ( ! -d $snap_root ) {
+        mkpath $snap_root 
+            or return $log->error( "unable to create snap dir: $snap_root");
+    };
 
-    # mount /dev/vol00/${VE}_rootimg_snap /home/xen/$VE/mnt
+    # mount /dev/vol00/${VE}_rootimg_snap /home/xen/$VE/snap
     my $mount = $util->find_bin( 'mount', debug => 0, fatal => 0 ) or return;
-    $util->syscmd( "$mount $snap_path $fs_root", debug => 0, fatal => 0 )
+    $util->syscmd( "$mount $snap_path $snap_root", debug => 0, fatal => 0 )
         or return $log->error( "unable to mount snapshot", fatal => 0 );
+
     return 1;
 }
 
@@ -1627,9 +1675,7 @@ sub unmount {
 sub unmount_snapshot {
     my $self = shift;
     my $image_path = $self->get_disk_image(1);
-    my $fs_root    = $self->get_fs_root();
-
-    my $snap_path = $image_path . '_snap';
+    my $snap_path  = $image_path . '_snap';
 
     my $umount = $util->find_bin( 'umount', debug => 0, fatal => 0 ) or return;
     $util->syscmd( "$umount $snap_path", debug => 0, fatal => 0 )

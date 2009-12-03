@@ -138,7 +138,7 @@ sub run {
 
         my $id = $o->{id};
         my $action = $o->{action};
-        if ( ! length($action) ) {
+        if ( ! $action || ! length($action) ) {
             rpc_send( {
                 status  => 'error',
                 type    => 'dispatch',
@@ -180,21 +180,23 @@ sub do_prov_call {
     my $suffix = '_' . lc($pkg);
     $pkg = 'Provision::Unix::' . $pkg;
 
-    my %result = (
-        id      => $req->{id},
-        status  => 'error',
-    );
+    my %result = ( id => $req->{id} );
 
     eval "require $pkg;";
     die {
         type    => 'dispatch',
         message => "Error loading provisioning module $pkg",
         debug   => $@,
+        status  => 'error',
         %result,
     } if $@;
 
+    rpc_send( { message => "Loaded $pkg", status  => 'debug', %result, });
+
     my $params = $req->{params} || {};
     my $instance = $pkg->new( prov => $prov );
+
+    rpc_send( { message => "created $pkg object", status  => 'debug', %result, });
 
     my $method;
     if ( $pkg->can( $action . $suffix ) ) {
@@ -207,17 +209,17 @@ sub do_prov_call {
         die {
             type    => 'dispatch',
             message => "Unknown action '$action'",
+            status  => 'error',
             %result,
         };
     }
 
-    $result{status} = 'debug';
     rpc_send( {
         message => "Calling '$pkg'::'$method'",
         data    => $params,
+        status  => 'debug',
         %result,
     });
-    $result{status} = 'error';
 
     my $rv;
     eval { $rv = $instance->$method( defined $params ? %$params : () ); };
@@ -227,6 +229,7 @@ sub do_prov_call {
     if ( $@ || ! $rv ) {
         die {
             %result,
+            status    => 'error',
             type      => 'operation',
             message   => $prov->get_last_error(),
             audit     => $prov->audit,

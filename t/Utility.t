@@ -513,12 +513,9 @@ if ( eval "require $mod" ) {
     #cmp_ok( $list[6], '==', `$date '+%S'`, 'get_the_date seconds');
 
     @list = $util->get_the_date( bump => 1, debug => 0 );
-    cmp_ok( $list[0], '!=', `$date '+%d'`, 'get_the_date day' );
-    if ( $list[0] == 1 ) {
-        cmp_ok( $list[1], '!=', `$date '+%m'`, 'get_the_date month' );
-    }
-    else {
-        cmp_ok( $list[1], '==', `$date '+%m'`, 'get_the_date month' );
+    cmp_ok( $list[0], '!=', `$date '+%d'`, "get_the_date day: $list[0]" );
+    if ( $list[0] < 28 ) {
+        cmp_ok( $list[1], '==', `$date '+%m'`, "get_the_date month: $list[1]" );
     }
     cmp_ok( $list[2], '==', `$date '+%Y'`, 'get_the_date year' );
     cmp_ok( $list[4], '==', `$date '+%H'`, 'get_the_date hour' );

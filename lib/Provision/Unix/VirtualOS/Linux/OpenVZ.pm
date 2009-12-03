@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::OpenVZ;
 
-our $VERSION = '0.47';
+our $VERSION = '0.48';
 
 use warnings;
 use strict;
@@ -130,7 +130,7 @@ sub destroy {
     ) if !$self->is_present();
 
     # if disabled, enable it, else vzctl pukes when it attempts to destroy
-    my $config = $self->get_config();
+    my $config = $self->get_ve_config_path();
     if ( ! -e $config ) {
         my $suspended_config = "$config.suspend";
 # humans often rename the config file to .suspended instead of our canonical '.suspend'
@@ -308,7 +308,7 @@ sub disable {
     ) if !$self->is_present();
 
     # is it already disabled?
-    my $config = $self->get_config();
+    my $config = $self->get_ve_config_path();
     if ( ! -e $config && ( -e "$config.suspend" || -e "$config.suspended" ) ) {
         $prov->audit( "VE is already disabled." );
         return 1;
@@ -354,7 +354,7 @@ sub enable {
     ) if ! $self->is_present();
 
     # see if VE is currently enabled
-    my $config = $self->get_config();
+    my $config = $self->get_ve_config_path();
     if ( -e $config ) {
         $prov->audit("\t$ctid is already enabled");
         return $self->start();
@@ -603,7 +603,7 @@ OSTEMPLATE="$vos->{template}"
 EO_VE_CUSTOM
 ;
 
-    my $conf_file = $self->get_config();
+    my $conf_file = $self->get_ve_config_path();
 
 # install config file
     $util->file_write( file => $conf_file, lines => [ $result ] );
@@ -611,6 +611,20 @@ EO_VE_CUSTOM
 };
 
 sub get_config {
+    my $self = shift;
+    my ($prov, $vos, $util) = ($self->{prov}, $self->{vos}, $self->{util});
+
+    my $config_file = $self->get_ve_config_path();
+
+    return $util->file_read( 
+        file => $config_file, 
+        debug => 0,
+        fatal => 0,
+        ) 
+    or return $prov->error("unable to read VE config file", fatal => 0);
+};
+
+sub get_ve_config_path {
     my $self = shift;
     my ($prov, $vos, $util) = ($self->{prov}, $self->{vos}, $self->{util});
 
@@ -661,7 +675,7 @@ sub get_os_template {
     my $self = shift;
     my ($prov, $vos, $util) = ($self->{prov}, $self->{vos}, $self->{util});
 
-    my $config = $self->get_config();
+    my $config = $self->get_ve_config_path();
     return if ! -f $config;
     my $grep = $util->find_bin( 'grep', debug => 0, fatal => 0);
     my $r = `$grep OSTEMPLATE $config*`;
@@ -695,7 +709,7 @@ sub get_status {
     $vzctl .= " status $name";
     my $r = `$vzctl`;
     if ( $r =~ /deleted/i ) {
-        my $config = $self->get_config();
+        my $config = $self->get_ve_config_path();
         if ( -e "$config.suspend" || -e "$config.suspended" ) {
             $exists++;
             $ve_info{state} = 'suspended';

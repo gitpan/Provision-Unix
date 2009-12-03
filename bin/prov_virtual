@@ -44,7 +44,8 @@ my $vos  = Provision::Unix::VirtualOS->new( prov => $prov );
 
 my %actions = map { $_ => 1 } qw/ create destroy start stop restart disable
      enable modify probe mount unmount console set_password migrate 
-     create_snapshot destroy_snapshot mount_snapshot unmount_snapshot /;
+     create_snapshot destroy_snapshot mount_snapshot unmount_snapshot 
+     get_config publish_arp /;
 
 my $questions = {
     action    => "the action to perform: \n\tcreate, destroy\n\tstart, stop, restart\n\tdisable, enable, mount, unmount, modify, console, probe",
@@ -75,11 +76,12 @@ create()       if $action eq 'create';
 modify()       if $action eq 'modify';
 set_password() if $action eq 'set_password';
 migrate()      if $action eq 'migrate';
+publish_arp()  if $action eq 'publish_arp';
 
 foreach ( keys %request ) { delete $request{$_} if ! defined $request{$_}; };
 print Dumper( $vos->$action( %request ) );
 
-$prov->error( fatal => 0 ) if $debug;
+$prov->error( "dump error log", fatal => 0 ) if $debug;
 print "done.\n";
 exit;
 
@@ -92,8 +94,8 @@ sub create {
     $request{ram}       = $ram;       
     $request{disk_size} = $disk_size;
     if ( ! $request{config} ) {
-        $ram       ||= $util->ask( $questions->{ram}       );
-        $disk_size ||= $util->ask( $questions->{disk_size} );
+        $request{ram}       ||= $util->ask( $questions->{ram}       );
+        $request{disk_size} ||= $util->ask( $questions->{disk_size} );
     };
     $request{password} = $password || $util->ask( $questions->{password} );
     $request{nameservers} = $nameservers || $util->ask( $questions->{nameservers} );
@@ -103,17 +105,21 @@ sub create {
     $prov->audit("dispatching creation request");
 }
 
+sub migrate {
+    $request{new_node} = $new_node || $util->ask( "the destination HW node hostname or IP" );
+    $request{connection_test} = $connection_test || $util->ask( "only test the connection", default => 0 );
+}
 sub modify {
     $request{hostname} = $hostname || $util->ask( $questions->{hostname} );
     $request{password} = $password || $util->ask( $questions->{password} );
     $request{ip}       = $ip       || $util->ask( $questions->{ip} );
 }
+sub publish_arp {
+    delete $request{name};
+    $request{ip} = $ip || $util->ask( $questions->{ip} );
+};
 sub set_password {
     $request{password} = $password || $util->ask( $questions->{password} );
-}
-sub migrate {
-    $request{new_node} = $new_node || $util->ask( "the destination HW node hostname or IP" );
-    $request{connection_test} = $connection_test || $util->ask( "only test the connection", default => 0 );
 }
 
 __END__
