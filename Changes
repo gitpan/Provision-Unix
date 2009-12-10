@@ -1,5 +1,13 @@
 Revision history for Provision-Unix
 
+0.84 Dec 09, 2009
+  - added ability to pass the following command line arguments to prov_virtual
+    --modify: ram, disk_size, cpu, nameservers, searchdomain
+  - added cpu to list of command line arguments of prov_virtual -create
+  - added gecos (comment) field to xen console users
+  - chown console users home dir after creation
+  - strip off any spaces from prov_virtual --action param
+
 0.83 Dec 02, 2009
   - skip get_the_date( bump => 1 ) test if day of month > 27
   - added additional debug messages to remoteagent

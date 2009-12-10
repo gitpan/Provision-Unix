@@ -22,6 +22,7 @@ Getopt::Long::GetOptions(
 
     'template=s'      => \my $template,
     'config=s'        => \my $config,
+    'cpu=s'           => \my $cpu,
     'disk_root=s'     => \my $disk_root,
     'disk_size=s'     => \my $disk_size,
     'ram=s'           => \my $ram,
@@ -52,6 +53,7 @@ my $questions = {
     name      => "the virtual environment name/ID",
     ip        => "the IP address[es] (space delimited)",
     ram       => 'RAM (in MB)',
+    cpu       => '# of CPU cores available to this VE',
     template  => "the OS template/tarball to use",
     config    => "the configuration file",
     disk_root => "the path to the virtual OS root",
@@ -64,6 +66,7 @@ my $questions = {
 
 $action ||= $util->ask( $questions->{action}, default=>'create' );
 $action = lc($action);
+$action =~ s/\s//g;  # strip off spaces
 
 pod2usage( { -verbose => 1 } ) if !$actions{$action};
 
@@ -91,14 +94,15 @@ sub create {
     $request{template} = $template || $util->ask( $questions->{template}, 
         default => 'centos-5-i386-default' );
     $request{config}   = $config   || $util->ask( $questions->{config} );
+    $request{cpu}      = $cpu      || $util->ask( $questions->{cpu} );
     $request{ram}       = $ram;       
     $request{disk_size} = $disk_size;
     if ( ! $request{config} ) {
         $request{ram}       ||= $util->ask( $questions->{ram}       );
         $request{disk_size} ||= $util->ask( $questions->{disk_size} );
     };
-    $request{password} = $password || $util->ask( $questions->{password} );
-    $request{nameservers} = $nameservers || $util->ask( $questions->{nameservers} );
+    $request{password}     = $password || $util->ask( $questions->{password} );
+    $request{nameservers}  = $nameservers || $util->ask( $questions->{nameservers} );
     $request{searchdomain} = $searchdomain || $util->ask( $questions->{searchdomain} );
 
     warn "creating!\n";
@@ -110,9 +114,14 @@ sub migrate {
     $request{connection_test} = $connection_test || $util->ask( "only test the connection", default => 0 );
 }
 sub modify {
-    $request{hostname} = $hostname || $util->ask( $questions->{hostname} );
-    $request{password} = $password || $util->ask( $questions->{password} );
-    $request{ip}       = $ip       || $util->ask( $questions->{ip} );
+    $request{hostname}     = $hostname    || $util->ask( $questions->{hostname}  );
+    $request{password}     = $password    || $util->ask( $questions->{password}  );
+    $request{ip}           = $ip          || $util->ask( $questions->{ip}        );
+    $request{ram}          = $ram         || $util->ask( $questions->{ram}       );
+    $request{disk_size}    = $disk_size   || $util->ask( $questions->{disk_size} );
+    $request{cpu}          = $cpu         || $util->ask( $questions->{cpu} );
+    $request{nameservers}  = $nameservers || $util->ask( $questions->{nameservers} );
+    $request{searchdomain} = $searchdomain || $util->ask( $questions->{searchdomain} );
 }
 sub publish_arp {
     delete $request{name};

@@ -1,6 +1,6 @@
 package Provision::Unix::User::Linux;
 
-our $VERSION = '0.19';
+our $VERSION = '0.20';
 
 use warnings;
 use strict;
@@ -72,7 +72,7 @@ sub create {
     my $group = $p{gid} || $self->exists_group( $username );
 
     my $cmd = $util->find_bin( 'useradd', debug => 0 );
-    $cmd .= " -c $p{gecos}"   if $p{gecos};
+    $cmd .= " -c '$p{gecos}'" if $p{gecos};
     $cmd .= " -d $p{homedir}" if $p{homedir};
     $cmd .= " -e $p{expire}"  if $p{expire};
     $cmd .= " -u $p{uid}"     if $p{uid};
@@ -352,11 +352,11 @@ sub set_password {
         $homedir && -d $homedir or 
             return $prov->error("unable to determine home directory for $username", fatal => 0);
         $user->install_ssh_key( 
-            homedir  => $homedir, 
-            ssh_key  => $p{ssh_key}, 
+            homedir        => $homedir, 
+            ssh_key        => $p{ssh_key}, 
             ssh_restricted => $p{ssh_restricted},
-            username => $username,
-            fatal    => $fatal,
+            username       => $username,
+            fatal          => $fatal,
         );
     };
     return 1;

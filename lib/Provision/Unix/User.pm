@@ -326,8 +326,15 @@ sub install_ssh_key {
     ) or return;
 
     if ( $p{username} ) {
-        my $chown = $util->find_bin( 'chown', debug => 0 );
-        $util->syscmd( "$chown -R $p{username} $homedir/.ssh", fatal => 0, debug => 0 );
+        my $uid = getpwnam $p{username};
+        if ( $uid ) {
+            $util->chown( dir => $ssh_dir, uid => $uid, fatal => 0 );
+            $util->chown( dir => "$ssh_dir/authorized_keys", uid => $uid, fatal => 0 );
+        }
+        else {
+            my $chown = $util->find_bin( 'chown', debug => 0 );
+            $util->syscmd( "$chown -R $p{username} $homedir/.ssh", fatal => 0, debug => 0 );
+        };
     };
 };
 

@@ -215,7 +215,7 @@ sub chown {
         {   'file'        => { type => SCALAR, optional => 1, },
             'file_or_dir' => { type => SCALAR, optional => 1, },
             'dir'         => { type => SCALAR, optional => 1, },
-            'uid'         => { type => SCALAR, optional => 0, },
+            'uid'         => { type => SCALAR },
             'gid'         => { type => SCALAR, optional => 1, default => -1 },
             'sudo'    => { type => BOOLEAN, optional => 1, default => 0 },
             'fatal'   => { type => BOOLEAN, optional => 1, default => 1 },

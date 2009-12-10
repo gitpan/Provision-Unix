@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::Xen;
 
-our $VERSION = '0.59';
+our $VERSION = '0.60';
 
 use warnings;
 use strict;
@@ -554,10 +554,16 @@ sub create_console_user {
             homedir  => $ve_home,
             shell    => -x '/usr/bin/lxxen' ? '/usr/bin/lxxen' : '',
             debug    => $debug,
+            gecos    => "System User for $ve_name",
         )
         or return $log->error( "unable to create console user $username", fatal => 0 ); 
         $log->audit("created console user account");
     };   
+
+    my $uid = getpwnam $username;
+    if ( $uid ) {
+        $util->chown( dir => $ve_home, uid => $uid, fatal => 0 );
+    };
 
     foreach ( qw/ .bashrc .bash_profile / ) {
         $util->file_write( 
