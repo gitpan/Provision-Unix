@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::OpenVZ;
 
-our $VERSION = '0.48';
+our $VERSION = '0.49';
 
 use warnings;
 use strict;
@@ -105,7 +105,7 @@ sub create {
     sleep 1;
     $self->set_ips();
     sleep 1;
-    $self->set_nameservers() if $vos->{nameservers};
+    $vos->set_nameservers()  if $vos->{nameservers};
     sleep 1;
     $self->set_password()    if $vos->{password};
     sleep 1;
@@ -443,9 +443,9 @@ sub modify {
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
 
     $self->gen_config();
-    $self->set_hostname()    if $vos->{hostname};
-    $self->set_password()    if $vos->{password};
-    $self->set_nameservers() if $vos->{nameservers};
+    $self->set_hostname()   if $vos->{hostname};
+    $self->set_password()   if $vos->{password};
+    $vos->set_nameservers() if $vos->{nameservers};
     $self->set_ips();
 
     $prov->audit("\tVE modified");
@@ -522,7 +522,7 @@ sub gen_config {
 
     my $ram  = $vos->{ram} or return $prov->error( "unable to determine RAM" );
     my $disk = $vos->{disk_size} or 
-        return $prov->error( "unable to determine disk space" );
+        return $prov->error( "unable to determine disk size" );
 
     my $MAX_ULONG = "2147483647";
     if( ($CHILD_ERROR>>8) == 0 ){
@@ -594,19 +594,24 @@ EO_MAX_CONFIG
     };
 
     my $disk_root = $vos->{disk_root} || '/vz';
+    my $template  = $vos->{template}  || '';
+    my @ips       = @{ $vos->{ip} };
+    my $ip_string = shift @ips;
+    foreach ( @ips ) { $ip_string .= " $_"; }
 
     $result .= <<EO_VE_CUSTOM
 \n# Provision::Unix Custom VE Additions
 VE_ROOT="$disk_root/root/\$VEID"
 VE_PRIVATE="$disk_root/private/\$VEID"
-OSTEMPLATE="$vos->{template}"
+OSTEMPLATE="$template"
+IP_ADDRESS="$ip_string"
 EO_VE_CUSTOM
 ;
 
     my $conf_file = $self->get_ve_config_path();
 
 # install config file
-    $util->file_write( file => $conf_file, lines => [ $result ] );
+    $util->file_write( file => $conf_file, lines => [ $result ], debug => 0 );
     $prov->audit("updated config file $conf_file");
 };
 
@@ -822,14 +827,15 @@ sub set_ips {
     my ($prov, $vos, $util) = ($self->{prov}, $self->{vos}, $self->{util});
     my $linux = $self->{linux};
 
-    my $ips = $vos->{ip};
+    my @ips = @{ $vos->{ip} };
 
     my (undef,undef,undef,$calling_sub) = caller(1);
-    if ( $calling_sub eq 'modify' ) {
+    if ( $calling_sub =~ /modify/ ) {
         $prov->audit("using linux method to set ips");
         $linux->set_ips( 
-            ips     => $ips, 
+            ips     => \@ips,
             fs_root => $self->get_fs_root(),
+            device  => 'venet0',
         );
         return;
     };
@@ -837,12 +843,12 @@ sub set_ips {
     my $cmd = $util->find_bin( 'vzctl', debug => 0 );
     $cmd .= " set $vos->{name}";
 
-    @$ips > 0
+    @ips > 0
         or return $prov->error( 'set_ips called but no valid IPs were provided',
         fatal   => $vos->{fatal},
         );
 
-    foreach my $ip ( @$ips ) {
+    foreach my $ip ( @ips ) {
         $cmd .= " --ipadd $ip";
     }
     $cmd .= " --save";
@@ -897,28 +903,6 @@ sub set_ssh_key {
     return 1;
 }
 
-sub set_nameservers {
-    my $self = shift;
-    my ($prov, $vos, $util) = ($self->{prov}, $self->{vos}, $self->{util});
-
-    my $cmd = $util->find_bin( 'vzctl', debug => 0 );
-    $cmd .= " set $vos->{name}";
-
-    my $search      = $vos->{searchdomain};
-    my $nameservers = $vos->{nameservers}
-        or return $prov->error( 'set_nameservers function called with no valid nameserver ips',
-        fatal => $vos->{fatal},
-        debug => $vos->{debug},
-        );
-
-    foreach my $ns (@$nameservers) { $cmd .= " --nameserver $ns"; }
-
-    $cmd .= " --searchdomain $search" if $search;
-#    $cmd .= " --save";
-
-    return $util->syscmd( $cmd, debug => 0, fatal => 0 );
-}
-
 sub set_hostname {
     my $self = shift;
     my ($prov, $vos, $util) = ($self->{prov}, $self->{vos}, $self->{util});
@@ -933,7 +917,7 @@ sub set_hostname {
     $vzctl .= " set $vos->{name}";
     $vzctl .= " --hostname $hostname --save";
 
-    return $util->syscmd( $vzctl, debug => $vos->{debug}, fatal => $vos->{fatal});
+    return $util->syscmd( $vzctl, debug => 0, fatal => $vos->{fatal});
 }
 
 sub pre_configure {

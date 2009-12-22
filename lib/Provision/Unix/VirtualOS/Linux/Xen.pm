@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::Xen;
 
-our $VERSION = '0.60';
+our $VERSION = '0.61';
 
 use warnings;
 use strict;
@@ -152,6 +152,7 @@ sub destroy {
     $self->unmount() or return $log->error("could not unmount disk image");
 
     $log->audit("\tctid '$ctid' is stopped. Nuking it...");
+    $self->destroy_snapshot() or return;
     $self->destroy_disk_image() or return;
     $self->destroy_swap_image() or return;
 
@@ -757,7 +758,10 @@ sub destroy_snapshot {
     my $vol  = $self->get_disk_image();
     my $snap = $vol . '_snap';
 
-    $self->unmount_snapshot() if $self->is_mounted( $snap );
+    if ( $self->is_mounted( $snap ) ) {
+        # a mounted snapshot cannot be destroyed
+        $self->unmount_snapshot() or return;  
+    };
 
     # cleanup
     my $snapimg = "/dev/vol00/$snap";
@@ -1685,7 +1689,7 @@ sub unmount_snapshot {
 
     my $umount = $util->find_bin( 'umount', debug => 0, fatal => 0 ) or return;
     $util->syscmd( "$umount $snap_path", debug => 0, fatal => 0 )
-        or return $log->error( "unable to mount snapshot", fatal => 0 );
+        or return $log->error( "unable to unmount snapshot, is a backup active?", fatal => 0 );
     return 1;
 };
 

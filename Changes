@@ -1,5 +1,12 @@
 Revision history for Provision-Unix
 
+0.85 Dec 17, 2009
+  - when doing a xen reinstall, destroy any snapshots that exist. They prevent
+    the disk image from being removed, which causes the reinstall to fail.
+  - added ram, disk_size to VE creation tests
+  - deprecate P:U:V:L:OpenVZ::set_nameservers in favor of P:U:V:set_nameservers
+  - when modifying an OpenVZ VE, use Linux::set_ips method
+
 0.84 Dec 09, 2009
   - added ability to pass the following command line arguments to prov_virtual
     --modify: ram, disk_size, cpu, nameservers, searchdomain

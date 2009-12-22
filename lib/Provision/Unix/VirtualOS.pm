@@ -3,7 +3,7 @@ package Provision::Unix::VirtualOS;
 use warnings;
 use strict;
 
-our $VERSION = '0.57';
+our $VERSION = '0.58';
 
 use Data::Dumper;
 use English qw( -no_match_vars );
@@ -669,9 +669,10 @@ sub set_nameservers {
     );
 
     my $name              = $self->set_name( $p{name} ) if $p{name};
+    my $searchdomain      = $p{searchdomain};
     $self->{nameservers}  = $self->get_ips( $p{nameservers} ) if $p{nameservers};
     $self->{nameservers}  or die 'missing nameservers';
-    $self->{searchdomain} = $p{searchdomain};
+    $self->{searchdomain} = $searchdomain;
     $self->{test_mode}    = $p{test_mode};
     my $debug = $self->{debug} = $p{debug};
     my $fatal = $self->{fatal} = $p{fatal};
@@ -687,9 +688,11 @@ sub set_nameservers {
     my $resolv = "$fs_root/etc/resolv.conf";
 
     my @new;
+    push @new, "searchdomain $searchdomain" if $searchdomain;
     my @lines = $util->file_read( file => $resolv, fatal => $fatal );
     foreach my $line ( @lines ) {
         next if $line =~ /^nameserver\s/i;
+        next if $searchdomain && $line =~ /^searchdomain\s/i;
         push @new, $line;
     };
 

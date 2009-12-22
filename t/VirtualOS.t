@@ -166,6 +166,8 @@ my $r;
 
     $request{test_mode} = 1;
     $request{ip}        = '10.0.1.68';
+    $request{ram}       = 512;
+    $request{disk_size} = 2000;
 
     $r = $vos->create( %request );
 
