@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::Xen;
 
-our $VERSION = '0.61';
+our $VERSION = '0.62';
 
 use warnings;
 use strict;
@@ -960,9 +960,18 @@ sub get_kernel_version {
 
 sub get_mac_address {
     my $self = shift;
-    my $mac = $vos->{mac_address};
+    my $mac = $vos->{mac_address};   # passed in value
     return $mac if $mac;
 
+    # value from VE config file
+    my $xen_conf = $self->get_xen_config();
+    my $config_file = $self->get_ve_config_path();
+    if ( $xen_conf && $xen_conf->read_config($config_file) ) {
+        my $vif = $xen_conf->get('vif');
+        return $vif->[0]->{mac} if $vif->[0]->{mac};
+    };
+
+    # both of the previous methods failed, generate a random MAC
     my $i;
     $mac = '00:16:3E';
 
@@ -992,7 +1001,7 @@ sub get_status {
     return $self->{status}{$ve_name} if ! $self->is_present( debug => $debug );
 
     # get IPs and disks from the VE config file
-    my ($ips, $disks, $disk_usage );
+    my ($ips, $vif, $disks, $disk_usage );
     my $config_file = $self->get_ve_config_path();
     if ( ! -e $config_file ) {
         return { state => 'disabled' } if -e "$config_file.suspend";
@@ -1001,18 +1010,11 @@ sub get_status {
         return { state => 'broken' };
     };
 
-    my $xen_conf = $self->{xen_conf};
-    if ( ! $xen_conf ) {
-        eval "require Provision::Unix::VirtualOS::Xen::Config";
-        if ( ! $EVAL_ERROR ) {
-            $xen_conf = Provision::Unix::VirtualOS::Xen::Config->new();
-            $self->{xen_conf} = $xen_conf;
-        };
-    };
-
+    my $xen_conf = $self->get_xen_config();
     if ( $xen_conf && $xen_conf->read_config($config_file) ) {
         $ips   = $xen_conf->get_ips();
         $disks = $xen_conf->get('disk');
+        $vif   = $xen_conf->get('vif');
     };
     foreach ( @$disks ) {
         my ($image) = $_ =~ /phy:(.*?),/;
@@ -1062,6 +1064,7 @@ sub get_status {
             cpus     => $cpus,
             state    => _run_state($state),
             cpu_time => $time,
+            mac      => $vif->[0]->{mac},
         };
         return $self->{status}{$ctid};
     }
@@ -1104,7 +1107,17 @@ sub get_ve_config_path {
 
 sub get_ve_ram {
     my $self = shift;
-    return $vos->{ram} || 256;
+    return $vos->{ram} if $vos->{ram};  # passed in value
+
+    # value from VE config file
+    my $xen_conf = $self->get_xen_config();
+    my $config_file = $self->get_ve_config_path();
+    if ( $xen_conf && $xen_conf->read_config($config_file) ) {
+        my $ram = $xen_conf->get('memory');
+        return $ram if $ram;
+    };
+
+    return 256;   # default value
 };
 
 sub get_fs_root {
@@ -1156,6 +1169,18 @@ sub get_ve_passwd_file {
 
     $log->error( "\tcould not find password file", fatal => 0);
     return;
+};
+
+sub get_xen_config {
+    my $self = shift;
+    return $self->{xen_conf} if $self->{xen_conf};
+
+    eval "require Provision::Unix::VirtualOS::Xen::Config";
+    if ( ! $EVAL_ERROR ) {
+        my $xen_conf = Provision::Unix::VirtualOS::Xen::Config->new();
+        $self->{xen_conf} = $xen_conf;
+    };
+    return $self->{xen_conf};
 };
 
 sub is_mounted {

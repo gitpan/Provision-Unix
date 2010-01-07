@@ -1,5 +1,10 @@
 Revision history for Provision-Unix
 
+0.86 Jan 06, 2010
+  - if OpenVZ destroy using vzctl fails, attempt to manually destroy
+  - when generating a xen config file, use the current MAC address if available
+  - return MAC address in xen probe results
+
 0.85 Dec 17, 2009
   - when doing a xen reinstall, destroy any snapshots that exist. They prevent
     the disk image from being removed, which causes the reinstall to fail.

@@ -177,17 +177,22 @@ sub destroy {
 
     $prov->audit("\tdestroying $name...");
 
-    my $cmd = $util->find_bin( 'vzctl', debug => 0 );
-    $cmd .= " destroy $name";
+    my $vzctl = $util->find_bin( 'vzctl', debug => 0 );
+    $vzctl .= " destroy $name";
 
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
 
-    $util->syscmd( $cmd, debug => 0, fatal => 0 );
+    $util->syscmd( $vzctl, debug => 0, fatal => 0 );
 
     # we have learned better than to trust the return codes of vzctl
-    if ( ! $self->is_present() ) {
-        return $prov->audit("\tdestroyed VE");
-    };
+    return $prov->audit("\tdestroyed VE") if ! $self->is_present();
+
+    # vzctl failed, try to nuke it manually
+    my $rm      = $util->find_bin( 'rm', debug => 0 );
+    my $ve_home = $self->get_ve_home();  # "/vz/private/$ctid"
+    $util->syscmd( "$rm -rf $ve_home", debug => 0, fatal => 0 );
+    move( $config, "$config.destroyed" );
+    return $prov->audit("\tdestroyed VE manually") if ! $self->is_present();
 
     return $prov->error( "destroy failed, unknown error",
         fatal   => $vos->{fatal},
