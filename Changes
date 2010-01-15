@@ -1,5 +1,12 @@
 Revision history for Provision-Unix
 
+0.87 Jan 14, 2010
+  - added eval around $xen_conf->read_file, as it throws an exception if it
+    fails to find the config file.
+  - xen destroy would sometimes fail because the disk image was marked as in
+    use, despite the VE being shut down. Running 'xm destroy' clears that, so 
+    always run 'xm destroy' when stopping a xen VE.
+
 0.86 Jan 06, 2010
   - if OpenVZ destroy using vzctl fails, attempt to manually destroy
   - when generating a xen config file, use the current MAC address if available

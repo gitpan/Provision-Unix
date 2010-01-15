@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::Xen;
 
-our $VERSION = '0.62';
+our $VERSION = '0.64';
 
 use warnings;
 use strict;
@@ -145,10 +145,7 @@ sub destroy {
 
     return $log->audit("\ttest mode early exit") if $vos->{test_mode};
 
-    if ( $self->is_running( debug => 0 ) ) {
-        $self->stop() or return;
-    };
-
+    $self->stop() or return;
     $self->unmount() or return $log->error("could not unmount disk image");
 
     $log->audit("\tctid '$ctid' is stopped. Nuking it...");
@@ -228,8 +225,6 @@ sub stop {
 
     my $ctid = $vos->{name} or die "name of VE missing!\n";
 
-    $log->audit("shutting down $ctid");
-
     return $log->error( "$ctid does not exist",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
@@ -238,6 +233,25 @@ sub stop {
 
     return $log->audit("$ctid is already shutdown.")
         if ! $self->is_running();
+
+    $log->audit("shutting down $ctid");
+
+    $self->stop_nicely();
+    $self->stop_forcefully();
+
+    system "sync";
+    foreach ( 1..5 ) {
+        last if ! $self->lvm_in_use();  # give the lvm time to sync and detach
+        sleep 1;
+    };
+
+    return 1 if !$self->is_running();
+    $log->error( "failed to stop virtual $ctid", fatal => 0 );
+    return;
+}
+
+sub stop_nicely {
+    my $self = shift;
 
     my $ve_name = $self->get_ve_name();
     my $xm = $util->find_bin( 'xm', debug => 0 );
@@ -255,32 +269,30 @@ sub stop {
         last if ! $self->is_running( debug => 0 );
         sleep 1;   
     };
+};
 
-    if ( $self->is_running() ) {   # get a 2nd opinion
-        # whack it with the bigger hammer
-        $util->syscmd( "$xm destroy $ve_name",
-            timeout => 20,
-            fatal => 0,
-            debug => 0,
-        );
+sub stop_forcefully {
+    my $self = shift;
 
-        # xm destroy may exit before the VE is stopped.
-        # wait 15 more seconds for it to finish shutting down
-        foreach ( 1..15 ) {
-            last if ! $self->is_running( debug => 0 );
-            sleep 1;   
-        };
+    my $ctid = $vos->{name} or die "name of VE missing!\n";
+
+    $log->audit("shutting down $ctid");
+
+    my $ve_name = $self->get_ve_name();
+    my $xm = $util->find_bin( 'xm', debug => 0 );
+
+    $util->syscmd( "$xm destroy $ve_name",
+        timeout => 20,
+        fatal => 0,
+        debug => 0,
+    );
+
+    # xm destroy may exit before the VE is stopped.
+    # wait 15 more seconds for it to finish shutting down
+    foreach ( 1..15 ) {
+        last if ! $self->is_running( debug => 0 );
+        sleep 1;   
     };
-
-    system "sync";
-    foreach ( 1..5 ) {
-        last if ! $self->lvm_in_use();  # give the lvm time to sync and detach
-        sleep 1;
-    };
-
-    return 1 if !$self->is_running();
-    $log->error( "failed to stop virtual $ve_name", fatal => 0 );
-    return;
 }
 
 sub restart {
@@ -966,9 +978,12 @@ sub get_mac_address {
     # value from VE config file
     my $xen_conf = $self->get_xen_config();
     my $config_file = $self->get_ve_config_path();
-    if ( $xen_conf && $xen_conf->read_config($config_file) ) {
-        my $vif = $xen_conf->get('vif');
-        return $vif->[0]->{mac} if $vif->[0]->{mac};
+    if ( $xen_conf ) {
+        eval { $xen_conf->read_config($config_file); };
+        if ( ! $@ ) {
+            my $vif = $xen_conf->get('vif');
+            return $vif->[0]->{mac} if $vif->[0]->{mac};
+        };
     };
 
     # both of the previous methods failed, generate a random MAC
