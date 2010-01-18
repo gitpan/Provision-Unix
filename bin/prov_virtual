@@ -43,8 +43,8 @@ $prov->get_version() and exit if $version;
 $EUID == 0 or die 'Virtual OS functions require root privileges.';
 my $vos  = Provision::Unix::VirtualOS->new( prov => $prov );
 
-my %actions = map { $_ => 1 } qw/ create destroy start stop restart disable
-     enable modify probe mount unmount console set_password migrate 
+my %actions = map { $_ => 1 } qw/ create destroy start stop restart reinstall
+     disable enable modify probe mount unmount console set_password migrate 
      create_snapshot destroy_snapshot mount_snapshot unmount_snapshot 
      get_config publish_arp /;
 
@@ -75,7 +75,7 @@ $debug = defined $debug ? $debug : 0;
 
 my %request = ( debug => $debug, fatal => 0, name => lc($name) );
 
-create()       if $action eq 'create';
+create()       if $action eq 'create' || $action eq 'reinstall';
 modify()       if $action eq 'modify';
 set_password() if $action eq 'set_password';
 migrate()      if $action eq 'migrate';
@@ -101,9 +101,9 @@ sub create {
         $request{ram}       ||= $util->ask( $questions->{ram}       );
         $request{disk_size} ||= $util->ask( $questions->{disk_size} );
     };
-    $request{password}     = $password || $util->ask( $questions->{password} );
-    $request{nameservers}  = $nameservers || $util->ask( $questions->{nameservers} );
+    $request{nameservers}  = $nameservers  || $util->ask( $questions->{nameservers} );
     $request{searchdomain} = $searchdomain || $util->ask( $questions->{searchdomain} );
+    $request{password}     = $password     || $util->ask( $questions->{password} );
 
     warn "creating!\n";
     $prov->audit("dispatching creation request");
@@ -114,14 +114,14 @@ sub migrate {
     $request{connection_test} = $connection_test || $util->ask( "only test the connection", default => 0 );
 }
 sub modify {
-    $request{hostname}     = $hostname    || $util->ask( $questions->{hostname}  );
-    $request{password}     = $password    || $util->ask( $questions->{password}  );
     $request{ip}           = $ip          || $util->ask( $questions->{ip}        );
     $request{ram}          = $ram         || $util->ask( $questions->{ram}       );
     $request{disk_size}    = $disk_size   || $util->ask( $questions->{disk_size} );
-    $request{cpu}          = $cpu         || $util->ask( $questions->{cpu} );
     $request{nameservers}  = $nameservers || $util->ask( $questions->{nameservers} );
     $request{searchdomain} = $searchdomain || $util->ask( $questions->{searchdomain} );
+    $request{hostname}     = $hostname    || $util->ask( $questions->{hostname}  );
+    $request{cpu}          = $cpu      || $util->ask( $questions->{cpu} );
+    $request{password}     = $password    || $util->ask( $questions->{password}  );
 }
 sub publish_arp {
     delete $request{name};

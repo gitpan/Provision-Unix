@@ -1,5 +1,9 @@
 Revision history for Provision-Unix
 
+0.88 Jan 18, 2010
+  - missed an instance of $xen_conf->read_file  whose exception was unhandled
+  - allow VE reinstall via prov_virtual CLI
+
 0.87 Jan 14, 2010
   - added eval around $xen_conf->read_file, as it throws an exception if it
     fails to find the config file.

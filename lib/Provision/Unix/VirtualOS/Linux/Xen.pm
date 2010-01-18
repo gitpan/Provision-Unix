@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::Xen;
 
-our $VERSION = '0.64';
+our $VERSION = '0.66';
 
 use warnings;
 use strict;
@@ -533,6 +533,8 @@ sub modify {
 sub reinstall {
     my $self = shift;
 
+    $self->get_xen_config();  # cache value from config file (like mac address)
+
     $self->destroy()
         or
         return $log->error( "unable to destroy virtual $vos->{name}",
@@ -977,13 +979,12 @@ sub get_mac_address {
 
     # value from VE config file
     my $xen_conf = $self->get_xen_config();
-    my $config_file = $self->get_ve_config_path();
     if ( $xen_conf ) {
-        eval { $xen_conf->read_config($config_file); };
-        if ( ! $@ ) {
-            my $vif = $xen_conf->get('vif');
-            return $vif->[0]->{mac} if $vif->[0]->{mac};
+        my $vif = $xen_conf->get('vif');
+        if ( ref $vif->[0]->{mac} ) {
+            return $vif->[0]->{mac}->[0];
         };
+        return $vif->[0]->{mac} if $vif->[0]->{mac};
     };
 
     # both of the previous methods failed, generate a random MAC
@@ -1026,7 +1027,7 @@ sub get_status {
     };
 
     my $xen_conf = $self->get_xen_config();
-    if ( $xen_conf && $xen_conf->read_config($config_file) ) {
+    if ( $xen_conf ) {
         $ips   = $xen_conf->get_ips();
         $disks = $xen_conf->get('disk');
         $vif   = $xen_conf->get('vif');
@@ -1126,8 +1127,7 @@ sub get_ve_ram {
 
     # value from VE config file
     my $xen_conf = $self->get_xen_config();
-    my $config_file = $self->get_ve_config_path();
-    if ( $xen_conf && $xen_conf->read_config($config_file) ) {
+    if ( $xen_conf ) {
         my $ram = $xen_conf->get('memory');
         return $ram if $ram;
     };
@@ -1188,14 +1188,21 @@ sub get_ve_passwd_file {
 
 sub get_xen_config {
     my $self = shift;
-    return $self->{xen_conf} if $self->{xen_conf};
+    return $self->{xen_conf} if $self->{xen_conf};   # already got it
 
-    eval "require Provision::Unix::VirtualOS::Xen::Config";
-    if ( ! $EVAL_ERROR ) {
-        my $xen_conf = Provision::Unix::VirtualOS::Xen::Config->new();
-        $self->{xen_conf} = $xen_conf;
-    };
-    return $self->{xen_conf};
+    my $config_file = $self->get_ve_config_path();   # no config file, don't bother
+    return if ! -f $config_file;
+
+    eval "require Provision::Unix::VirtualOS::Xen::Config";  # won't load
+    return if $@;
+
+    my $xen_conf = Provision::Unix::VirtualOS::Xen::Config->new();
+
+    eval { $xen_conf->read_config($config_file); };   # parse the config file
+    return if $@;
+
+    $self->{xen_conf} = $xen_conf;                    # cache it
+    return $xen_conf;
 };
 
 sub is_mounted {
