@@ -1,5 +1,11 @@
 Revision history for Provision-Unix
 
+
+0.89 Feb 12, 2010
+  - instead of using system calls result code, check if xen disk image is 
+    mounted after attempt to unmount it.
+  - increased test VPS disk size from 2 to 4GB
+
 0.88 Jan 18, 2010
   - missed an instance of $xen_conf->read_file  whose exception was unhandled
   - allow VE reinstall via prov_virtual CLI

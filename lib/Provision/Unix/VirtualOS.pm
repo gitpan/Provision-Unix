@@ -1011,7 +1011,7 @@ Since the RPC remoteagent is running as root, the request broker has access to a
 
     $vos->modify(
         name      => 42,
-        disk_size => 2000,
+        disk_size => 4000,
         hostname  => 'new-host.example.com',
         ip        => '10.1.1.43 10.1.1.44',
         ram       => 768,

@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::Xen;
 
-our $VERSION = '0.66';
+our $VERSION = '0.67';
 
 use warnings;
 use strict;
@@ -1720,11 +1720,15 @@ sub unmount {
     my $umount = $util->find_bin( 'umount', debug => 0, fatal => $fatal )
         or return $log->error( "unable to find 'umount' program");
 
-    my $r = $util->syscmd( "$umount $image_path", debug => 0, fatal => $fatal )
-        or do {
-            $log->error( "unable to unmount $image_name" ) if ! $quiet;
-            return;
-        };
+    $util->syscmd( "$umount $image_path", debug => 0, fatal => $fatal );
+
+    sleep 5 if ( $self->is_mounted );
+    if ( $self->is_mounted ) { 
+        $log->error( "unable to unmount $image_name" ) if ! $quiet;
+        return;
+    };
+
+    $debug = $fatal = 0 if $quiet;
     $self->do_fsck();
     return $r;
 }
