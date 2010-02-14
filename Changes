@@ -1,6 +1,9 @@
 Revision history for Provision-Unix
 
 
+0.90 Feb 12, 2010
+  - fixed typo in P:U:V:L:Xen module.
+
 0.89 Feb 12, 2010
   - instead of using system calls result code, check if xen disk image is 
     mounted after attempt to unmount it.

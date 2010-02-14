@@ -1730,7 +1730,7 @@ sub unmount {
 
     $debug = $fatal = 0 if $quiet;
     $self->do_fsck();
-    return $r;
+    return 1;
 }
 
 sub unmount_snapshot {
