@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::Xen;
 
-our $VERSION = '0.67';
+our $VERSION = '0.68';
 
 use warnings;
 use strict;
@@ -545,6 +545,79 @@ sub reinstall {
     return $self->create();
 }
 
+sub transition {
+    my $self = shift;
+
+# TODO: this method is almost identical to disable. Remove after 10/1/2010
+    my $ctid = $vos->{name};
+    $log->audit("transitioning $ctid");
+
+    return $log->error( "$ctid does not exist",
+        fatal   => $vos->{fatal},
+        debug   => $vos->{debug},
+    ) if !$self->is_present( debug => 0 );
+
+    my $config = $self->get_ve_config_path();
+    if ( !-e $config && -e "$config.transition" ) {
+        $log->audit( "VE is already transitioned." );
+        return 1;
+    };
+
+    if ( !-e $config ) {
+        return $log->error( "configuration file ($config) for $ctid does not exist",
+            fatal => $vos->{fatal},
+            debug => $vos->{debug},
+        );
+    }
+
+    if ( $self->is_running() ) {
+        $self->stop() or return; 
+    };
+
+    move( $config, "$config.transition" )
+        or return $log->error( "\tunable to move file '$config': $!",
+        fatal   => $vos->{fatal},
+        debug   => $vos->{debug},
+        );
+
+    $log->audit("\ttransitioned $ctid.");
+    return 1;
+}
+
+sub untransition {
+    my $self = shift;
+
+# TODO: this method is almost identical to enable. Remove after 10/1/2010
+    my $ctid = $vos->{name};
+    $log->audit("restoring $ctid");
+
+    return $log->error( "$ctid does not exist",
+        fatal   => $vos->{fatal},
+        debug   => $vos->{debug},
+    ) if !$self->is_present( debug => 0 );
+
+    if ( $self->is_enabled() ) {
+        $log->audit("\t$ctid is already restored");
+        return $self->start();
+    };
+
+    my $config = $self->get_ve_config_path();
+    if ( !-e "$config.transition" ) {
+        return $log->error( "configuration file ($config.transition) for $ctid does not exist",
+            fatal => $vos->{fatal},
+            debug => $vos->{debug},
+        );
+    }
+
+    move( "$config.transition", $config )
+        or return $log->error( "\tunable to move file '$config': $!",
+        fatal   => $vos->{fatal},
+        debug   => $vos->{debug},
+        );
+
+    return $self->start();
+}
+
 sub console {
     my $self = shift;
     my $ve_name = $self->get_ve_name();
@@ -1021,6 +1094,7 @@ sub get_status {
     my $config_file = $self->get_ve_config_path();
     if ( ! -e $config_file ) {
         return { state => 'disabled' } if -e "$config_file.suspend";
+        return { state => 'transitioned' } if -e "$config_file.transition";
 
         $log->audit( "\tmissing config file $config_file" );
         return { state => 'broken' };

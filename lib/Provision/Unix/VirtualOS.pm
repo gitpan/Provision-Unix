@@ -3,7 +3,7 @@ package Provision::Unix::VirtualOS;
 use warnings;
 use strict;
 
-our $VERSION = '0.58';
+our $VERSION = '0.59';
 
 use Data::Dumper;
 use English qw( -no_match_vars );
@@ -689,11 +689,14 @@ sub set_nameservers {
 
     my @new;
     push @new, "searchdomain $searchdomain" if $searchdomain;
-    my @lines = $util->file_read( file => $resolv, fatal => $fatal );
-    foreach my $line ( @lines ) {
-        next if $line =~ /^nameserver\s/i;
-        next if $searchdomain && $line =~ /^searchdomain\s/i;
-        push @new, $line;
+    if ( -f $resolv ) {
+        my @lines = $util->file_read( file => $resolv, fatal => $fatal );
+
+        foreach my $line ( @lines ) {
+            next if $line =~ /^nameserver\s/i;
+            next if $searchdomain && $line =~ /^searchdomain\s/i;
+            push @new, $line;
+        };
     };
 
     foreach ( @$nameservers ) {

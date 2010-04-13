@@ -1,7 +1,7 @@
 package Provision::Unix::VirtualOS::Linux::Virtuozzo;
 use base Provision::Unix::VirtualOS::Linux::OpenVZ;
 
-our $VERSION = '0.10';
+our $VERSION = '0.12';
 
 use warnings;
 use strict;
@@ -108,7 +108,7 @@ sub create {
         sleep 1;
         $self->set_ips();
         sleep 1;
-        $self->set_nameservers() if $vos->{nameservers};
+        $vos->set_nameservers()  if $vos->{nameservers};
         sleep 1;
         $self->set_password()    if $vos->{password};
         sleep 1;
@@ -122,6 +122,21 @@ sub create {
         debug   => $vos->{debug},
     );
 }
+
+sub get_fs_root {
+    my $self = shift;  
+    return $self->get_ve_home(@_);  # same thing on Virtuozzo
+};
+
+sub get_ve_home {
+    my $self = shift;
+    my ($prov, $vos, $util) = ($self->{prov}, $self->{vos}, $self->{util});
+
+    my $name = $vos->{name} || shift || die "missing VE name";
+    my $disk_root = $vos->{disk_root} || '/vz';
+    my $homedir = "$disk_root/private/$name/root";
+    return $homedir;
+};
 
 sub _is_valid_template {
 

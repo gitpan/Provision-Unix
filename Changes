@@ -1,6 +1,14 @@
 Revision history for Provision-Unix
 
 
+0.91 Apr 12, 2010
+  - updated P:U:V:L:Virtuozzo call to set_nameservers (moved to $vos)
+  - added methods get_fs_root and get_ve_home to P:U:V:L:Virtuozzo
+  - P:U:VirtualOS::set_nameservers would fail if ! -f resolv.conf, fixed.
+  - added P:U:V:L:[OpenVZ|Xen]::transition - temporary methods
+  - when migrating openvz accounts, don't start migrated VPS on remote node
+    unless it's running on the existing node (preserve running state).
+
 0.90 Feb 12, 2010
   - fixed typo in P:U:V:L:Xen module.
 
