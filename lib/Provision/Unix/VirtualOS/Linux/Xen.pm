@@ -616,6 +616,17 @@ sub untransition {
         );
 
     return $self->start();
+
+    my $arpsend = $util->find_bin( 'arpsend', fatal => 0 );
+    if ( -x $arpsend ) {
+        my @ips = grep { /vif$ctid/ } `netstat -rn`;
+        foreach my $ip ( @ips ) {
+            $prov->audit( "$arpsend -U -c2 -i $_ eth0" );
+            system "$arpsend -U -c2 -i $_ eth0";
+        };
+
+        return 1;
+    }
 }
 
 sub console {

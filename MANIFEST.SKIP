@@ -1,0 +1,7 @@
+.cvsignore
+.svn
+.tar.gz
+.DS_Store
+blib
+MANIFEST.bak
+pm_to_blib

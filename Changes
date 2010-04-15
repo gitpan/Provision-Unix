@@ -1,5 +1,9 @@
 Revision history for Provision-Unix
 
+0.92 Apr 15, 2010
+  - added arpsend to xen untransition
+  - added xen_create_snapshot.t
+  - added MANIFEST.SKIP to distro
 
 0.91 Apr 12, 2010
   - updated P:U:V:L:Virtuozzo call to set_nameservers (moved to $vos)

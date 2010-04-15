@@ -1,6 +1,6 @@
 package Provision::Unix;
 
-our $VERSION = '0.91';
+our $VERSION = '0.92';
 
 use warnings;
 use strict;

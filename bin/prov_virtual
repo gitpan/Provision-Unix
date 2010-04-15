@@ -46,6 +46,7 @@ my $vos  = Provision::Unix::VirtualOS->new( prov => $prov );
 my %actions = map { $_ => 1 } qw/ create destroy start stop restart reinstall
      disable enable modify probe mount unmount console set_password migrate 
      create_snapshot destroy_snapshot mount_snapshot unmount_snapshot 
+     transition untransition
      get_config publish_arp /;
 
 my $questions = {

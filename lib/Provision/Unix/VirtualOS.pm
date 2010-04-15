@@ -356,6 +356,8 @@ sub unmount_snapshot;
 sub get_disk_usage;
 sub get_mac_address;
 sub get_config;
+sub transition;
+sub untransition;
 
 sub mount {
     my $self = shift;
