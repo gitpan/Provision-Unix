@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux;
 
-our $VERSION = '0.26';
+our $VERSION = '0.27';
 
 use warnings;
 use strict;
@@ -18,9 +18,9 @@ my %std_opts = ( debug => 0, fatal => 0 );
 
 sub new {
     my $class = shift;
-    my %p = validate(@_, { vos => { type => OBJECT, optional => 1 } } );
+    my %p = validate(@_, { vos => { type => OBJECT } } );
 
-    $vos  = $p{vos} || Provion::Unix::VirtualOS->new();
+    $vos  = $p{vos};
     $prov = $vos->{prov};
     $util = $vos->{util};
 
@@ -77,6 +77,8 @@ sub install_kernel_modules {
     my $fs_root = $p{fs_root};
     my $url     = $p{url} || 'http://mirror.vpslink.com/xen';
     my $version = $p{version} = `uname -r`; chomp $version;
+
+    return 1 if $p{test_mode};
 
     if ( -d "/boot/domU" ) {
         my ($modules) = </boot/domU/modules*$version*>;
@@ -148,6 +150,8 @@ sub set_ips {
     my $distro = delete $p{distro};
     $distro ||= $self->get_distro( $p{fs_root} );
 
+    return 1 if $p{test_mode};
+
     return $self->set_ips_debian(%p) if $distro =~ /debian|ubuntu/i;
     return $self->set_ips_redhat(%p) if $distro =~ /redhat|fedora|centos/i;
     return $self->set_ips_gentoo(%p) if $distro =~ /gentoo/i;
@@ -210,6 +214,7 @@ EO_ADDTL_IPS
 
     my $config_file = "/etc/network/interfaces";
     return $config if $test_mode;
+
     if ( $util->file_write( 
             file => "$fs_root/$config_file", 
             lines => [ $config ], 

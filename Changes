@@ -1,5 +1,9 @@
 Revision history for Provision-Unix
 
+0.93 Apr 16, 2010
+  - an extra test file snuck into the dist before its time. Fixes so that
+    the tests work as planned.
+
 0.92 Apr 15, 2010
   - added arpsend to xen untransition
   - added xen_create_snapshot.t

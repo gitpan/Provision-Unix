@@ -52,7 +52,7 @@ sub new {
         or die "unable to load P:U:Utility\n";
 
     my $self = {
-        prov    => $p{prov},
+        prov    => $prov,
         debug   => $debug,
         fatal   => $fatal,
         etc_dir => $p{etc_dir},
