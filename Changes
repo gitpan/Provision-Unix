@@ -1,5 +1,9 @@
 Revision history for Provision-Unix
 
+0.94 Apr 19, 2010
+  - t/linux.t failed on systems with no detected hypervisor. Added test.
+  - added Cygwin to list of unsupported operating systems
+
 0.93 Apr 16, 2010
   - an extra test file snuck into the dist before its time. Fixes so that
     the tests work as planned.

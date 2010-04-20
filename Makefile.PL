@@ -76,6 +76,6 @@ install_script        'bin/remoteagent';
 # inc and t are automatically not indexed
 no_index              file      => 'bin/remoteagent';
 
-die "No support for OS" if $OSNAME =~ /win32/i;
+die "No support for OS" if $OSNAME =~ /win32|cygwin/i;
 
 WriteAll;
