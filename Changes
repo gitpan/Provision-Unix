@@ -1,5 +1,8 @@
 Revision history for Provision-Unix
 
+0.95 Apr 21, 2010
+  - OpenVZ transition function was not working as designed. Fixed.
+
 0.94 Apr 19, 2010
   - t/linux.t failed on systems with no detected hypervisor. Added test.
   - added Cygwin to list of unsupported operating systems

@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::OpenVZ;
 
-our $VERSION = '0.50';
+our $VERSION = '0.51';
 
 use warnings;
 use strict;
@@ -488,33 +488,29 @@ sub transition {
     ) if ! $self->is_present();
 
     my $config = $self->get_ve_config_path();
-    if ( -e $config ) {
-        $prov->audit("\t$ctid is already enabled");
-        return $self->start();
+    if ( ! -e $config && -e "$config.transition" ) {
+        $prov->audit("\t$ctid is already transitioned");
     };
 
-    if ( !-e "$config.transition" ) {
-        return $prov->error( "configuration file ($config.transition) for $ctid does not exist",
+    if ( !-e $config ) {
+        return $prov->error( "configuration file ($config) for $ctid does not exist",
             fatal => $vos->{fatal},
             debug => $vos->{debug},
         );
     }
 
-    my $ct_dir = $self->get_ve_home();  # "/vz/private/$ctid";
-    if ( !-e $ct_dir ) {
-        return $prov->error( "VE directory '$ct_dir' for $ctid does not exist",
-            fatal => $vos->{fatal},
-            debug => $vos->{debug},
-        );
-    }
+    $self->stop()    if $self->is_running( refresh => 0 );
+    $self->unmount() if $self->is_mounted( refresh => 0 );
 
-    move( "$config.transition", $config )
+    move( $config, "$config.transition" )
         or return $prov->error( "unable to move file '$config': $!",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
         );
 
-    return $self->start();
+    $prov->audit( "virtual $ctid is transitioned." );
+
+    return 1;
 }
 
 sub untransition {
