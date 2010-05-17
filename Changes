@@ -1,5 +1,12 @@
 Revision history for Provision-Unix
 
+0.96 May 17, 2010 
+  - added unmount_inactive_snapshots to P:U:V:L:Xen
+  - when creating a new xen snapshot, if snapshot exists and fails 
+    to unmount, fail before attemping to create a new one
+  - when unmounting a xen disk volume, attempt to destroy snapshots first
+  - added defined-ness test to $templates in t/VirtualOS.t
+
 0.95 Apr 21, 2010
   - OpenVZ transition function was not working as designed. Fixed.
 

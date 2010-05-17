@@ -742,8 +742,10 @@ sub create_snapshot {
 
     # cleanup
     my $snapimg = "/dev/vol00/$snap";
-    $self->destroy_snapshot() if -e $snapimg;
-    
+    if ( -e $snapimg ) {
+        $self->destroy_snapshot() or return;
+    };
+
     if ( $is_running ) {
         # Sync and pause domain
         my $sync_cmd = "$xm_bin sysrq $ve_name s";
@@ -1799,6 +1801,9 @@ sub unmount {
     return 1 if ! $self->is_mounted();
     $debug = $fatal = 0 if $quiet;
 
+    # snapshots can interfere with unmount operation, try to remove them
+    $self->destroy_snapshot();
+
     my $image_name = $self->get_disk_image();
     my $image_path = $self->get_disk_image(1);
 
@@ -1827,6 +1832,32 @@ sub unmount_snapshot {
     $util->syscmd( "$umount $snap_path", debug => 0, fatal => 0 )
         or return $log->error( "unable to unmount snapshot, is a backup active?", fatal => 0 );
     return 1;
+};
+
+sub unmount_inactive_snapshots {
+    my $self = shift;
+
+    my $df     = $util->find_bin( 'df', debug => 0, fatal => 0 ) or return;
+    my $ps     = $util->find_bin( 'ps', debug => 0, fatal => 0 ) or return;
+    my $grep   = $util->find_bin( 'grep', debug => 0, fatal => 0 ) or return;
+    my $umount = $util->find_bin( 'umount', debug => 0, fatal => 0 ) or return;
+
+# get a list of snapshots that are mounted and try to unmount them all 
+    my @snapshots = `$df | $grep rootimg_snap`; chomp @snapshots;
+
+    foreach my $snap ( @snapshots ) {
+        my ($veid) = $snap =~ /\-([0-9]+)_rootimg_snap/;
+        if ( ! $veid ) {
+            print "unable to parse veid from $snap\n";
+            next;
+        };
+        my @rsync_procs = `$ps ax | $grep rsync | $grep -v grep | $grep $veid`;
+        if ( scalar @rsync_procs > 0 ) {
+            print "found rsync process for $veid:\n" . join("\t", @rsync_procs) . "\n";
+            next;
+        };
+        system "$umount /dev/vol00/${veid}_rootimg_snap";
+    };
 };
 
 1;

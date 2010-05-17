@@ -47,7 +47,7 @@ if ( $virt_type =~ /virtuozzo|ovz|openvz|xen/ ) {
 
 # get_template_list
     my $templates = $vos->get_template_list( v_type => $virt_type );
-    ok( scalar @$templates, 'get_template_list' ) or do {
+    ok( $templates && scalar @$templates, 'get_template_list' ) or do {
         warn "no templates installed!";
         exit;
     };
