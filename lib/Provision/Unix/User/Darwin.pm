@@ -271,7 +271,7 @@ sub create_group {
     my $dirutil
         = $util->find_bin( "dscl", debug => $p{debug}, fatal => 0 );
 
-    if ($dirutil) {    # 10.5
+    if ($dirutil) {    # 10.5+
         $util->syscmd( "$dirutil . -create /groups/$group",
             debug => $p{debug}
         );

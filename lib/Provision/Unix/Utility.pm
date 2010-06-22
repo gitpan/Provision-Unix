@@ -874,10 +874,9 @@ sub find_bin {
         },
     );
 
-    my $debug = $p{debug};
     my %std_args = ( debug => $p{debug}, fatal => $p{fatal} );
 
-    $log->audit( "find_bin: searching for $bin" ) if $debug;
+    $log->audit( "find_bin: searching for $bin" );
 
     my $prefix = "/usr/local";
 
@@ -898,13 +897,10 @@ sub find_bin {
         };  
     };
 
-    if ($found) {
-        $log->audit( "found $found") if $debug;
-        return $found;
-    }
+    return $log->error( "could not find $bin", %std_args) if ! $found;
 
-    $log->error( "could not find $bin", %std_args) if $debug;
-    return;
+    $log->audit( "find_bin found $found");
+    return $found;
 }
 
 sub fstab_list {

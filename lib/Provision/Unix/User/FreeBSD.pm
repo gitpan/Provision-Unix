@@ -283,7 +283,7 @@ sub exists {
 sub exists_group {
 
     my $self = shift;
-    my $group = lc(shift) or die "missing user";
+    my $group = lc(shift) or die "missing group";
 
     my $gid = getgrnam($group);
 

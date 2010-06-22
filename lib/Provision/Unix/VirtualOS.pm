@@ -1220,7 +1220,9 @@ Since the RPC remoteagent is running as root, the request broker has access to a
 
 
 =head2 mount
+
 =head2 unmount
+
 =head2 publish_arp
 
  # Usage      : $vos->publish_arp( ip => '10.1.0.42' );
@@ -1289,7 +1291,7 @@ L<http://search.cpan.org/dist/Provision-Unix-VirtualOS>
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2008-2009 Matt Simerson
+Copyright 2008-2010 Matt Simerson
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

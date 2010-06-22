@@ -386,14 +386,26 @@ sub enable {
 
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
 
+    $self->enable_config( $config ) or return;
+
+    return $self->start();
+}
+
+sub enable_config {
+    my $self = shift;
+    my $config = shift;
+
+    my $suspended_config = "$config.suspend";
+
     move( $suspended_config, $config )
         or return $prov->error( "unable to move file '$config': $!",
         fatal   => $vos->{fatal},
         debug   => $vos->{debug},
         );
 
-    return $self->start();
-}
+
+};
+
 
 sub migrate {
     my $self = shift;

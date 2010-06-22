@@ -1,6 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::Xen;
 
-our $VERSION = '0.68';
+our $VERSION = '0.70';
 
 use warnings;
 use strict;
@@ -146,6 +146,10 @@ sub destroy {
     return $log->audit("\ttest mode early exit") if $vos->{test_mode};
 
     $self->stop() or return;
+
+# sometimes Xen leaves a disk volume marked as in use, this clears that, so
+# the unmount can succeed.
+    $self->stop_forcefully();  
     $self->unmount() or return $log->error("could not unmount disk image");
 
     $log->audit("\tctid '$ctid' is stopped. Nuking it...");
@@ -494,7 +498,7 @@ sub migrate_arp_update {
     my @ips = grep { /vif$ctid/ } `netstat -rn`;
     my $r_cmd = "$ssh $new_node /usr/bin/prov_virtual";
     foreach my $ip ( @ips ) {
-        $util->syscmd( "$r_cmd --action=publish_arp --ip=$ip" );
+        $util->syscmd( "$r_cmd --name=$ctid --action=publish_arp --ip=$ip" );
     };
 };
 
@@ -1857,6 +1861,27 @@ sub unmount_inactive_snapshots {
             next;
         };
         system "$umount /dev/vol00/${veid}_rootimg_snap";
+    };
+};
+
+sub cleanup_inactive_snapshots {
+    my $self = shift;
+
+    my $lvremove = $util->find_bin('lvremove', debug => 0) or return;
+    my $ps = $util->find_bin('ps',debug=>0);
+    my $grep = $util->find_bin('grep',debug=>0);
+
+    foreach my $snap ( </dev/vol00/*_snap> ) {
+        my ($veid) = $snap =~ /\/([0-9]+)_rootimg_snap/;
+        next if ! $veid;
+        my @rsync_procs = `$ps ax | $grep rsync | $grep -v grep | $grep $veid`;
+        if ( scalar @rsync_procs > 0 ) {
+            print "found rsync process for $veid:\n" . join("\t", @rsync_procs) . "\n";
+            next;
+        };
+
+        # this will fail if snapshot is in use
+        system "$lvremove -f /dev/vol00/${veid}_rootimg_snap";
     };
 };
 

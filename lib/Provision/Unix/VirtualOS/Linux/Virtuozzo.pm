@@ -1,7 +1,7 @@
 package Provision::Unix::VirtualOS::Linux::Virtuozzo;
 use base Provision::Unix::VirtualOS::Linux::OpenVZ;
 
-our $VERSION = '0.12';
+our $VERSION = '0.13';
 
 use warnings;
 use strict;
@@ -146,9 +146,7 @@ sub _is_valid_template {
     my ($prov, $vos, $util) = ($self->{prov}, $self->{vos}, $self->{util});
 
     my $template_dir = $self->{prov}{config}{virtuozzo_template_dir} || '/vz/template';
-    if ( -f "$template_dir/$template.tar.gz" ) {
-        return $template;
-    }
+    return $template if -f "$template_dir/$template.tar.gz";
 
     # is $template a URL?
     my ( $protocol, $host, $path, $file )
@@ -156,8 +154,6 @@ sub _is_valid_template {
         =~ /^((http[s]?|rsync):\/)?\/?([^:\/\s]+)((\/\w+)*\/)([\w\-\.]+[^#?\s]+)(.*)?(#[\w\-]+)?$/;
     if ( $protocol && $protocol =~ /http|rsync/ ) {
         $prov->audit("fetching $file with $protocol");
-
-        # TODO        # stor01:/usr/local/cosmonaut/templates/vpslink
 
         return $prov->error( 'template does not exist and programmers have not yet written the code to retrieve templates via URL',
             fatal => 0
@@ -193,7 +189,20 @@ class is functionally almost identical, containing just a few overrides.
 =head1 FUNCTIONS
 
 =head2 create
+
+Creates a new Virtuozzo VPS.
+
+=head2 get_fs_root
+
+Returns the root FS directory for a VPS. Same as VPS home on Virtuozzo.
+
+=head2 get_ve_home
+
+Returns the VPS home directory.
+
 =head2 is_valid_template
+
+Checks to make sure the specified OS template exists.
 
 
 =head1 AUTHOR
@@ -240,7 +249,7 @@ L<http://search.cpan.org/dist/Provision-Unix>
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2008 Matt Simerson
+Copyright 2010 Matt Simerson
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

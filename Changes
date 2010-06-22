@@ -1,5 +1,11 @@
 Revision history for Provision-Unix
 
+0.97 Jun 22, 2010
+  - added a 'xm destroy' method, stop_forcefully when deleting a xen vps
+  - updated docs in P:U:V:L:Virtuozzo
+  - when enabling an ovz container, enable the config file before starting
+  - when migrating a xen container, add container ID to publish ARP invocation
+
 0.96 May 17, 2010 
   - added unmount_inactive_snapshots to P:U:V:L:Xen
   - when creating a new xen snapshot, if snapshot exists and fails 
