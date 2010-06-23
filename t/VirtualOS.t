@@ -23,14 +23,9 @@ else {
     plan 'no_plan';
 };
 
-use_ok('Provision::Unix::Utility');
-require_ok('Provision::Unix::Utility');
-
-# basic OO mechanism
 ok( defined $vos, 'get Provision::Unix::VirtualOS object' );
 ok( $vos->isa('Provision::Unix::VirtualOS'), 'check object class' );
 
-my $util = Provision::Unix::Utility->new( prov => $prov, debug => 0 );
 
 my $virt_class = ref $vos->{vtype};
 my @parts = split /::/, $virt_class;
@@ -96,6 +91,7 @@ my $required_bin
     :                             undef;
 
 my %requires_template = map { $_ => 1 } qw/ xen ovz openvz virtuozzo /;
+my $util = Provision::Unix::Utility->new( prov => $prov, debug => 0 );
 
 if ( defined $required_bin ) {
     my $found_bin

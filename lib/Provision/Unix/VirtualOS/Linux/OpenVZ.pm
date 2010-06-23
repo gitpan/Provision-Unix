@@ -386,14 +386,14 @@ sub enable {
 
     return $prov->audit("\ttest mode early exit") if $vos->{test_mode};
 
-    $self->enable_config( $config ) or return;
+    $self->enable_config( $prov, $vos, $config ) or return;
 
     return $self->start();
 }
 
 sub enable_config {
     my $self = shift;
-    my $config = shift;
+    my ( $prov, $vos, $config ) = @_;
 
     my $suspended_config = "$config.suspend";
 

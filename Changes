@@ -1,5 +1,8 @@
 Revision history for Provision-Unix
 
+0.98 Jun 23, 2010
+  - fixed syntax error in OpenVZ module
+
 0.97 Jun 22, 2010
   - added a 'xm destroy' method, stop_forcefully when deleting a xen vps
   - updated docs in P:U:V:L:Virtuozzo
