@@ -2,7 +2,7 @@
 use Config qw/ myconfig /;
 use Data::Dumper;
 use English qw/ -no_match_vars /;
-use Test::More tests => 11;
+use Test::More tests => 32;
 
 use lib 'lib';
 
@@ -17,10 +17,17 @@ if ($OSNAME ne 'VMS' && $Config{_exe} ) {
         unless $this_perl =~ m/$Config{_exe}$/i;
 }
 
-my @bins = <bin/*>;
-foreach ( @bins ) {
+foreach ( <bin/*> ) {
     my $cmd = "$this_perl -c $_";
     my $r = system "$cmd 2>/dev/null >/dev/null";
     ok( $r == 0, "syntax $_");
 };
 
+foreach ( `find lib -name '*.pm'` ) {
+    chomp;
+    my $cmd = "$this_perl -c $_";
+    my $r = `$cmd 2>&1`;
+    my $exit_code = sprintf ("%d", $CHILD_ERROR >> 8);
+    my $pretty_name = substr($_, 4);
+    ok( $exit_code == 0, "syntax $pretty_name");
+};

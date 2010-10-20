@@ -1,4 +1,6 @@
 package Provision::Unix::VirtualOS::Linux::Virtuozzo;
+
+use lib 'lib';
 use base Provision::Unix::VirtualOS::Linux::OpenVZ;
 
 our $VERSION = '0.13';
