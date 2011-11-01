@@ -1,9 +1,10 @@
 package Provision::Unix::User::Linux;
+# ABSTRACT: provision user accounts on Linux systems
+
+use strict;
+use warnings;
 
 our $VERSION = '0.20';
-
-use warnings;
-use strict;
 
 use English qw( -no_match_vars );
 use Carp;
@@ -14,9 +15,7 @@ use Provision::Unix;
 my ( $prov, $user, $util );
 
 sub new {
-
     my $class = shift;
-
     my %p = validate(
         @_,
         {   prov  => { type => OBJECT },
@@ -380,11 +379,17 @@ sub restart_nscd {
 
 1;
 
-__END__
+
+
+=pod
 
 =head1 NAME
 
-Provision::Unix::User::Linux - Provision Accounts on Linux systems
+Provision::Unix::User::Linux - provision user accounts on Linux systems
+
+=head1 VERSION
+
+version 1.01
 
 =head1 SYNOPSIS
 
@@ -401,22 +406,15 @@ Handles provisioning operations (create, modify, destroy) for system users on UN
 
 Creates and returns a new Provision::Unix::User::Linux object.
 
-=head1 AUTHOR
-
-Matt Simerson, C<< <matt at tnpi.net> >>
-
 =head1 BUGS
 
 Please report any bugs or feature requests to C<bug-unix-provision-user at rt.cpan.org>, or through the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Provision-Unix>.  I will be notified, and then you'll automatically be notified of progress on your bug as I make changes.
-
-
 
 =head1 SUPPORT
 
 You can find documentation for this module with the perldoc command.
 
     perldoc Provision::Unix
-
 
 You can also look for information at:
 
@@ -440,15 +438,19 @@ L<http://search.cpan.org/dist/Provision-Unix>
 
 =back
 
+=head1 AUTHOR
 
-=head1 ACKNOWLEDGEMENTS
+Matt Simerson <msimerson@cpan.org>
 
+=head1 COPYRIGHT AND LICENSE
 
-=head1 COPYRIGHT & LICENSE
+This software is copyright (c) 2011 by The Network People, Inc..
 
-Copyright 2008 Matt Simerson
-
-This program is free software; you can redistribute it and/or modify it
-under the same terms as Perl itself.
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
 
 =cut
+
+
+__END__
+

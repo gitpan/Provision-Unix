@@ -1,7 +1,8 @@
 package Provision::Unix::User::FreeBSD;
+# ABSTRACT: provision user accounts on FreeBSD systems
 
-use warnings;
 use strict;
+use warnings;
 
 our $VERSION = '0.10';
 
@@ -87,7 +88,10 @@ sub create {
     $pwcmd .= "-d $homedir "    if $homedir;
     $pwcmd .= "-u $uid "        if $uid;
     $pwcmd .= "-g $gid "        if $gid;
-    $pwcmd .= "-c '$p{'gecos'}' " if $p{'gecos'};
+    if ( $p{'gecos'} ) {
+        $p{'gecos'} =~ s/"//g;
+        $pwcmd .= "-c \"$p{'gecos'}\" ";
+    };
     $pwcmd .= "-u 89 -g 89 -c Vpopmail-Master "
         if ( $username eq "vpopmail" );
     $pwcmd .= "-n $username -d /nonexistent -c Clam-AntiVirus "
@@ -125,9 +129,7 @@ sub create {
 }
 
 sub create_group {
-
     my $self = shift;
-
     my %p = validate(
         @_,
         {   'group' => { type => SCALAR },
@@ -154,9 +156,7 @@ sub create_group {
 }
 
 sub destroy {
-
     my $self = shift;
-
     my %p = validate(
         @_,
         {   'username'  => { type => SCALAR, },
@@ -216,9 +216,7 @@ sub destroy {
 }
 
 sub destroy_group {
-
     my $self = shift;
-
     my %p = validate(
         @_,
         {   'group'     => { type => SCALAR, },
@@ -368,18 +366,6 @@ sub verify_master_passwd {
 
 sub archive {
 
-=head2 archive
-
-Create's a tarball of the users home directory. Typically done right before you rm -rf their home directory as part of a de-provisioning step.
-
-    if ( $prov->user_archive("user") ) 
-    {
-        print "user archived";
-    };
-
-returns a boolean.
-
-=cut
 
     my ( $self, $user, $debug ) = @_;
 
@@ -421,9 +407,19 @@ returns a boolean.
 
 1;
 
+
+
+
+__END__
+=pod
+
 =head1 NAME
 
-Provision::Unix::User::FreeBSD - Provision Unix Accounts on FreeBSD systems
+Provision::Unix::User::FreeBSD - provision user accounts on FreeBSD systems
+
+=head1 VERSION
+
+version 1.01
 
 =head1 SYNOPSIS
 
@@ -434,31 +430,32 @@ Handles provisioning operations (create, modify, destroy) for system users on UN
     my $user_fbsd = Provision::Unix::User::FreeBSD->new();
     ...
 
-=head1 FUNCTIONS
+=head2 archive
 
+Create's a tarball of the users home directory. Typically done right before you rm -rf their home directory as part of a de-provisioning step.
+
+    if ( $prov->user_archive("user") ) 
+    {
+        print "user archived";
+    };
+
+returns a boolean.
+
+=head1 FUNCTIONS
 
 =head2 verify_master_passwd
 
 Verify that new master.passwd is the right size. I found this necessary on some versions of FreeBSD as a race condition would cause the master.passwd file to get corrupted. Now I verify that after I'm finished making my changes, the new file is a small amount larger (or smaller) than the original.
 
-
-
-=head1 AUTHOR
-
-Matt Simerson, C<< <matt at tnpi.net> >>
-
 =head1 BUGS
 
 Please report any bugs or feature requests to C<bug-unix-provision-user at rt.cpan.org>, or through the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Provision-Unix>.  I will be notified, and then you'll automatically be notified of progress on your bug as I make changes.
-
-
 
 =head1 SUPPORT
 
 You can find documentation for this module with the perldoc command.
 
     perldoc Provision::Unix
-
 
 You can also look for information at:
 
@@ -482,17 +479,16 @@ L<http://search.cpan.org/dist/Provision-Unix>
 
 =back
 
+=head1 AUTHOR
 
-=head1 ACKNOWLEDGEMENTS
+Matt Simerson <msimerson@cpan.org>
 
+=head1 COPYRIGHT AND LICENSE
 
-=head1 COPYRIGHT & LICENSE
+This software is copyright (c) 2011 by The Network People, Inc..
 
-Copyright 2008 Matt Simerson
-
-This program is free software; you can redistribute it and/or modify it
-under the same terms as Perl itself.
-
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
 
 =cut
 

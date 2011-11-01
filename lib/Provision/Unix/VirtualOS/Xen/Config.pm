@@ -1,11 +1,10 @@
 package Provision::Unix::VirtualOS::Xen::Config;
-
-our $VERSION = 0.3;
+# ABSTRACT: perl interface to Xen configuration files
 
 use strict;
 use warnings;
 
-use Switch;
+our $VERSION = 0.4;
 
 sub new {
     my $class = shift;
@@ -57,64 +56,57 @@ sub parse_config {
 sub clone_ref {
     my ($obj) = @_;
     my $return;
-    switch(ref $obj){
-        case 'SCALAR' {
+    if    ( ref $obj eq 'SCALAR' ){
             my $tmp = $$obj;
             $return = \$tmp;
-          }
-        case 'ARRAY' {
-            $return = [];
-            for(@$obj){
-                push @$return, clone_ref($_);
-            };
-          }
-        case 'HASH' {
+    }
+    elsif ( ref $obj eq 'ARRAY' ) {
+        $return = [];
+        for(@$obj){
+            push @$return, clone_ref($_);
+        };
+    }
+    elsif ( ref $obj eq 'HASH' ) {
             $return = {};
             for(keys %$obj){
                 $return->{$_} = clone_ref($obj->{$_});
             };
-          }
-        else {
-            $return = $obj;
-          }
+    }
+    else {
+        $return = $obj;
     };
     return $return;
 };
 
 sub parse_value {
     my ($raw_value) = @_;
-    switch($raw_value){
-        case m/^\[/ {
-            #array
-            my $value = $raw_value;
-            $value =~ s/^\[\s*//;
-            $value =~ s/\s*\]$//;
-            my $values = [];
-            for my $item (split(/'\s*,\s*'/, $value)){
-                $item =~ s/^'//;
-                $item =~ s/'$//;
-                my $subconfig = parse_value($item);
-                unless(defined $subconfig){
-                    push @{$values}, $item;
-                } else {
-                    push @{$values}, $subconfig;
-                };
+    if ( $raw_value =~ m/^\[/ ) {  #array
+        my $value = $raw_value;
+        $value =~ s/^\[\s*//;
+        $value =~ s/\s*\]$//;
+        my $values = [];
+        for my $item (split(/'\s*,\s*'/, $value)){
+            $item =~ s/^'//;
+            $item =~ s/'$//;
+            my $subconfig = parse_value($item);
+            unless(defined $subconfig){
+                push @{$values}, $item;
+            } else {
+                push @{$values}, $subconfig;
             };
-            return $values;
-          }
-        case m/^'/ {
-            #string
-            my $value = $raw_value;
-            $value =~ s/^'//;
-            $value =~ s/'$//;
-            return $value;
-          }
-        case m/^\d/ {
-            #integer
-            return $raw_value;
-          }
-        case m/^\w+=/ {
-            #hash
+        };
+        return $values;
+    }
+    elsif ( $raw_value =~ m/^'/ ) { #string
+        my $value = $raw_value;
+        $value =~ s/^'//;
+        $value =~ s/'$//;
+        return $value;
+    }
+    elsif ( $raw_value =~ m/^\d/ ) { #integer
+        return $raw_value;
+        }
+    elsif ( $raw_value =~ m/^\w+=/ ) { #hash
             my $hash_ref = {};
             for my $item (split(/\s*,\s*/, $raw_value)){
                 my ($name, $value) = split(/=/, $item);
@@ -125,44 +117,41 @@ sub parse_value {
                 }
             }
             return $hash_ref;
-          }
-        else {
-            return;
-        }
-   };
+    }
+    else {
+        return;
+    }
 }
 
 sub join_value {
     my ($item) = @_;
-    switch(ref $item){
-        case "" {
-            if($item =~ /^\d+$/){
-                return "$item";
-            } else {
-                return "'$item'"; 
-            }
-          }
-        case "ARRAY" {
-            my @processed_item;
-            for(0..$#{$item}){
-                push @processed_item, join_value($item->[$_]);
-            };
-            return "[" . join(", ", @processed_item) . "]";
-          }
-        case "HASH" {
-            my @processed_item;
-            for my $key ( keys %{$item} ){
-                if(ref $item->{$key} eq 'ARRAY'){
-                    push @processed_item, "$key=".join(" ", @{$item->{$key}});
-                } else {
-                    push @processed_item, "$key=$item->{$key}";
-                };
-            };
-            return "'".join(", ", @processed_item)."'";
-          }
-        else {
-            return undef;
+    if ( ref $item eq "" ) {
+        if($item =~ /^\d+$/){
+            return "$item";
+        } else {
+            return "'$item'"; 
         }
+    }
+    elsif ( ref $item eq "ARRAY" ) {
+        my @processed_item;
+        for(0..$#{$item}){
+            push @processed_item, join_value($item->[$_]);
+        };
+        return "[" . join(", ", @processed_item) . "]";
+    }
+    elsif ( ref $item eq "HASH" ) {
+        my @processed_item;
+        for my $key ( keys %{$item} ){
+            if(ref $item->{$key} eq 'ARRAY'){
+                push @processed_item, "$key=".join(" ", @{$item->{$key}});
+            } else {
+                push @processed_item, "$key=$item->{$key}";
+            };
+        };
+        return "'".join(", ", @processed_item)."'";
+    }
+    else {
+        return;
     }
 }
 
@@ -238,23 +227,29 @@ sub write {
 
     my $config = $self->{'config'};
 
+    my $CFILE;
     if(ref $arg eq 'GLOB'){
-        open(CONFIG, ">&", $arg)
-            or die "Couldn't dup\n";
+        open($CFILE, '>&', $arg) or die "Couldn't dup\n";
     } else {
-        open(CONFIG, ">", $arg)
+        open($CFILE, '>', $arg)
             or die "Couldn't open '$arg' for writing\n";
     }
-    print CONFIG $self->{'text'};
+    print $CFILE $self->{'text'};
 };
 
 1;
 
-__END__
+
+
+=pod
 
 =head1 NAME
 
-Provision::Unix::VirtualOS::Xen::Config - Perl interface to Xen configuration files
+Provision::Unix::VirtualOS::Xen::Config - perl interface to Xen configuration files
+
+=head1 VERSION
+
+version 1.01
 
 =head1 SYNOPSIS
 
@@ -315,11 +310,28 @@ None at the moment
 
 =head1 AUTHOR
 
-Current maintainer is Max Vohra <max@pyrodyne.biz>
+  Max Vohra <max@pyrodyne.biz>
 
 =head1 COPYRIGHT
 
 Copyright (c) Max Vohra
 
 This program is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
+
+=head1 AUTHOR
+
+Matt Simerson <msimerson@cpan.org>
+
+=head1 COPYRIGHT AND LICENSE
+
+This software is copyright (c) 2011 by The Network People, Inc..
+
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
+
+=cut
+
+
+__END__
+
 

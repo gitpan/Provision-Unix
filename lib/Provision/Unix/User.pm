@@ -1,9 +1,10 @@
 package Provision::Unix::User;
-
-our $VERSION = '0.26';
+# ABSTRACT: provision unix accounts on Unix(like) systems!
 
 use strict;
 use warnings;
+
+our $VERSION = '0.26';
 
 use English qw( -no_match_vars );
 use File::Path;
@@ -68,7 +69,6 @@ sub create_group {
 }
 
 sub modify {
-
     my $self = shift;
     $self->{os}->modify(@_);
 }
@@ -173,15 +173,6 @@ sub user_quota {
 
 sub show {
 
-=head2 show
-
-Show user attributes. Right now it only shows quota info.
-
-   $pass->show( {user=>"matt"} );
-
-returns a hashref with error_code and error_desc
-
-=cut
 
     my ( $self, $user ) = @_;
 
@@ -196,13 +187,6 @@ returns a hashref with error_code and error_desc
 
 sub disable {
 
-=head2 disable
-
-Disable an /etc/passwd user by expiring their account.
-
-  $pass->disable( "matt" );
-
-=cut
 
     my ( $self, $user ) = @_;
 
@@ -237,17 +221,6 @@ Disable an /etc/passwd user by expiring their account.
 
 sub enable {
 
-=head2 enable
-
-Enable an /etc/passwd user by removing the expiration date.
-
-  $pass->enable( {user=>"matt"} );
-
-input is a hashref
-
-returns a hashref with error_code and error_desc
-
-=cut
 
     my ( $self, $vals ) = @_;
 
@@ -310,7 +283,7 @@ sub install_ssh_key {
     };
 
     my $ssh_dir = "$homedir/.ssh";
-    mkpath($ssh_dir, 0, 0700) if ( ! -d $ssh_dir && ! -e $ssh_dir );
+    mkpath($ssh_dir, 0, oct(700)) if ( ! -d $ssh_dir && ! -e $ssh_dir );
     -d $ssh_dir or return $prov->error( "unable to create $ssh_dir", fatal => $fatal );
 
     my $line;
@@ -339,33 +312,6 @@ sub install_ssh_key {
 
 sub is_valid_password {
 
-=head2 is_valid_password
-
-Check a password for sanity.
-
-    $r =  $user->is_valid_password($password, $username);
-
-
-$password  is the password the user is attempting to use.
-
-$username is the username the user has selected. 
-
-Checks: 
-
-    Passwords must have at least 6 characters.
-    Passwords must have no more than 128 characters.
-    Passwords must not be the same as the username
-    Passwords must not be purely alpha or purely numeric
-    Passwords must not be in reserved list 
-       (/usr/local/etc/passwd.badpass)
-
-$r is a hashref that gets returned.
-
-$r->{error_code} will contain a result code of 100 (success) or (4-500) (failure)
-
-$r->{error_desc} will contain a string with a description of which test failed.
-
-=cut
 
     my ( $self, $pass, $user ) = @_;
     my %r = ( error_code => 400 );
@@ -415,13 +361,6 @@ $r->{error_desc} will contain a string with a description of which test failed.
 
 sub get_crypted_password {
 
-=head2 get_crypted_password
-
-	$user->get_crypted_password($pass, [$salt] )
-
-get the DES/MD5 digest of the plain text password that is passed in
-
-=cut
 
     my $self = shift;
     my $pass = shift;
@@ -605,11 +544,17 @@ sub _is_valid_username {
 
 1;
 
-__END__
+
+
+=pod
 
 =head1 NAME
 
-Provision::Unix::User - Provision Unix Accounts on Unix(like) systems!
+Provision::Unix::User - provision unix accounts on Unix(like) systems!
+
+=head1 VERSION
+
+version 1.01
 
 =head1 SYNOPSIS
 
@@ -619,6 +564,61 @@ Handles provisioning operations (create, modify, destroy) for system users on UN
 
     my $prov = Provision::Unix::User->new();
     ...
+
+=head2 show
+
+Show user attributes. Right now it only shows quota info.
+
+   $pass->show( {user=>"matt"} );
+
+returns a hashref with error_code and error_desc
+
+=head2 disable
+
+Disable an /etc/passwd user by expiring their account.
+
+  $pass->disable( "matt" );
+
+=head2 enable
+
+Enable an /etc/passwd user by removing the expiration date.
+
+  $pass->enable( {user=>"matt"} );
+
+input is a hashref
+
+returns a hashref with error_code and error_desc
+
+=head2 is_valid_password
+
+Check a password for sanity.
+
+    $r =  $user->is_valid_password($password, $username);
+
+$password  is the password the user is attempting to use.
+
+$username is the username the user has selected. 
+
+Checks: 
+
+    Passwords must have at least 6 characters.
+    Passwords must have no more than 128 characters.
+    Passwords must not be the same as the username
+    Passwords must not be purely alpha or purely numeric
+    Passwords must not be in reserved list 
+       (/usr/local/etc/passwd.badpass)
+
+$r is a hashref that gets returned.
+
+$r->{error_code} will contain a result code of 100 (success) or (4-500) (failure)
+
+$r->{error_desc} will contain a string with a description of which test failed.
+
+=head2 get_crypted_password
+
+	$user->get_crypted_password($pass, [$salt] )
+
+get the DES/MD5 digest of the plain text password that is passed in
 
 =head1 FUNCTIONS
 
@@ -642,7 +642,6 @@ Checks:
 
 The format of $local/etc/passwd.reserved is one username per line.
 
-
 =head2 archive
 
 Create's a tarball of the users home directory. Typically done right before you rm -rf their home directory as part of a de-provisioning step.
@@ -662,23 +661,15 @@ Installs a system group.
 
     $r->{error_code} == 200 ? print "success" : print $r->{error_desc}; 
 
-
-
-=head1 AUTHOR
-
-Matt Simerson, C<< <matt at tnpi.net> >>
-
 =head1 BUGS
 
 Please report any bugs or feature requests to C<bug-unix-provision-user at rt.cpan.org>, or through the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Provision-Unix>.  I will be notified, and then you'll automatically be notified of progress on your bug as I make changes.
-
 
 =head1 SUPPORT
 
 You can find documentation for this module with the perldoc command.
 
     perldoc Provision::Unix::User
-
 
 You can also look for information at:
 
@@ -702,16 +693,21 @@ L<http://search.cpan.org/dist/Provision-Unix>
 
 =back
 
+=head1 AUTHOR
 
-=head1 ACKNOWLEDGEMENTS
+Matt Simerson <msimerson@cpan.org>
 
+=head1 COPYRIGHT AND LICENSE
 
-=head1 COPYRIGHT & LICENSE
+This software is copyright (c) 2011 by The Network People, Inc..
 
-Copyright 2008 Matt Simerson
-
-This program is free software; you can redistribute it and/or modify it
-under the same terms as Perl itself.
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
 
 =cut
+
+
+__END__
+
+
 

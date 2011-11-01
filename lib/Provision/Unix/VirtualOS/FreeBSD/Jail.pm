@@ -1,7 +1,8 @@
 package Provision::Unix::VirtualOS::FreeBSD::Jail;
+# ABSTRACT: provision freebsd jails
 
-use warnings;
 use strict;
+use warnings;
 
 our $VERSION = '0.07';
 
@@ -93,6 +94,32 @@ sub set_password {
 };
 
 1;
+
+
+
+=pod
+
+=head1 NAME
+
+Provision::Unix::VirtualOS::FreeBSD::Jail - provision freebsd jails
+
+=head1 VERSION
+
+version 1.01
+
+=head1 AUTHOR
+
+Matt Simerson <msimerson@cpan.org>
+
+=head1 COPYRIGHT AND LICENSE
+
+This software is copyright (c) 2011 by The Network People, Inc..
+
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
+
+=cut
+
 
 __END__
 

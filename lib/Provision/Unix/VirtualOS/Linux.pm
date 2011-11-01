@@ -1,9 +1,10 @@
 package Provision::Unix::VirtualOS::Linux;
+# ABSTRACT: a framework for building virtual machines (VPS/VE/Jail)
+
+use strict;
+use warnings;
 
 our $VERSION = '0.27';
-
-use warnings;
-use strict;
 
 use File::Copy;
 use File::Path;
@@ -81,7 +82,7 @@ sub install_kernel_modules {
     return 1 if $p{test_mode};
 
     if ( -d "/boot/domU" ) {
-        my ($modules) = </boot/domU/modules*$version*>;
+        my ($modules) = glob("/boot/domU/modules*$version*");
         $modules or return $prov->error( 
             "unable to find kernel modules in /boot/domU", %std_opts);
         my $module_dir = "$fs_root/lib/modules";
@@ -592,4 +593,29 @@ EO_C_CODE
 
 
 1;
+
+
+__END__
+=pod
+
+=head1 NAME
+
+Provision::Unix::VirtualOS::Linux - a framework for building virtual machines (VPS/VE/Jail)
+
+=head1 VERSION
+
+version 1.01
+
+=head1 AUTHOR
+
+Matt Simerson <msimerson@cpan.org>
+
+=head1 COPYRIGHT AND LICENSE
+
+This software is copyright (c) 2011 by The Network People, Inc..
+
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
+
+=cut
 

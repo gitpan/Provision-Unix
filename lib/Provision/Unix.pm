@@ -1,9 +1,10 @@
 package Provision::Unix;
+# ABSTRACT: provision accounts on unix systems
 
-our $VERSION = '1.00';
-
-use warnings;
 use strict;
+use warnings;
+
+our $VERSION = '1.01';
 
 use Carp;
 use Config::Tiny;
@@ -197,8 +198,8 @@ sub get_dns {
     my $self = shift;
     return $self->{dns} if ref $self->{dns};
     require Provision::Unix::DNS;
-    $self->{util} = Provision::Unix::DNS->new( 
-            'log' => $self, 
+    $self->{dns} = Provision::Unix::DNS->new( 
+            prov  => $self, 
             debug => $self->{debug},
             );
     return $self->{dns};
@@ -326,11 +327,17 @@ sub _find_readable {
 
 1;
 
-__END__
+
+
+=pod
 
 =head1 NAME
 
 Provision::Unix - provision accounts on unix systems
+
+=head1 VERSION
+
+version 1.01
 
 =head1 SYNOPSIS
 
@@ -375,6 +382,10 @@ where Provision::Unix::VirtualOS::FreeBSD::Jail is not.
 
 Browse the perl modules to see which modules are available.
 
+=head1 NAME
+
+Provision::Unix - provision accounts on unix systems
+
 =head1 Programming Conventions
 
 All functions/methods adhere to the following:
@@ -410,7 +421,6 @@ That will dump the contents of $prov->audit and $prov->errors and then terminate
 Creates and returns a new Provision::Unix object. 
 
 As part of initialization, new() finds and reads in provision.conf from /[opt/usr]/local/etc, /etc, and the current working directory. 
-
 
 =head2 audit
 
@@ -480,26 +490,19 @@ Example:
    0 - failure
    the path to $file  
 
-
 =head2 get_last_error
 
 prints and returns the last error encountered.
 
-=head1 AUTHOR
-
-Matt Simerson, <msimerson@cpan.org>
-
 =head1 BUGS
 
 Please report any bugs or feature requests to C<bug-unix-provision at rt.cpan.org>, or through the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Provision-Unix>.  I will be notified, and then you'll automatically be notified of progress on your bug as I make changes.
-
 
 =head1 SUPPORT
 
 You can find documentation for this module with the perldoc command.
 
     perldoc Provision::Unix
-
 
 You can also look for information at:
 
@@ -523,11 +526,20 @@ L<http://search.cpan.org/dist/Provision-Unix>
 
 =back
 
-=head1 COPYRIGHT & LICENSE
+=head1 AUTHOR
 
-This program is free software; you can redistribute it and/or modify it
-under the same terms as Perl itself.
+Matt Simerson <msimerson@cpan.org>
 
+=head1 COPYRIGHT AND LICENSE
+
+This software is copyright (c) 2011 by The Network People, Inc..
+
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
 
 =cut
+
+
+__END__
+
 

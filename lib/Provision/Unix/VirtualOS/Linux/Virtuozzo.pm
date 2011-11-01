@@ -1,12 +1,13 @@
 package Provision::Unix::VirtualOS::Linux::Virtuozzo;
+# ABSTRACT: provision a linux VPS using Virtuozzo
+
+use strict;
+use warnings;
 
 use lib 'lib';
-use base Provision::Unix::VirtualOS::Linux::OpenVZ;
+use base 'Provision::Unix::VirtualOS::Linux::OpenVZ';
 
 our $VERSION = '0.13';
-
-use warnings;
-use strict;
 
 use English qw( -no_match_vars );
 use File::Copy;
@@ -89,7 +90,7 @@ sub create {
     $cmd .= " --pkgset $pkgset";
     # $cmd .= " --ostemplate $template";
     
-    my @configs = </etc/vz/conf/ve-*.conf-sample>;
+    my @configs = glob("/etc/vz/conf/ve-*.conf-sample");
     no warnings;
     my @sorted = 
         sort { ( $b =~ /(\d+)/)[0] <=> ($a =~ /(\d+)/)[0] } 
@@ -172,12 +173,17 @@ sub _is_valid_template {
 
 1;
 
-__END__
+
+
+=pod
 
 =head1 NAME
 
-Provision::Unix::VirtualOS::Linux::Virtuozzo - Provision a VPS using Virtuozzo 
+Provision::Unix::VirtualOS::Linux::Virtuozzo - provision a linux VPS using Virtuozzo
 
+=head1 VERSION
+
+version 1.01
 
 =head1 SYNOPSIS
 
@@ -187,6 +193,10 @@ class is functionally almost identical, containing just a few overrides.
     use Provision::Unix::VirtualOS::Linux::Virtuozzo;
     my $vz = Provision::Unix::VirtualOS::Linux::Virtuozzo->new();
     ...
+
+=head1 NAME
+
+Provision::Unix::VirtualOS::Linux::Virtuozzo - Provision a VPS using Virtuozzo 
 
 =head1 FUNCTIONS
 
@@ -206,7 +216,6 @@ Returns the VPS home directory.
 
 Checks to make sure the specified OS template exists.
 
-
 =head1 AUTHOR
 
 Matt Simerson, C<< <matt at tnpi.net> >>
@@ -215,13 +224,11 @@ Matt Simerson, C<< <matt at tnpi.net> >>
 
 Please report any bugs or feature requests to C<bug-unix-provision-virtualos at rt.cpan.org>, or through the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Provision-Unix>.  I will be notified, and then you'll automatically be notified of progress on your bug as I make changes.
 
-
 =head1 SUPPORT
 
 You can find documentation for this module with the perldoc command.
 
     perldoc Provision::Unix::VirtualOS::Linux::Virtuozzo
-
 
 You can also look for information at:
 
@@ -245,9 +252,7 @@ L<http://search.cpan.org/dist/Provision-Unix>
 
 =back
 
-
 =head1 ACKNOWLEDGEMENTS
-
 
 =head1 COPYRIGHT & LICENSE
 
@@ -256,6 +261,20 @@ Copyright 2010 Matt Simerson
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.
 
+=head1 AUTHOR
+
+Matt Simerson <msimerson@cpan.org>
+
+=head1 COPYRIGHT AND LICENSE
+
+This software is copyright (c) 2011 by The Network People, Inc..
+
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
 
 =cut
+
+
+__END__
+
 

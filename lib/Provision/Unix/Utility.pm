@@ -1,9 +1,10 @@
 package Provision::Unix::Utility;
-
-our $VERSION = '5.29';
+# ABSTRACT: utility subroutines for sysadmin tasks
 
 use strict;
 use warnings;
+
+our $VERSION = '5.30';
 
 use Cwd;
 use Carp;
@@ -31,7 +32,9 @@ sub new {
     if ( ! $log ) {
         my @bits = split '::', $class; pop @bits;
         my $parent_class = join '::', grep { defined $_ } @bits;
+        ## no critic
         eval "require $parent_class";
+        ## use critic
         $log = $parent_class->new();
     };
 
@@ -50,7 +53,7 @@ sub ask {
     my $question = shift;
     my %p = validate(
         @_,
-        {   default  => { type => SCALAR,  optional => 1 },
+        {   default  => { type => SCALAR|UNDEF, optional => 1 },
             timeout  => { type => SCALAR,  optional => 1 },
             password => { type => BOOLEAN, optional => 1, default => 0 },
             test_ok  => { type => BOOLEAN, optional => 1 },
@@ -394,7 +397,7 @@ sub cwd_source_dir {
 
 sub _try_mkdir {
     my ( $dir ) = @_;
-    mkpath( $dir, 0, 0755) 
+    mkpath( $dir, 0, oct(755)) 
         or return $log->error( "mkdir $dir failed: $!");
     $log->audit( "created $dir");
     return 1;
@@ -516,7 +519,9 @@ sub file_get {
     my $fatal = $p{fatal};
 
     my ($ua, $response);
+## no critic
     eval "require LWP::Simple";
+## use critic
     return $self->file_get_system( %p ) if $EVAL_ERROR;
 
     my $uri = URI->new($url);
@@ -1519,7 +1524,7 @@ sub install_package {
         }
 
         print "installing $app\n";
-        my $portdir = </usr/ports/*/$portname>;
+        my $portdir = glob("/usr/ports/*/$portname");
 
         if ( ! -d $portdir || ! chdir $portdir ) {
             print "oops, couldn't find port $app at '$portname'\n";
@@ -1543,7 +1548,9 @@ sub install_package {
 sub install_module {
     my ($self, $module, %info) = @_;
 
+## no critic
     eval "use $module";
+## use critic
     if ( ! $EVAL_ERROR ) {
         $log->audit( "$module is already installed." );
         return 1;
@@ -1574,7 +1581,7 @@ sub install_module {
 
         print "installing $module";
 
-        my $portdir = </usr/ports/*/$portname>;
+        my $portdir = glob("/usr/ports/*/$portname");
 
         if ( $portdir && -d $portdir && chdir $portdir ) {
             print " from ports ($portdir)\n";
@@ -1604,7 +1611,9 @@ sub install_module {
 
     CPAN::Shell->install($module);
 
+## no critic
     eval "use $module";
+## use critic
     if ( ! $EVAL_ERROR ) {
         $log->audit( "$module is installed." );
         return 1;
@@ -1713,7 +1722,9 @@ sub is_interactive {
 sub is_process_running {
     my ( $self, $process ) = @_;
 
+## no critic
     eval "require Proc::ProcessTable";
+## use critic
     if ( ! $EVAL_ERROR ) {
         my $i = 0;
         my $t = Proc::ProcessTable->new();
@@ -2398,13 +2409,17 @@ sub yes_or_no {
 }
 
 1;
-__END__
 
+
+=pod
 
 =head1 NAME
 
 Provision::Unix::Utility - utility subroutines for sysadmin tasks
 
+=head1 VERSION
+
+version 1.01
 
 =head1 SYNOPSIS
 
@@ -2415,11 +2430,9 @@ Provision::Unix::Utility - utility subroutines for sysadmin tasks
 
 This is just one of the many handy little methods I have amassed here. Rather than try to remember all of the best ways to code certain functions and then attempt to remember them, I have consolidated years of experience and countless references from Learning Perl, Programming Perl, Perl Best Practices, and many other sources into these subroutines.
 
-
 =head1 DESCRIPTION
 
 This Utility module is my most frequently used one. Each method has documentation but in general, all methods accept as input a list of key value pairs (named parameters).
-
 
 =head1 DIAGNOSTICS
 
@@ -2430,18 +2443,16 @@ Unless otherwise mentioned, all methods accept two additional parameters:
   debug - to print status and verbose error messages, set debug=>1.
   fatal - die on errors. This is the default, set fatal=>0 to override.
 
-
 =head1 DEPENDENCIES
 
   Perl.
   Scalar::Util -  built-in as of perl 5.8
 
-Almost nothing else. A few of the methods do require certian things, like archive_expand requires tar and file. But in general, this package (Provision::Unix::Utility) should run flawlessly on any UNIX-like system. Because I recycle this package in other places (not just Provision::Unix), I avoid creating dependencies here.
+Almost nothing else. A few of the methods do require certain things, like archive_expand requires tar and file. But in general, this package (Provision::Unix::Utility) should run flawlessly on any UNIX-like system. Because I recycle this package in other places (not just Provision::Unix), I avoid creating dependencies here.
 
 =head1 METHODS
 
 =over
-
 
 =item new
 
@@ -2455,9 +2466,7 @@ To use any of the methods below, you must first create a utility object. The met
   # Parameters : none
   ############################################
 
-
 =item ask
-
 
 Get a response from the user. If the user responds, their response is returned. If not, then the default response is returned. If no default was supplied, 0 is returned.
 
@@ -2479,9 +2488,7 @@ Get a response from the user. If the user responds, their response is returned. 
   # Throws     : no exceptions
   # See Also   : yes_or_no
 
-
 =item archive_expand
-
 
 Decompresses a variety of archive formats using your systems built in tools.
 
@@ -2493,9 +2500,7 @@ Decompresses a variety of archive formats using your systems built in tools.
   # Returns    : 0 - failure, 1 - success
   # Parameters : S - archive - a bz2, gz, or tgz file to decompress
 
-
 =item cwd_source_dir
-
 
 Changes the current working directory to the supplied one. Creates it if it does not exist. Tries to create the directory using perl's builtin mkdir, then the system mkdir, and finally the system mkdir with sudo. 
 
@@ -2504,7 +2509,6 @@ Changes the current working directory to the supplied one. Creates it if it does
   # Purpose    : prepare a location to build source files in
   # Returns    : 0 - failure,  1 - success
   # Parameters : S - dir - a directory to build programs in
-
 
 =item check_homedir_ownership 
 
@@ -2520,7 +2524,6 @@ Checks the ownership on all home directories to see if they are owned by their r
 
 Comments: Auto mode should be run with great caution. Run it first to see the results and then, if everything looks good, run in auto mode to do the actual repairs. 
 
-
 =item check_pidfile
 
 see pidfile_check
@@ -2528,7 +2531,6 @@ see pidfile_check
 =item chown_system
 
 The advantage this sub has over a Pure Perl implementation is that it can utilize sudo to gain elevated permissions that we might not otherwise have.
-
 
   ############### chown_system #################
   # Usage      : $util->chown_system( dir=>"/tmp/example", user=>'matt' );
@@ -2541,9 +2543,7 @@ The advantage this sub has over a Pure Perl implementation is that it can utiliz
   # Comments   : Uses the system chown binary
   # See Also   : n/a
 
-
 =item clean_tmp_dir
-
 
   ############## clean_tmp_dir ################
   # Usage      : $util->clean_tmp_dir( dir=>$dir );
@@ -2553,7 +2553,6 @@ The advantage this sub has over a Pure Perl implementation is that it can utiliz
   # Throws     : die on failure
   # Comments   : Running this will delete its contents. Be careful!
 
-
 =item get_mounted_drives
 
   ############# get_mounted_drives ############
@@ -2561,9 +2560,7 @@ The advantage this sub has over a Pure Perl implementation is that it can utiliz
   # Purpose    : Uses mount to fetch a list of mounted drive/partitions
   # Returns    : a hashref of mounted slices and their mount points.
 
-
 =item file_archive
-
 
   ############### file_archive #################
   # Purpose    : Make a backup copy of a file by copying the file to $file.timestamp.
@@ -2571,7 +2568,6 @@ The advantage this sub has over a Pure Perl implementation is that it can utiliz
   # Returns    : the filename of the backup file, or 0 on failure.
   # Parameters : S - file - the filname to be backed up
   # Comments   : none
-
 
 =item chmod
 
@@ -2595,7 +2591,6 @@ Set the permissions (ugo-rwx) of a file. Will use the native perl methods (by de
  result:
    0 - failure
    1 - success
-
 
 =item chown
 
@@ -2624,7 +2619,6 @@ Set the ownership (user and group) of a file. Will use the native perl methods (
    0 - failure
    1 - success
 
-
 =item file_delete
 
   ############################################
@@ -2637,7 +2631,6 @@ Set the ownership (user and group) of a file. Will use the native perl methods (
   # See Also   : 
 
  Uses unlink if we have appropriate permissions, otherwise uses a system rm call, using sudo if it is not being run as root. This sub will try very hard to delete the file!
-
 
 =item file_get
 
@@ -2657,11 +2650,9 @@ Use the standard URL fetching utility (fetch, curl, wget) for your OS to downloa
    1 - success
    0 - failure
 
-
 =item file_is_newer
 
 compares the mtime on two files to determine if one is newer than another. 
-
 
 =item file_mode
 
@@ -2682,7 +2673,6 @@ compares the mtime on two files to determine if one is newer than another.
    0 - failure
    1 - success
 
-
 =item file_read
 
 Reads in a file, and returns it in an array. All lines in the array are chomped.
@@ -2701,7 +2691,6 @@ Reads in a file, and returns it in an array. All lines in the array are chomped.
  result:
    0 - failure
    success - returns an array with the files contents, one line per array element
-
 
 =item file_write
 
@@ -2722,7 +2711,6 @@ Reads in a file, and returns it in an array. All lines in the array are chomped.
  result:
    0 - failure
    1 - success
-
 
 =item files_diff
 
@@ -2749,7 +2737,6 @@ Determine if the files are different. $type is assumed to be text unless you set
    1 - files are different
   -1 - error.
 
-
 =item find_bin
 
 Check all the "normal" locations for a binary that should be on the system and returns the full path to the binary.
@@ -2773,7 +2760,6 @@ Example:
    0 - failure
    success will return the full path to the binary.
 
-
 =item get_file
 
 an alias for file_get for legacy purposes. Do not use.
@@ -2790,10 +2776,7 @@ Verify if a process is running or not.
 
 $process is the name as it would appear in the process table.
 
-
-
 =item is_readable
-
 
   ############################################
   # Usage      : $util->is_readable( file=>$file );
@@ -2808,8 +2791,6 @@ $process is the name as it would appear in the process table.
      0 - no (file is not readable)
      1 - yes (file is readable)
 
-
-
 =item is_writable
 
 If the file exists, it checks to see if it is writable. If the file does not exist, it checks to see if the enclosing directory is writable. 
@@ -2821,9 +2802,7 @@ If the file exists, it checks to see if it is writable. If the file does not exi
   # Parameters : S - file - a path name to a file
   # Throws     : no exceptions
 
-
 =item fstab_list
-
 
   ############ fstab_list ###################
   # Usage      : $util->fstab_list;
@@ -2831,7 +2810,6 @@ If the file exists, it checks to see if it is writable. If the file does not exi
   # Returns    : an arrayref
   # Comments   : used in backup.pl
   # See Also   : n/a
-
 
 =item get_dir_files
 
@@ -2847,7 +2825,6 @@ If the file exists, it checks to see if it is writable. If the file does not exi
  result:
    an array of files names contained in that directory.
    0 - failure
-
 
 =item get_the_date
 
@@ -2872,7 +2849,6 @@ Returns the date split into a easy to work with set of strings.
 	$ss = seconds
 
 	my ($dd, $mm, $yy, $lm, $hh, $mn, $ss) = $util->get_the_date();
-
 
 =item install_from_source
 
@@ -2908,16 +2884,13 @@ Downloads and installs a program from sources.
    1 - success
    0 - failure
 
-
 =item install_from_source_php
 
 Downloads a PHP program and installs it. This function is not completed due to lack o interest.
 
-
 =item is_interactive
 
 tests to determine if the running process is attached to a terminal.
-
 
 =item logfile_append
 
@@ -2945,20 +2918,17 @@ That will append a line like this to the log file:
    1 - success
    0 - failure
 
-
 =item mailtoaster
 
    $util->mailtoaster();
 
 Downloads and installs Mail::Toaster.
 
-
 =item mkdir_system
 
    $util->mkdir_system( dir => $dir, debug=>$debug );
 
 creates a directory using the system mkdir binary. Can also make levels of directories (-p) and utilize sudo if necessary to escalate.
-
 
 =item pidfile_check
 
@@ -2984,7 +2954,6 @@ Example:
 	do_a_bunch_of_cool_stuff;
 	unlink $pidfile;
 
-
 =item regexp_test
 
 Prints out a string with the regexp match bracketed. Credit to Damien Conway from Perl Best Practices.
@@ -3001,7 +2970,6 @@ Prints out a string with the regexp match bracketed. Credit to Damien Conway fro
 
  result:
    printed string highlighting the regexp match
-
 
 =item source_warning
 
@@ -3027,7 +2995,6 @@ Checks to see if the old build sources are present. If they are, offer to remove
    1 - removed
    0 - failure, package exists and needs to be removed.
 
-
 =item sources_get
 
 Tries to download a set of sources files from the site and url provided. It will try first fetching a gzipped tarball and if that files, a bzipped tarball. As new formats are introduced, I will expand the support for them here.
@@ -3050,7 +3017,6 @@ Tries to download a set of sources files from the site and url provided. It will
 
 This sub proved quite useful during 2005 as many packages began to be distributed in bzip format instead of the traditional gzip.
 
-
 =item sudo
 
    my $sudo = $util->sudo();
@@ -3070,7 +3036,6 @@ If sudo is not installed and you're running as root, it'll offer to install sudo
    0 - failure
    on success, the full path to the sudo binary
 
-
 =item syscmd
 
    Just a little wrapper around system calls, that returns any failure codes and prints out the error(s) if present. A bit of sanity testing is also done to make sure the command to execute is safe. 
@@ -3088,11 +3053,9 @@ If sudo is not installed and you're running as root, it'll offer to install sudo
     result
       the exit status of the program you called.
 
-
 =item _try_mkdir
 
 try creating a directory using perl's builtin mkdir.
-
 
 =item yes_or_no
 
@@ -3114,18 +3077,7 @@ try creating a directory using perl's builtin mkdir.
    0 - negative (or null)
    1 - success (affirmative)
 
-
 =back
-
-=head1 AUTHOR
-
-Matt Simerson (matt@tnpi.net)
-
-
-=head1 BUGS
-
-None known. Report any to author.
-
 
 =head1 TODO
 
@@ -3133,26 +3085,28 @@ None known. Report any to author.
   write test cases for every method
   comments. always needs more comments.
 
-
 =head1 SEE ALSO
 
 The following are all man/perldoc pages: 
 
  Provision::Unix 
 
+=head1 AUTHOR
 
-=head1 COPYRIGHT
+Matt Simerson <msimerson@cpan.org>
 
-Copyright (c) 2003-2009, The Network People, Inc. All Rights Reserved.
+=head1 COPYRIGHT AND LICENSE
 
-Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+This software is copyright (c) 2011 by The Network People, Inc..
 
-Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
-
-Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
-
-Neither the name of the The Network People, Inc. nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
-
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
 
 =cut
+
+
+__END__
+
+
+
+

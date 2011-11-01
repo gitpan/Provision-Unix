@@ -1,4 +1,5 @@
 package Provision::Unix::Web::Apache;
+# ABSTRACT: provision web hosting accounts on Apache
 
 use strict;
 use warnings;
@@ -25,7 +26,9 @@ sub new {
 
     $web  = $p{web};
     $prov = $p{prov};
+    ## no critic
     eval "require Apache::Admin::Config";
+    ## use critic
     if ( $EVAL_ERROR ) {
         return $prov->error( 'Apache::Admin::Config not installed', 
             fatal => $p{fatal}, 
@@ -678,14 +681,19 @@ LINE: foreach my $line (@lines) {
 
 1;
 
-__END__
+
+
+=pod
 
 =head1 NAME
 
-Provision::Unix::Web::Apache - Provision web hosting accounts on Apache
+Provision::Unix::Web::Apache - provision web hosting accounts on Apache
+
+=head1 VERSION
+
+version 1.01
 
 =head1 SYNOPSIS
-
 
 =head1 FUNCTIONS
 
@@ -738,11 +746,9 @@ Delete's an Apache vhost.
 
     $apache->destroy();
 
-
 =head2 exists
 
 Tests to see if a vhost definition already exists in your Apache config file(s).
-
 
 =head2 show
 
@@ -766,11 +772,6 @@ $apache is looked up from the contents of $conf.
 
 Find a vhost declaration block in the Apache config file(s).
 
-
-=head1 AUTHOR
-
-Matt Simerson, C<< <matt at tnpi.net> >>
-
 =head1 BUGS
 
 Please report any bugs or feature requests to C<bug-unix-provision-virtualos at rt.cpan.org>, or through the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Provision-Unix>.  I will be notified, and then you'll automatically be notified of progress on your bug as I make changes.
@@ -780,7 +781,6 @@ Please report any bugs or feature requests to C<bug-unix-provision-virtualos at 
 You can find documentation for this module with the perldoc command.
 
     perldoc Provision::Unix
-
 
 You can also look for information at:
 
@@ -804,17 +804,23 @@ L<http://search.cpan.org/dist/Provision-Unix>
 
 =back
 
-
 =head1 ACKNOWLEDGEMENTS
 
+=head1 AUTHOR
 
-=head1 COPYRIGHT & LICENSE
+Matt Simerson <msimerson@cpan.org>
 
-Copyright 2008 Matt Simerson
+=head1 COPYRIGHT AND LICENSE
 
-This program is free software; you can redistribute it and/or modify it
-under the same terms as Perl itself.
+This software is copyright (c) 2011 by The Network People, Inc..
 
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
 
 =cut
+
+
+__END__
+
+
 

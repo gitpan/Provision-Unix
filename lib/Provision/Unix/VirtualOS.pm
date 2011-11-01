@@ -1,7 +1,8 @@
 package Provision::Unix::VirtualOS;
+# ABSTRACT: Provision virtual environments (VEs)
 
-use warnings;
 use strict;
+use warnings;
 
 our $VERSION = '0.59';
 
@@ -569,7 +570,7 @@ sub get_template_list {
                 debug  => $p{debug},
             );
 
-        my @template_names = <$template_dir/*.tar.gz>;
+        my @template_names = glob("$template_dir/*.tar.gz");
         foreach my $template ( @template_names ) {
             ($template) = $template =~ /\/([\w\.\-]+)\.tar\.gz$/;
             push @templates, { name => $template };
@@ -664,7 +665,8 @@ sub set_nameservers {
         }
     );
 
-    my $name              = $self->set_name( $p{name} ) if $p{name};
+    my $name;
+    $name = $self->set_name( $p{name} ) if $p{name};
     my $searchdomain      = $p{searchdomain};
     $self->{nameservers}  = $self->get_ips( $p{nameservers} ) if $p{nameservers};
     $self->{nameservers}  or die 'missing nameservers';
@@ -903,11 +905,17 @@ sub _get_virt_type_linux {
 
 1;
 
-__END__
+
+
+=pod
 
 =head1 NAME
 
 Provision::Unix::VirtualOS - Provision virtual environments (VEs)
+
+=head1 VERSION
+
+version 1.01
 
 =head1 SYNOPSIS
 
@@ -930,7 +938,6 @@ Provision::Unix::VirtualOS - Provision virtual environments (VEs)
     )
     or $prov->error( "unable to create VE" );
 
-
 =head1 DESCRIPTION
 
 Provision::Unix::VirtualOS aims to provide a clean, consistent way to manage virtual machines on a variety of virtualization platforms including Xen, OpenVZ, Vmware, FreeBSD jails, and others. P:U:V provides a command line interface (prov_virtual) and a stable programming interface (API) for provisioning virtual machines on supported platforms. To start a VE on any supported virtualization platform, you run this command:
@@ -946,7 +953,6 @@ Versus this:
 P:U:V tries very hard to insure that every valid command that can succeed will. There is abundant code for handling common errors, such as unmounting xen volumes before starting a VE, making sure a disk volume is not in use before mounting it, and making sure connectivity to the new HW node exists before attempting to migrate.
 
 In addition to the pre-flight checks, there are also post-action checks to determine if the action succeeded. When actions fail, they provide reasonably good error messages geared towards comprehension by sysadmins. Where feasible, actions that fail are rolled back so that when the problem(s) is corrected, the action can be safely retried.
-
 
 =head1 USAGE
 
@@ -1042,7 +1048,6 @@ Since the RPC remoteagent is running as root, the request broker has access to a
  #            : kernel_version -
  #            : skip_start - do not start the VE after creation
 
-
 =head2 start
 
  # Usage      : $vos->start( name => '42' );
@@ -1050,7 +1055,6 @@ Since the RPC remoteagent is running as root, the request broker has access to a
  # Returns    : true or undef on failure
  # Parameters :
  #   Required : name
-
 
 =head2 stop
 
@@ -1060,7 +1064,6 @@ Since the RPC remoteagent is running as root, the request broker has access to a
  # Parameters :
  #   Required : name
 
-
 =head2 restart
 
  # Usage      : $vos->restart( name => '42' );
@@ -1068,7 +1071,6 @@ Since the RPC remoteagent is running as root, the request broker has access to a
  # Returns    : true or undef on failure
  # Parameters :
  #   Required : name
-
 
 =head2 enable
 
@@ -1078,7 +1080,6 @@ Since the RPC remoteagent is running as root, the request broker has access to a
  # Parameters :
  #   Required : name
 
-
 =head2 disable
 
  # Usage      : $vos->disable( name => '42' );
@@ -1086,7 +1087,6 @@ Since the RPC remoteagent is running as root, the request broker has access to a
  # Returns    : true or undef on failure
  # Parameters :
  #   Required : name
-
 
 =head2 set_hostname
 
@@ -1099,7 +1099,6 @@ Since the RPC remoteagent is running as root, the request broker has access to a
  # Parameters :
  #   Required : name
  #            : hostname  - the new FQDN for the virtual OS
-
 
 =head2 set_nameservers
 
@@ -1129,7 +1128,6 @@ Since the RPC remoteagent is running as root, the request broker has access to a
  #   Optional : user     - /etc/password user name, defaults to 'root'
  #            : ssh_key  - an ssh public key, to install in ~/.ssh/authorized_keys
  #            : disk_root- the full to the VE root (ie, / within the VE)
-
 
 =head2 set_ssh_key
 
@@ -1166,7 +1164,6 @@ Since the RPC remoteagent is running as root, the request broker has access to a
  #            : ssh_key
  #            : template
 
-
 =head2 get_status
 
  # Usage      : $vos->get_status( name => '42' );
@@ -1190,7 +1187,6 @@ Since the RPC remoteagent is running as root, the request broker has access to a
  #    'state'    => 'running'
  # }
 
-
 =head2 migrate
 
  # Usage      : $vos->migrate( name => '42', new_node => 'xen5' );
@@ -1209,7 +1205,6 @@ Since the RPC remoteagent is running as root, the request broker has access to a
  # Returns    : true or undef on failure
  # Parameters :
  #   Required : name
-
 
 =head2 mount
 
@@ -1242,21 +1237,15 @@ unmounts a snapshot.
 
 returns an array representing with each line in the VE config file being an element in the array.
 
-=head1 AUTHOR
-
-Matt Simerson, C<< <matt at tnpi.net> >>
-
 =head1 BUGS
 
 Please report any bugs or feature requests to C<bug-unix-provision-virtualos at rt.cpan.org>, or through the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Provision-Unix>.  I will be notified, and then you'll automatically be notified of progress on your bug as I make changes.  
-
 
 =head1 SUPPORT
 
 You can find documentation for this module with the perldoc command.
 
     perldoc Provision::Unix::VirtualOS
-
 
 You can also look for information at:
 
@@ -1280,14 +1269,21 @@ L<http://search.cpan.org/dist/Provision-Unix-VirtualOS>
 
 =back
 
+=head1 AUTHOR
 
-=head1 COPYRIGHT & LICENSE
+Matt Simerson <msimerson@cpan.org>
 
-Copyright 2008-2010 Matt Simerson
+=head1 COPYRIGHT AND LICENSE
 
-This program is free software; you can redistribute it and/or modify it
-under the same terms as Perl itself.
+This software is copyright (c) 2011 by The Network People, Inc..
 
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
 
 =cut
+
+
+__END__
+
+
 

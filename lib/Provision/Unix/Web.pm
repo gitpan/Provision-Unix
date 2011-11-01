@@ -1,12 +1,13 @@
 package Provision::Unix::Web;
+# ABSTRACT: provision web hosting accounts
 
-use warnings;
 use strict;
+use warnings;
+
+our $VERSION = '0.09';
 
 use Carp;
 use Params::Validate qw( :all );
-
-our $VERSION = '0.09';
 
 use lib "lib";
 
@@ -32,7 +33,7 @@ sub new {
     $prov = $p{prov};
     $prov->audit("loaded Web");
     $self->{server} = $self->_get_server( debug => $p{debug}, fatal => $p{fatal} )
-        or return undef;
+        or return;
 
     $util = $prov->get_util;
     return $self;
@@ -97,7 +98,7 @@ sub _get_server {
         );
     }
 
-    return undef;
+    return;
 
     #    use Data::Dumper;
     #    print "\n\n";
@@ -219,11 +220,17 @@ sub check_apache_setup {
 
 1;
 
-__END__
+
+
+=pod
 
 =head1 NAME
 
-Provision::Unix::Web - Provision web hosting accounts
+Provision::Unix::Web - provision web hosting accounts
+
+=head1 VERSION
+
+version 1.01
 
 =head1 SYNOPSIS
 
@@ -236,28 +243,19 @@ Provision web hosting accounts.
 
 =head1 FUNCTIONS
 
-
 =head2 new
 
 Creates and returns a new Provision::Unix::Web object.
 
-
-=head1 AUTHOR
-
-Matt Simerson, C<< <matt at tnpi.net> >>
-
 =head1 BUGS
 
 Please report any bugs or feature requests to C<bug-unix-provision-web at rt.cpan.org>, or through the web interface at L<http://rt.cpan.org/NoAuth/ReportBug.html?Queue=Provision-Unix>.  I will be notified, and then you'll automatically be notified of progress on your bug as I make changes.
-
-
 
 =head1 SUPPORT
 
 You can find documentation for this module with the perldoc command.
 
     perldoc Provision::Unix
-
 
 You can also look for information at:
 
@@ -281,16 +279,22 @@ L<http://search.cpan.org/dist/Provision-Unix>
 
 =back
 
-
 =head1 ACKNOWLEDGEMENTS
 
+=head1 AUTHOR
 
-=head1 COPYRIGHT & LICENSE
+Matt Simerson <msimerson@cpan.org>
 
-Copyright 2008 Matt Simerson
+=head1 COPYRIGHT AND LICENSE
 
-This program is free software; you can redistribute it and/or modify it
-under the same terms as Perl itself.
+This software is copyright (c) 2011 by The Network People, Inc..
 
+This is free software; you can redistribute it and/or modify it under
+the same terms as the Perl 5 programming language system itself.
 
 =cut
+
+
+__END__
+
+
