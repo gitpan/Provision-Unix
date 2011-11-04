@@ -366,7 +366,7 @@ Provision::Unix::User::Darwin - provision user accounts on Darwin systems
 
 =head1 VERSION
 
-version 1.01
+version 1.02
 
 =head1 SYNOPSIS
 

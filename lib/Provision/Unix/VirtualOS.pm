@@ -1,5 +1,5 @@
 package Provision::Unix::VirtualOS;
-# ABSTRACT: Provision virtual environments (VEs)
+# ABSTRACT: Provision virtual computers (VPS,VM,VE,Jail,etc)
 
 use strict;
 use warnings;
@@ -911,11 +911,11 @@ sub _get_virt_type_linux {
 
 =head1 NAME
 
-Provision::Unix::VirtualOS - Provision virtual environments (VEs)
+Provision::Unix::VirtualOS - Provision virtual computers (VPS,VM,VE,Jail,etc)
 
 =head1 VERSION
 
-version 1.01
+version 1.02
 
 =head1 SYNOPSIS
 

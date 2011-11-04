@@ -1,5 +1,5 @@
 package Provision::Unix;
-# ABSTRACT: provision accounts on unix systems
+# ABSTRACT: provision hosting accounts on unix systems
 
 use strict;
 use warnings;
@@ -205,10 +205,22 @@ sub get_dns {
     return $self->{dns};
 };
 
+sub get_debug {
+    my ($self, $debug) = @_;
+    return $debug if defined $debug;
+    return $self->{debug};
+};  
+
 sub get_errors {
     my $self = shift;
     return $self->{errors};
 }
+
+sub get_fatal {
+    my ($self, $fatal) = @_;
+    return $fatal if defined $fatal;
+    return $self->{fatal};
+};
 
 sub get_last_error {
     my $self = shift;
@@ -333,11 +345,11 @@ sub _find_readable {
 
 =head1 NAME
 
-Provision::Unix - provision accounts on unix systems
+Provision::Unix - provision hosting accounts on unix systems
 
 =head1 VERSION
 
-version 1.01
+version 1.02
 
 =head1 SYNOPSIS
 

@@ -1314,7 +1314,7 @@ sub is_valid_template {
         my $file = $segments[-1];
 
         $prov->audit("fetching $file from " . $uri->host);
-        $util->file_get( url => $template, dir => $template_dir, fatal => 0, debug => 0 );
+        $util->get_url( $template, dir => $template_dir, fatal => 0, debug => 0 );
 
         if ( -f "$template_dir/$file" ) {
             ($file) = $file =~ /^(.*)\.tar\.gz$/;
@@ -1805,7 +1805,7 @@ Provision::Unix::VirtualOS::Linux::Xen - provision a linux VPS using Xen
 
 =head1 VERSION
 
-version 1.01
+version 1.02
 
 =head1 SYNOPSIS
 

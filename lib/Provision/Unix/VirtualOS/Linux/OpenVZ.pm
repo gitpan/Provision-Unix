@@ -1025,8 +1025,7 @@ sub _is_valid_template {
 
         $prov->audit("fetching $file from " . $uri->host);
 
-        $util->file_get(
-            url   => $template,
+        $util->get_url( $template,
             dir   => $template_dir,
             fatal => 0,
             debug => 0,
@@ -1125,7 +1124,7 @@ Provision::Unix::VirtualOS::Linux::OpenVZ - provision a linux VPS using openvz
 
 =head1 VERSION
 
-version 1.01
+version 1.02
 
 =head1 AUTHOR
 

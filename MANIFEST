@@ -3,7 +3,7 @@ LICENSE
 MANIFEST
 META.yml
 Makefile.PL
-Makefile.old.PL
+Makefile.PL.old
 README
 TODO
 bin/install_deps

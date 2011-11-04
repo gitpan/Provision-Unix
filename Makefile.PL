@@ -9,7 +9,7 @@ use ExtUtils::MakeMaker 6.30;
 
 
 my %WriteMakefileArgs = (
-  "ABSTRACT" => "provision accounts on unix systems",
+  "ABSTRACT" => "provision hosting accounts on unix systems",
   "AUTHOR" => "Matt Simerson <msimerson\@cpan.org>",
   "BUILD_REQUIRES" => {
     "Test::More" => 0
@@ -29,7 +29,7 @@ my %WriteMakefileArgs = (
     "Params::Validate" => "0.8",
     "URI" => 0
   },
-  "VERSION" => "1.01",
+  "VERSION" => "1.02",
   "test" => {
     "TESTS" => "t/*.t"
   }
