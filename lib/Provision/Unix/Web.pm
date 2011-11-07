@@ -6,7 +6,6 @@ use warnings;
 
 our $VERSION = '0.09';
 
-use Carp;
 use Params::Validate qw( :all );
 
 use lib "lib";
@@ -230,7 +229,7 @@ Provision::Unix::Web - provision web hosting accounts
 
 =head1 VERSION
 
-version 1.02
+version 1.03
 
 =head1 SYNOPSIS
 

@@ -7,7 +7,6 @@ use warnings;
 our $VERSION = '0.11';
 
 use English qw( -no_match_vars );
-use Carp;
 use Params::Validate qw( :all );
 
 use lib 'lib';
@@ -124,7 +123,7 @@ sub create {
     # call verify_master_passwd
 
     # set up user quotas
-    # $user->quota_set( ... )
+    # $user->quota_set( user => $username )
 
     return $self->exists($username)
         ? $prov->progress( num => 10, desc => 'created successfully' )
@@ -394,7 +393,7 @@ sub archive {
         or $prov->error( "couldn't cd to $path: $!\n" );
 
     if ( -e "$path/$user.tar.gz" && -d "$path/$user" ) {
-        carp "user_archive:\tReplacing old tarfile $path/$user.tar.gz.\n";
+        warn "user_archive:\tReplacing old tarfile $path/$user.tar.gz.\n";
         system "$rm $path/$user.tar.gz";
     }
 
@@ -407,7 +406,7 @@ sub archive {
         return 1;
     }
     else {
-        carp "\nFAILED: user_archive couldn't complete $homedir.tar.gz.\n\n";
+        warn "\nFAILED: user_archive couldn't complete $homedir.tar.gz.\n\n";
         return 0;
     }
 }
@@ -426,7 +425,7 @@ Provision::Unix::User::FreeBSD - provision user accounts on FreeBSD systems
 
 =head1 VERSION
 
-version 1.02
+version 1.03
 
 =head1 SYNOPSIS
 

@@ -6,7 +6,6 @@ use warnings;
 
 our $VERSION = '0.02';
 
-use Carp;
 use Params::Validate qw( :all );
 
 use lib "lib";
@@ -33,7 +32,7 @@ Provision::Unix::Web::Lighttpd - provision www virtual hosts on lighttpd
 
 =head1 VERSION
 
-version 1.02
+version 1.03
 
 =head1 AUTHOR
 

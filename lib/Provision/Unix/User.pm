@@ -4,7 +4,7 @@ package Provision::Unix::User;
 use strict;
 use warnings;
 
-our $VERSION = '0.27';
+our $VERSION = '0.28';
 
 use English qw( -no_match_vars );
 use File::Path;
@@ -134,21 +134,21 @@ sub quota_set {
     # parameter validation here
     my %p = validate(
         @_,
-        {   'conf'     => { type => HASHREF, optional => 1, },
-            'username' => { type => SCALAR,  optional => 0, },
-            'quota'    => { type => SCALAR,  optional => 1, default => 100 },
-            'fatal'    => { type => BOOLEAN, optional => 1, default => 1 },
-            'debug'    => { type => BOOLEAN, optional => 1, default => 1 },
+        {   'conf'   => { type => HASHREF, optional => 1, },
+            'user'   => { type => SCALAR,  optional => 0, },
+            'quota'  => { type => SCALAR,  optional => 1, default => 100 },
+            'fatal'  => { type => BOOLEAN, optional => 1, default => 1 },
+            'debug'  => { type => BOOLEAN, optional => 1, default => 1 },
         },
     );
 
     my ( $conf, $username, $quota, $fatal, $debug )
-        = ( $p{conf}, $p{username}, $p{quota}, $p{fatal}, $p{debug} );
+        = ( $p{conf}, $p{user}, $p{quota}, $p{fatal}, $p{debug} );
 
     require Quota;
 
     my $dev = $conf->{quota_filesystem} || "/home";
-    my $uid = getpwnam($username);
+    my $uid = getpwnam($username) or return $prov->error("no such user: $username");
 
     # set the soft limit a few megs higher than the hard limit
     my $quotabump = $quota + 5;
@@ -300,8 +300,8 @@ sub install_ssh_key {
     if ( $p{username} ) {
         my $uid = getpwnam $p{username};
         if ( $uid ) {
-            $util->chown( dir => $ssh_dir, uid => $uid, fatal => 0 );
-            $util->chown( dir => "$ssh_dir/authorized_keys", uid => $uid, fatal => 0 );
+            $util->chown( $ssh_dir, uid => $uid, fatal => 0 );
+            $util->chown( "$ssh_dir/authorized_keys", uid => $uid, fatal => 0 );
         }
         else {
             my $chown = $util->find_bin( 'chown', debug => 0 );
@@ -554,7 +554,7 @@ Provision::Unix::User - provision unix user accounts
 
 =head1 VERSION
 
-version 1.02
+version 1.03
 
 =head1 SYNOPSIS
 

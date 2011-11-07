@@ -249,7 +249,7 @@ Provision::Unix::VirtualOS::Xen::Config - perl interface to Xen configuration fi
 
 =head1 VERSION
 
-version 1.02
+version 1.03
 
 =head1 SYNOPSIS
 

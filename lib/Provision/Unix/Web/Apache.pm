@@ -6,7 +6,6 @@ use warnings;
 
 our $VERSION = '0.09';
 
-use Carp;
 use English qw( -no_match_vars );
 use Params::Validate qw( :all );
 
@@ -184,8 +183,8 @@ sub conf_get_dir {
         );
 
         unless ( -x $apachectl ) {
-            croak
-                "apache->conf_get_dir: failed to find apachectl!  Is Apache installed correctly?\n";
+            die "apache->conf_get_dir: failed to find apachectl!
+        Is Apache installed correctly?\n";
         }
     }
 
@@ -691,7 +690,7 @@ Provision::Unix::Web::Apache - provision web hosting accounts on Apache
 
 =head1 VERSION
 
-version 1.02
+version 1.03
 
 =head1 SYNOPSIS
 

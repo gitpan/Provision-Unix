@@ -19,7 +19,7 @@ Provision::Unix::DNS::BIND - Provision BIND DNS entries
 
 =head1 VERSION
 
-version 1.02
+version 1.03
 
 =head1 SYNOPSIS
 

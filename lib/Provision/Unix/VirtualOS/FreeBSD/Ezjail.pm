@@ -110,7 +110,7 @@ Provision::Unix::VirtualOS::FreeBSD::Ezjail - provision freebsd jails using ezja
 
 =head1 VERSION
 
-version 1.02
+version 1.03
 
 =head1 AUTHOR
 

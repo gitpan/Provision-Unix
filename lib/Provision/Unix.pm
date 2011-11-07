@@ -6,7 +6,6 @@ use warnings;
 
 our $VERSION = '1.01';
 
-use Carp;
 use Config::Tiny;
 use Cwd;
 use Data::Dumper;
@@ -142,7 +141,7 @@ sub error {
             $self->dump_audit();  # dump if err is fatal and debug is not set
             $self->dump_errors();
         };
-        croak "FATAL ERROR";
+        die "FATAL ERROR";
     };
     return;
 }
@@ -258,7 +257,7 @@ sub progress {
     my $desc = $p{desc};
     my $err  = $p{err};
 
-    my $msg_length = length $desc;
+    my $msg_length = length $desc || 0;
     my $to_print   = 10;
     my $max_print  = 70 - $msg_length;
 
@@ -349,7 +348,7 @@ Provision::Unix - provision hosting accounts on unix systems
 
 =head1 VERSION
 
-version 1.02
+version 1.03
 
 =head1 SYNOPSIS
 

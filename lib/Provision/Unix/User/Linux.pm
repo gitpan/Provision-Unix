@@ -7,7 +7,6 @@ use warnings;
 our $VERSION = '0.20';
 
 use English qw( -no_match_vars );
-use Carp;
 use Params::Validate qw( :all );
 
 use lib 'lib';
@@ -389,7 +388,7 @@ Provision::Unix::User::Linux - provision user accounts on Linux systems
 
 =head1 VERSION
 
-version 1.02
+version 1.03
 
 =head1 SYNOPSIS
 

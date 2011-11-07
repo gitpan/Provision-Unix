@@ -7,7 +7,6 @@ use warnings;
 our $VERSION = '5.31';
 
 use Cwd;
-use Carp;
 use English qw( -no_match_vars );
 use File::Basename;
 use File::Copy;
@@ -927,7 +926,7 @@ TRY:
 
     # this keeps us from failing if the box has only internal IPs 
     if ( @ips < 1 || $ips[0] eq "" ) {
-        carp "yikes, you really don't have any public IPs?!" if $debug;
+        warn "you really don't have any public IPs?!" if $debug;
         $p{exclude_internals} = 0;
         $once++;
         goto TRY if ( $once < 2 );
@@ -2139,7 +2138,7 @@ sub syscmd {
         @args = split /\s+/, $cmd;  # split on whitespace
         $bin = shift @args;
         $is_safe++;
-        $log->audit("\tprogram: $bin, args : " . join ' ', @args, %args);
+        $log->audit("\tprogram: $bin, args : " . join ' ', @args );
     }
     else {
         # does not not contain a ./ pattern
@@ -2166,7 +2165,7 @@ sub syscmd {
 
     my $before_path = $ENV{PATH};
 
-    # instead of croaking, maybe try setting a
+    # instead of dying, maybe try setting a
     # very restrictive PATH?  I'll err on the side of safety 
     # $ENV{PATH} = '';
     return $log->error( "syscmd request has tainted data", %args)
@@ -2243,7 +2242,7 @@ sub yes_or_no {
 
     # force if interactivity testing is not working properly.
     if ( !$p{force} && !$self->is_interactive ) {
-        carp "not running interactively, can't prompt!";
+        warn "not running interactively, can't prompt!";
         return;
     }
 
@@ -2279,7 +2278,7 @@ sub yes_or_no {
         };
 
         if ($@) {
-            $@ eq "alarm\n" ? print "timed out!\n" : carp;
+            $@ eq "alarm\n" ? print "timed out!\n" : warn;
         }
 
         return ($response && $response eq "y") ? 1 : 0;
@@ -2305,7 +2304,7 @@ Provision::Unix::Utility - utility subroutines for sysadmin tasks
 
 =head1 VERSION
 
-version 1.02
+version 1.03
 
 =head1 SYNOPSIS
 
@@ -2438,7 +2437,7 @@ Example:
 The advantage this sub has over a Pure Perl implementation is that it can utilize sudo to gain elevated permissions that we might not otherwise have.
 
   ############### chown_system #################
-  # Usage      : $util->chown_system( dir=>"/tmp/example", user=>'matt' );
+  # Usage      : $util->chown_system( "/tmp/example", user=>'matt' );
   # Purpose    : change the ownership of a file or directory
   # Returns    : 0 - failure,  1 - success
   # Parameters : S - dir    - the directory to chown
