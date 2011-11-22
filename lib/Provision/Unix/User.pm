@@ -554,7 +554,7 @@ Provision::Unix::User - provision unix user accounts
 
 =head1 VERSION
 
-version 1.03
+version 1.04
 
 =head1 SYNOPSIS
 

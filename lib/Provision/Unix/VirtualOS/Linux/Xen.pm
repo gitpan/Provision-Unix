@@ -1805,7 +1805,7 @@ Provision::Unix::VirtualOS::Linux::Xen - provision a linux VPS using Xen
 
 =head1 VERSION
 
-version 1.03
+version 1.04
 
 =head1 SYNOPSIS
 

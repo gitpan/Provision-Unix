@@ -604,7 +604,7 @@ Provision::Unix::VirtualOS::Linux - a framework for building Linux virtual machi
 
 =head1 VERSION
 
-version 1.03
+version 1.04
 
 =head1 AUTHOR
 

@@ -1124,7 +1124,7 @@ Provision::Unix::VirtualOS::Linux::OpenVZ - provision a linux VPS using openvz
 
 =head1 VERSION
 
-version 1.03
+version 1.04
 
 =head1 AUTHOR
 

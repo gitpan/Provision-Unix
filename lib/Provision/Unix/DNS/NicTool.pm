@@ -341,7 +341,7 @@ Provision::Unix::DNS::NicTool - Provision NicTool DNS entries
 
 =head1 VERSION
 
-version 1.03
+version 1.04
 
 =head1 SYNOPSIS
 

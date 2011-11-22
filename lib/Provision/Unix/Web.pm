@@ -229,7 +229,7 @@ Provision::Unix::Web - provision web hosting accounts
 
 =head1 VERSION
 
-version 1.03
+version 1.04
 
 =head1 SYNOPSIS
 

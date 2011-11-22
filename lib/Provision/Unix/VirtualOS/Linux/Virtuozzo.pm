@@ -183,7 +183,7 @@ Provision::Unix::VirtualOS::Linux::Virtuozzo - provision a linux VPS using Virtu
 
 =head1 VERSION
 
-version 1.03
+version 1.04
 
 =head1 SYNOPSIS
 

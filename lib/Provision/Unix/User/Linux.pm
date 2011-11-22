@@ -388,7 +388,7 @@ Provision::Unix::User::Linux - provision user accounts on Linux systems
 
 =head1 VERSION
 
-version 1.03
+version 1.04
 
 =head1 SYNOPSIS
 

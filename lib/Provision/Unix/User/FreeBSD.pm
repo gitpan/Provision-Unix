@@ -425,7 +425,7 @@ Provision::Unix::User::FreeBSD - provision user accounts on FreeBSD systems
 
 =head1 VERSION
 
-version 1.03
+version 1.04
 
 =head1 SYNOPSIS
 
