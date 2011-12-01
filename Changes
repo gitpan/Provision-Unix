@@ -1,6 +1,10 @@
 Revision history for Provision-Unix
 
-1.04      2011-11-27 19:12:02 America/Los_Angeles
+1.05      2011-11-30 20:10:58 America/Los_Angeles
+
+1.05      2011-11-30
+  - require version 1 of utf8 (weed out ancient perl versions)
+  - required v2.08 of File::Path (resolve some test failures)
 
 1.04      2011-11-27
   - test suite updates b/c Dist::Zilla doesn't make it easy to exclude testing

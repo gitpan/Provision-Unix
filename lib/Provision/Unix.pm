@@ -4,7 +4,7 @@ package Provision::Unix;
 use strict;
 use warnings;
 
-our $VERSION = '1.01';
+our $VERSION = '1.05';
 
 use Config::Tiny;
 use Cwd;
@@ -348,7 +348,7 @@ Provision::Unix - provision hosting accounts on unix systems
 
 =head1 VERSION
 
-version 1.04
+version 1.05
 
 =head1 SYNOPSIS
 

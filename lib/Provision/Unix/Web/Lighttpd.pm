@@ -32,7 +32,7 @@ Provision::Unix::Web::Lighttpd - provision www virtual hosts on lighttpd
 
 =head1 VERSION
 
-version 1.04
+version 1.05
 
 =head1 AUTHOR
 

@@ -10,13 +10,12 @@ use Cwd;
 use English qw( -no_match_vars );
 use File::Basename;
 use File::Copy;
-use File::Path;
+use File::Path 2.08 qw/ make_path /;
 use File::Spec;
 use File::stat;
 use Params::Validate qw(:all);
 use Scalar::Util qw( openhandle );
 use URI;
-use utf8;
 
 use lib 'lib';
 use vars qw/ $log %std_opts /;
@@ -2305,7 +2304,7 @@ Provision::Unix::Utility - utility subroutines for sysadmin tasks
 
 =head1 VERSION
 
-version 1.04
+version 1.05
 
 =head1 SYNOPSIS
 

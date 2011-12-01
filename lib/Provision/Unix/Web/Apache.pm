@@ -690,7 +690,7 @@ Provision::Unix::Web::Apache - provision web hosting accounts on Apache
 
 =head1 VERSION
 
-version 1.04
+version 1.05
 
 =head1 SYNOPSIS
 
