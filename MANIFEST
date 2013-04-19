@@ -3,7 +3,6 @@ LICENSE
 MANIFEST
 META.yml
 Makefile.PL
-Makefile.PL.old
 README
 TODO
 bin/install_deps
@@ -50,6 +49,7 @@ t/Web.t
 t/author-critic.t
 t/boilerplate.t
 t/linux.t
+t/release-pod-coverage.t
 t/release-pod-syntax.t
 t/virtualos_config.t
 t/virtualos_get_template.t

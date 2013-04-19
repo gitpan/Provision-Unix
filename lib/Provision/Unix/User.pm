@@ -554,7 +554,7 @@ Provision::Unix::User - provision unix user accounts
 
 =head1 VERSION
 
-version 1.05
+version 1.06
 
 =head1 SYNOPSIS
 
@@ -699,7 +699,7 @@ Matt Simerson <msimerson@cpan.org>
 
 =head1 COPYRIGHT AND LICENSE
 
-This software is copyright (c) 2011 by The Network People, Inc..
+This software is copyright (c) 2013 by The Network People, Inc..
 
 This is free software; you can redistribute it and/or modify it under
 the same terms as the Perl 5 programming language system itself.
