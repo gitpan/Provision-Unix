@@ -2,7 +2,7 @@
 use strict;
 use warnings;
 
-
+use 5.006001;
 
 use ExtUtils::MakeMaker 6.30;
 
@@ -13,10 +13,13 @@ my %WriteMakefileArgs = (
   "AUTHOR" => "Matt Simerson <msimerson\@cpan.org>",
   "BUILD_REQUIRES" => {
     "Config" => 0,
-    "Quota" => "0.1",
+    "Dist::Zilla" => 1,
+    "Dist::Zilla::Plugin::MinimumPerl" => "0.1",
+    "Pod::Coverage::TrustPod" => "0.1",
     "Test::More" => "0.1",
     "Test::Perl::Critic" => "0.1",
-    "Test::Pod" => "0.1"
+    "Test::Pod" => "0.1",
+    "Test::Pod::Coverage" => "0.1"
   },
   "CONFIGURE_REQUIRES" => {
     "ExtUtils::MakeMaker" => "6.30"
@@ -45,7 +48,6 @@ my %WriteMakefileArgs = (
     "LWP::UserAgent" => 0,
     "Mail::Send" => 1,
     "Params::Validate" => "0.8",
-    "Quota" => "0.1",
     "Scalar::Util" => 0,
     "Time::Local" => 0,
     "URI" => 1,

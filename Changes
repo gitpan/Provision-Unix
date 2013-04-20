@@ -1,6 +1,10 @@
 Revision history for Provision-Unix
 
-1.06      2013-04-18 20:29:49 America/Los_Angeles
+1.06      2013-04-19 19:54:19 America/Los_Angeles
+
+1.06      2013-04-19
+  - packaging updates
+  - better detection of Windows, to avoid test failures
 
 1.05      2011-11-30
   - require version 1 of utf8 (weed out ancient perl versions)

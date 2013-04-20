@@ -4,10 +4,13 @@ author:
   - 'Matt Simerson <msimerson@cpan.org>'
 build_requires:
   Config: 0
-  Quota: 0.1
+  Dist::Zilla: 1
+  Dist::Zilla::Plugin::MinimumPerl: 0.1
+  Pod::Coverage::TrustPod: 0.1
   Test::More: 0.1
   Test::Perl::Critic: 0.1
   Test::Pod: 0.1
+  Test::Pod::Coverage: 0.1
 configure_requires:
   ExtUtils::MakeMaker: 6.30
 dynamic_config: 0
@@ -17,6 +20,10 @@ meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
   version: 1.4
 name: Provision-Unix
+recommends:
+  NicTool: 1.02
+  Proc::ProcessTable: 1
+  Quota: 0.1
 requires:
   Apache::Admin::Config: 1
   Apache::ConfigFile: 1
@@ -37,11 +44,11 @@ requires:
   LWP::UserAgent: 0
   Mail::Send: 1
   Params::Validate: 0.8
-  Quota: 0.1
   Scalar::Util: 0
   Time::Local: 0
   URI: 1
   base: 0
+  perl: 5.006001
   strict: 0
   utf8: 1
   vars: 0
