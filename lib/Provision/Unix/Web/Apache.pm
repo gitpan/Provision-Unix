@@ -1,10 +1,11 @@
 package Provision::Unix::Web::Apache;
+{
+  $Provision::Unix::Web::Apache::VERSION = '1.07';
+}
 # ABSTRACT: provision web hosting accounts on Apache
 
 use strict;
 use warnings;
-
-our $VERSION = '0.10';
 
 use English qw( -no_match_vars );
 use Params::Validate qw( :all );
@@ -680,9 +681,11 @@ LINE: foreach my $line (@lines) {
 
 1;
 
-
+__END__
 
 =pod
+
+=encoding UTF-8
 
 =head1 NAME
 
@@ -690,7 +693,7 @@ Provision::Unix::Web::Apache - provision web hosting accounts on Apache
 
 =head1 VERSION
 
-version 1.06
+version 1.07
 
 =head1 SYNOPSIS
 
@@ -811,15 +814,9 @@ Matt Simerson <msimerson@cpan.org>
 
 =head1 COPYRIGHT AND LICENSE
 
-This software is copyright (c) 2013 by The Network People, Inc..
+This software is copyright (c) 2014 by The Network People, Inc..
 
 This is free software; you can redistribute it and/or modify it under
 the same terms as the Perl 5 programming language system itself.
 
 =cut
-
-
-__END__
-
-
-

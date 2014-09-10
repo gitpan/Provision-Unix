@@ -1,10 +1,11 @@
 package Provision::Unix::DNS::NicTool;
+{
+  $Provision::Unix::DNS::NicTool::VERSION = '1.07';
+}
 # ABSTRACT: Provision NicTool DNS entries
 
 use strict;
 use warnings;
-
-our $VERSION = '0.23';
 
 use English qw( -no_match_vars );
 use Params::Validate qw(:all);
@@ -329,11 +330,11 @@ sub set_fatal {
 
 1;
 
-
-
-
 __END__
+
 =pod
+
+=encoding UTF-8
 
 =head1 NAME
 
@@ -341,7 +342,7 @@ Provision::Unix::DNS::NicTool - Provision NicTool DNS entries
 
 =head1 VERSION
 
-version 1.06
+version 1.07
 
 =head1 SYNOPSIS
 
@@ -390,10 +391,9 @@ Matt Simerson <msimerson@cpan.org>
 
 =head1 COPYRIGHT AND LICENSE
 
-This software is copyright (c) 2013 by The Network People, Inc..
+This software is copyright (c) 2014 by The Network People, Inc..
 
 This is free software; you can redistribute it and/or modify it under
 the same terms as the Perl 5 programming language system itself.
 
 =cut
-

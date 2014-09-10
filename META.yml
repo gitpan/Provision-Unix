@@ -3,7 +3,6 @@ abstract: 'provision hosting accounts on unix systems'
 author:
   - 'Matt Simerson <msimerson@cpan.org>'
 build_requires:
-  Config: 0
   Dist::Zilla: 1
   Dist::Zilla::Plugin::MinimumPerl: 0.1
   Pod::Coverage::TrustPod: 0.1
@@ -14,7 +13,7 @@ build_requires:
 configure_requires:
   ExtUtils::MakeMaker: 6.30
 dynamic_config: 0
-generated_by: 'Dist::Zilla version 4.300021, CPAN::Meta::Converter version 2.120921'
+generated_by: 'Dist::Zilla version 5.006, CPAN::Meta::Converter version 2.120630'
 license: perl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -48,9 +47,10 @@ requires:
   Time::Local: 0
   URI: 1
   base: 0
+  lib: 0
   perl: 5.006001
   strict: 0
   utf8: 1
   vars: 0
   warnings: 0
-version: 1.06
+version: 1.07
